@@ -1,0 +1,41 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: retail-shop-postgres
+    environment:
+      POSTGRES_DB: retail_shop
+      POSTGRES_USER: retail_user
+      POSTGRES_PASSWORD: retail_pass
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build:
+      context: ./backend
+    container_name: retail-shop-backend
+    depends_on:
+      - postgres
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/retail_shop
+      DB_USERNAME: retail_user
+      DB_PASSWORD: retail_pass
+    ports:
+      - "8084:8080"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: http://localhost:8084/api
+    container_name: retail-shop-frontend
+    depends_on:
+      - backend
+    environment:
+      APP_API_BASE_URL: http://localhost:8084/api
+    ports:
+      - "5176:80"
+
+volumes:
+  postgres_data:

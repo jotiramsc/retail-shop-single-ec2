@@ -1,0 +1,95 @@
+server:
+  port: ${PORT:8080}
+
+spring:
+  application:
+    name: retail-shop-backend
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/retail_shop}
+    username: ${DB_USERNAME:retail_user}
+    password: ${DB_PASSWORD:retail_pass}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: true
+    open-in-view: false
+  sql:
+    init:
+      mode: ${DB_INIT_MODE:always}
+  servlet:
+    multipart:
+      max-file-size: ${UPLOAD_MAX_FILE_SIZE:8MB}
+      max-request-size: ${UPLOAD_MAX_REQUEST_SIZE:10MB}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  health:
+    redis:
+      enabled: ${APP_REDIS_ENABLED:false}
+
+app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174,http://localhost:5176,http://127.0.0.1:5176,http://localhost:15174,http://127.0.0.1:15174,http://localhost:15175,http://127.0.0.1:15175,http://localhost:15176,http://127.0.0.1:15176}
+  low-stock-threshold: 5
+  slow-moving-min-stock: 10
+  slow-moving-max-units-sold: 3
+  aws:
+    region: ${AWS_REGION:us-east-1}
+    s3-bucket: ${AWS_S3_BUCKET:}
+    cloudfront-domain: ${AWS_CLOUDFRONT_DOMAIN:}
+    upload-max-bytes: ${UPLOAD_MAX_BYTES:5242880}
+    access-key-id: ${AWS_ACCESS_KEY_ID:}
+    secret-access-key: ${AWS_SECRET_ACCESS_KEY:}
+    migrate-images-on-start: ${MIGRATE_IMAGES_TO_S3_ON_START:false}
+  customer-auth:
+    jwt-secret: ${CUSTOMER_JWT_SECRET:local-dev-customer-secret-change-me}
+    jwt-ttl-minutes: ${CUSTOMER_JWT_TTL_MINUTES:43200}
+    otp-ttl-minutes: ${OTP_TTL_MINUTES:5}
+    otp-rate-limit-seconds: ${OTP_RATE_LIMIT_SECONDS:30}
+    otp-length: ${OTP_LENGTH:6}
+    otp-max-attempts: ${OTP_MAX_ATTEMPTS:5}
+  msg91:
+    auth-key: ${MSG91_AUTH_KEY:}
+    template-id: ${MSG91_TEMPLATE_ID:}
+    otp-length: ${MSG91_OTP_LENGTH:6}
+  pricing:
+    tax-percent: ${CHECKOUT_TAX_PERCENT:0}
+    delivery-charge: ${CHECKOUT_DELIVERY_CHARGE:0}
+    free-delivery-min-order: ${CHECKOUT_FREE_DELIVERY_MIN_ORDER:0}
+  redis:
+    enabled: ${APP_REDIS_ENABLED:false}
+    otp-key-prefix: ${APP_REDIS_OTP_KEY_PREFIX:retail:otp:}
+    cart-key-prefix: ${APP_REDIS_CART_KEY_PREFIX:retail:cart:}
+    cart-ttl-minutes: ${APP_REDIS_CART_TTL_MINUTES:30}
+  razorpay:
+    key-id: ${RAZORPAY_KEY_ID:}
+    key-secret: ${RAZORPAY_KEY_SECRET:}
+    webhook-secret: ${RAZORPAY_WEBHOOK_SECRET:}
+  phonepe:
+    client-id: ${PHONEPE_CLIENT_ID:}
+    client-secret: ${PHONEPE_CLIENT_SECRET:}
+    client-version: ${PHONEPE_CLIENT_VERSION:1}
+    env: ${PHONEPE_ENV:sandbox}
+    redirect-url: ${PHONEPE_REDIRECT_URL:http://localhost:5176/checkout}
+    webhook-url: ${PHONEPE_WEBHOOK_URL:}
+  twilio:
+    account-sid: ${TWILIO_ACCOUNT_SID:}
+    auth-token: ${TWILIO_AUTH_TOKEN:}
+    verify-service-sid: ${TWILIO_VERIFY_SERVICE_SID:}
+    verify-friendly-name: ${TWILIO_VERIFY_FRIENDLY_NAME:Retail Shop OTP}
+    channel: ${TWILIO_VERIFY_CHANNEL:whatsapp}
+    whatsapp-from: ${TWILIO_WHATSAPP_FROM:}
+    otp-content-sid: ${TWILIO_WHATSAPP_OTP_CONTENT_SID:}
+    order-update-content-sid: ${TWILIO_WHATSAPP_ORDER_CONTENT_SID:}
+    offer-content-sid: ${TWILIO_WHATSAPP_OFFER_CONTENT_SID:}
+  meta:
+    access-token: ${META_ACCESS_TOKEN:}
+    page-id: ${FB_PAGE_ID:}
+    instagram-business-account-id: ${IG_BUSINESS_ACCOUNT_ID:}
+    graph-version: ${META_GRAPH_VERSION:v23.0}

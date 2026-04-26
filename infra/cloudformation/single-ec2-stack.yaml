@@ -1,0 +1,646 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Single-EC2 retail shop stack with persistent EBS-backed Postgres, Secrets Manager, S3 artifacts, and GitHub OIDC deploy role.
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: retail-shop
+    AllowedPattern: '[a-zA-Z0-9-]+'
+  EnvironmentName:
+    Type: String
+    Default: prod
+    AllowedPattern: '[a-zA-Z0-9-]+'
+  AmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64
+  InstanceType:
+    Type: String
+    Default: t4g.medium
+  KeyPairName:
+    Type: String
+    Default: ''
+  PublicAccessCidr:
+    Type: String
+    Default: 0.0.0.0/0
+  SshAccessCidr:
+    Type: String
+    Default: ''
+  VpcCidr:
+    Type: String
+    Default: 10.42.0.0/16
+  PublicSubnetCidr:
+    Type: String
+    Default: 10.42.1.0/24
+  SecondPublicSubnetCidr:
+    Type: String
+    Default: 10.42.2.0/24
+  RootVolumeSize:
+    Type: Number
+    Default: 20
+    MinValue: 16
+  DataVolumeSize:
+    Type: Number
+    Default: 40
+    MinValue: 20
+  PostgresDatabaseName:
+    Type: String
+    Default: retail_shop
+  PostgresDatabaseUser:
+    Type: String
+    Default: retail_user
+  GitHubOwner:
+    Type: String
+    Default: ''
+  GitHubRepo:
+    Type: String
+    Default: ''
+  GitHubBranch:
+    Type: String
+    Default: main
+  ExistingGitHubOidcProviderArn:
+    Type: String
+    Default: ''
+  GitHubOidcThumbprint:
+    Type: String
+    Default: 6938fd4d98bab03faadb97b34396831e3780aea1
+  CorsAllowedOrigins:
+    Type: String
+  CustomerJwtSecret:
+    Type: String
+    NoEcho: true
+  CheckoutTaxPercent:
+    Type: String
+    Default: '0'
+  CheckoutDeliveryCharge:
+    Type: String
+    Default: '0'
+  CheckoutFreeDeliveryMinOrder:
+    Type: String
+    Default: '0'
+  PhonePeClientId:
+    Type: String
+    Default: ''
+    NoEcho: true
+  PhonePeClientSecret:
+    Type: String
+    Default: ''
+    NoEcho: true
+  PhonePeClientVersion:
+    Type: String
+    Default: '1'
+  PhonePeEnv:
+    Type: String
+    Default: sandbox
+  PhonePeRedirectUrl:
+    Type: String
+    Default: ''
+  PhonePeWebhookUrl:
+    Type: String
+    Default: ''
+  TwilioAccountSid:
+    Type: String
+    Default: ''
+    NoEcho: true
+  TwilioAuthToken:
+    Type: String
+    Default: ''
+    NoEcho: true
+  TwilioVerifyServiceSid:
+    Type: String
+    Default: ''
+    NoEcho: true
+  TwilioVerifyChannel:
+    Type: String
+    Default: whatsapp
+  TwilioWhatsAppFrom:
+    Type: String
+    Default: ''
+  TwilioWhatsAppOtpContentSid:
+    Type: String
+    Default: ''
+  TwilioWhatsAppOrderContentSid:
+    Type: String
+    Default: ''
+  TwilioWhatsAppOfferContentSid:
+    Type: String
+    Default: ''
+  MetaAccessToken:
+    Type: String
+    Default: ''
+    NoEcho: true
+  FacebookPageId:
+    Type: String
+    Default: ''
+  InstagramBusinessAccountId:
+    Type: String
+    Default: ''
+  MetaGraphVersion:
+    Type: String
+    Default: v23.0
+  AwsS3Bucket:
+    Type: String
+    Default: ''
+  AwsCloudFrontDomain:
+    Type: String
+    Default: ''
+
+Conditions:
+  HasKeyPair: !Not [!Equals [!Ref KeyPairName, '']]
+  HasSshAccess: !Not [!Equals [!Ref SshAccessCidr, '']]
+  HasGitHubOwner: !Not [!Equals [!Ref GitHubOwner, '']]
+  HasGitHubRepo: !Not [!Equals [!Ref GitHubRepo, '']]
+  EnableGitHubDeploy: !And
+    - !Condition HasGitHubOwner
+    - !Condition HasGitHubRepo
+  HasExistingGitHubOidcProvider: !And
+    - !Condition EnableGitHubDeploy
+    - !Not [!Equals [!Ref ExistingGitHubOidcProviderArn, '']]
+  CreateGitHubOidcProvider: !And
+    - !Condition EnableGitHubDeploy
+    - !Equals [!Ref ExistingGitHubOidcProviderArn, '']
+
+Resources:
+  RetailVpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCidr
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-${EnvironmentName}-vpc
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-${EnvironmentName}-igw
+
+  VpcGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref RetailVpc
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref RetailVpc
+      CidrBlock: !Ref PublicSubnetCidr
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-${EnvironmentName}-public-subnet
+
+  SecondPublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref RetailVpc
+      CidrBlock: !Ref SecondPublicSubnetCidr
+      AvailabilityZone: !Select [1, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-${EnvironmentName}-public-subnet-2
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref RetailVpc
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-${EnvironmentName}-public-rt
+
+  DefaultPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: VpcGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet
+
+  SecondPublicSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref SecondPublicSubnet
+
+  LoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Public HTTP access for the retail shop ALB
+      VpcId: !Ref RetailVpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: !Ref PublicAccessCidr
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-${EnvironmentName}-alb-sg
+
+  AppSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Public web access for the retail single-host app
+      GroupName: !Sub ${ProjectName}-${EnvironmentName}-sg
+      VpcId: !Ref RetailVpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: !Ref PublicAccessCidr
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: !Ref PublicAccessCidr
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-${EnvironmentName}-sg
+
+  AppSecurityGroupSshIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Condition: HasSshAccess
+    Properties:
+      GroupId: !Ref AppSecurityGroup
+      IpProtocol: tcp
+      FromPort: 22
+      ToPort: 22
+      CidrIp: !Ref SshAccessCidr
+
+  PublicLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub ${ProjectName}-${EnvironmentName}-alb
+      Scheme: internet-facing
+      Type: application
+      SecurityGroups:
+        - !Ref LoadBalancerSecurityGroup
+      Subnets:
+        - !Ref PublicSubnet
+        - !Ref SecondPublicSubnet
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-${EnvironmentName}-alb
+
+  LoadBalancerTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub ${ProjectName}-${EnvironmentName}-tg
+      Port: 80
+      Protocol: HTTP
+      TargetType: instance
+      VpcId: !Ref RetailVpc
+      HealthCheckEnabled: true
+      HealthCheckPath: /actuator/health
+      HealthCheckProtocol: HTTP
+      Matcher:
+        HttpCode: 200
+      Targets:
+        - Id: !Ref RetailEc2Instance
+          Port: 80
+
+  LoadBalancerListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref LoadBalancerTargetGroup
+      LoadBalancerArn: !Ref PublicLoadBalancer
+      Port: 80
+      Protocol: HTTP
+
+  ArtifactBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-${EnvironmentName}-artifacts
+
+  ArtifactBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ArtifactBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: '*'
+            Action: s3:*
+            Resource:
+              - !Sub arn:aws:s3:::${ArtifactBucket}
+              - !Sub arn:aws:s3:::${ArtifactBucket}/*
+            Condition:
+              Bool:
+                aws:SecureTransport: false
+
+  AppConfigSecret:
+    Type: AWS::SecretsManager::Secret
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Name: !Sub ${ProjectName}/${EnvironmentName}/app-config
+      Description: Application environment values for the single-host retail app
+      SecretString: !Sub |
+        {
+          "PORT":"8080",
+          "SPRING_PROFILES_ACTIVE":"prod",
+          "DB_INIT_MODE":"never",
+          "CORS_ALLOWED_ORIGINS":"${CorsAllowedOrigins}",
+          "CUSTOMER_JWT_SECRET":"${CustomerJwtSecret}",
+          "CHECKOUT_TAX_PERCENT":"${CheckoutTaxPercent}",
+          "CHECKOUT_DELIVERY_CHARGE":"${CheckoutDeliveryCharge}",
+          "CHECKOUT_FREE_DELIVERY_MIN_ORDER":"${CheckoutFreeDeliveryMinOrder}",
+          "PHONEPE_CLIENT_ID":"${PhonePeClientId}",
+          "PHONEPE_CLIENT_SECRET":"${PhonePeClientSecret}",
+          "PHONEPE_CLIENT_VERSION":"${PhonePeClientVersion}",
+          "PHONEPE_ENV":"${PhonePeEnv}",
+          "PHONEPE_REDIRECT_URL":"${PhonePeRedirectUrl}",
+          "PHONEPE_WEBHOOK_URL":"${PhonePeWebhookUrl}",
+          "TWILIO_ACCOUNT_SID":"${TwilioAccountSid}",
+          "TWILIO_AUTH_TOKEN":"${TwilioAuthToken}",
+          "TWILIO_VERIFY_SERVICE_SID":"${TwilioVerifyServiceSid}",
+          "TWILIO_VERIFY_CHANNEL":"${TwilioVerifyChannel}",
+          "TWILIO_WHATSAPP_FROM":"${TwilioWhatsAppFrom}",
+          "TWILIO_WHATSAPP_OTP_CONTENT_SID":"${TwilioWhatsAppOtpContentSid}",
+          "TWILIO_WHATSAPP_ORDER_CONTENT_SID":"${TwilioWhatsAppOrderContentSid}",
+          "TWILIO_WHATSAPP_OFFER_CONTENT_SID":"${TwilioWhatsAppOfferContentSid}",
+          "META_ACCESS_TOKEN":"${MetaAccessToken}",
+          "FB_PAGE_ID":"${FacebookPageId}",
+          "IG_BUSINESS_ACCOUNT_ID":"${InstagramBusinessAccountId}",
+          "META_GRAPH_VERSION":"${MetaGraphVersion}",
+          "AWS_REGION":"${AWS::Region}",
+          "AWS_S3_BUCKET":"${AwsS3Bucket}",
+          "AWS_CLOUDFRONT_DOMAIN":"${AwsCloudFrontDomain}"
+        }
+
+  DatabaseSecret:
+    Type: AWS::SecretsManager::Secret
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Name: !Sub ${ProjectName}/${EnvironmentName}/postgres
+      Description: Local postgres credentials for the single-host retail app
+      GenerateSecretString:
+        SecretStringTemplate: !Sub '{"POSTGRES_DB":"${PostgresDatabaseName}","POSTGRES_USER":"${PostgresDatabaseUser}"}'
+        GenerateStringKey: POSTGRES_PASSWORD
+        ExcludePunctuation: true
+        IncludeSpace: false
+        PasswordLength: 24
+
+  GitHubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Condition: CreateGitHubOidcProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList:
+        - sts.amazonaws.com
+      ThumbprintList:
+        - !Ref GitHubOidcThumbprint
+
+  Ec2InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${ProjectName}-${EnvironmentName}-ec2-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: !Sub ${ProjectName}-${EnvironmentName}-instance-access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub arn:aws:s3:::${ArtifactBucket}
+                  - !Sub arn:aws:s3:::${ArtifactBucket}/*
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                  - secretsmanager:DescribeSecret
+                Resource:
+                  - !Ref AppConfigSecret
+                  - !Ref DatabaseSecret
+
+  Ec2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref Ec2InstanceRole
+
+  GitHubDeployRole:
+    Type: AWS::IAM::Role
+    Condition: EnableGitHubDeploy
+    Properties:
+      RoleName: !Sub ${ProjectName}-${EnvironmentName}-github-deploy-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !If
+                - HasExistingGitHubOidcProvider
+                - !Ref ExistingGitHubOidcProviderArn
+                - !Ref GitHubOidcProvider
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+              StringLike:
+                token.actions.githubusercontent.com:sub: !Sub repo:${GitHubOwner}/${GitHubRepo}:ref:refs/heads/${GitHubBranch}
+      Policies:
+        - PolicyName: !Sub ${ProjectName}-${EnvironmentName}-github-deploy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudformation:DescribeStacks
+                Resource: !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${AWS::StackName}/*
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub arn:aws:s3:::${ArtifactBucket}
+                  - !Sub arn:aws:s3:::${ArtifactBucket}/*
+              - Effect: Allow
+                Action:
+                  - ssm:SendCommand
+                Resource:
+                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/${RetailEc2Instance}
+                  - !Sub arn:aws:ssm:${AWS::Region}::document/AWS-RunShellScript
+              - Effect: Allow
+                Action:
+                  - ssm:GetCommandInvocation
+                  - ssm:ListCommandInvocations
+                  - ssm:ListCommands
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - ec2:DescribeInstances
+                Resource: '*'
+
+  RetailEc2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref AmiId
+      InstanceType: !Ref InstanceType
+      IamInstanceProfile: !Ref Ec2InstanceProfile
+      KeyName: !If [HasKeyPair, !Ref KeyPairName, !Ref AWS::NoValue]
+      Monitoring: true
+      DisableApiTermination: true
+      SubnetId: !Ref PublicSubnet
+      SecurityGroupIds:
+        - !Ref AppSecurityGroup
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            DeleteOnTermination: true
+            Encrypted: true
+            VolumeType: gp3
+            VolumeSize: !Ref RootVolumeSize
+      MetadataOptions:
+        HttpEndpoint: enabled
+        HttpTokens: required
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-${EnvironmentName}-ec2
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          set -euxo pipefail
+
+          dnf update -y
+          dnf install -y docker jq git tar gzip curl
+          systemctl enable --now docker
+          usermod -aG docker ec2-user || true
+
+          DATA_DEVICE=""
+          if [ -b /dev/nvme1n1 ]; then
+            DATA_DEVICE=/dev/nvme1n1
+          elif [ -b /dev/xvdf ]; then
+            DATA_DEVICE=/dev/xvdf
+          elif [ -b /dev/xvdb ]; then
+            DATA_DEVICE=/dev/xvdb
+          fi
+
+          mkdir -p /mnt/retail-data
+          if [ -n "$DATA_DEVICE" ]; then
+            if ! blkid "$DATA_DEVICE" >/dev/null 2>&1; then
+              mkfs -t ext4 "$DATA_DEVICE"
+            fi
+
+            UUID=$(blkid -s UUID -o value "$DATA_DEVICE")
+            grep -q "$UUID" /etc/fstab || echo "UUID=$UUID /mnt/retail-data ext4 defaults,nofail 0 2" >> /etc/fstab
+            mount -a
+          fi
+
+          mkdir -p /mnt/retail-data/postgres /mnt/retail-data/backups /opt/retail-shop/releases /opt/retail-shop/bin
+          chown -R 999:999 /mnt/retail-data/postgres
+          docker network inspect retail-shop-net >/dev/null 2>&1 || docker network create retail-shop-net
+
+  DataVolume:
+    Type: AWS::EC2::Volume
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      AvailabilityZone: !GetAtt RetailEc2Instance.AvailabilityZone
+      Encrypted: true
+      Size: !Ref DataVolumeSize
+      VolumeType: gp3
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-${EnvironmentName}-data
+
+  DataVolumeAttachment:
+    Type: AWS::EC2::VolumeAttachment
+    Properties:
+      Device: /dev/xvdf
+      InstanceId: !Ref RetailEc2Instance
+      VolumeId: !Ref DataVolume
+
+  ElasticIp:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-${EnvironmentName}-eip
+
+  ElasticIpAssociation:
+    Type: AWS::EC2::EIPAssociation
+    Properties:
+      AllocationId: !GetAtt ElasticIp.AllocationId
+      InstanceId: !Ref RetailEc2Instance
+
+Outputs:
+  StackName:
+    Value: !Ref AWS::StackName
+  Region:
+    Value: !Ref AWS::Region
+  InstanceId:
+    Value: !Ref RetailEc2Instance
+  InstancePublicIp:
+    Value: !Ref ElasticIp
+  InstancePublicDns:
+    Value: !GetAtt RetailEc2Instance.PublicDnsName
+  ArtifactBucketName:
+    Value: !Ref ArtifactBucket
+  AppConfigSecretArn:
+    Value: !Ref AppConfigSecret
+  DatabaseSecretArn:
+    Value: !Ref DatabaseSecret
+  GitHubDeployRoleArn:
+    Condition: EnableGitHubDeploy
+    Value: !GetAtt GitHubDeployRole.Arn
+  VpcId:
+    Value: !Ref RetailVpc
+  PublicSubnetId:
+    Value: !Ref PublicSubnet
+  SecondPublicSubnetId:
+    Value: !Ref SecondPublicSubnet
+  LoadBalancerDnsName:
+    Value: !GetAtt PublicLoadBalancer.DNSName
+  LoadBalancerHostedZoneId:
+    Value: !GetAtt PublicLoadBalancer.CanonicalHostedZoneID
+  LoadBalancerUrl:
+    Value: !Sub http://${PublicLoadBalancer.DNSName}

@@ -1,0 +1,9 @@
+backend/target/
+frontend/dist/
+frontend/node_modules/
+.idea/
+.DS_Store
+.env
+backend/.local-db/
+backend/app.jar
+.deploy/*.zip

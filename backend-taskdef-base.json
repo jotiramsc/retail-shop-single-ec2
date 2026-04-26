@@ -1,0 +1,114 @@
+{
+    "taskDefinitionArn": "arn:aws:ecs:us-east-1:037227595452:task-definition/retail-shop-cluster-retail-shop-backend-ecs:9",
+    "containerDefinitions": [
+        {
+            "name": "Main",
+            "image": "037227595452.dkr.ecr.us-east-1.amazonaws.com/retail-shop-backend:release-20260424-105036",
+            "cpu": 1024,
+            "memoryReservation": 2048,
+            "portMappings": [
+                {
+                    "containerPort": 8080,
+                    "hostPort": 8080,
+                    "protocol": "tcp"
+                }
+            ],
+            "essential": true,
+            "environment": [
+                {
+                    "name": "CORS_ALLOWED_ORIGINS",
+                    "value": "https://re-c707b3749a3f4b48bff1e483fe6128a6.ecs.us-east-1.on.aws"
+                },
+                {
+                    "name": "AWS_REGION",
+                    "value": "us-east-1"
+                },
+                {
+                    "name": "DB_USERNAME",
+                    "value": "retailadmin"
+                },
+                {
+                    "name": "AWS_S3_BUCKET",
+                    "value": "cosmetic-shop-videos1"
+                },
+                {
+                    "name": "DB_URL",
+                    "value": "jdbc:postgresql://retail-shop-postgres-db.cul12xb4xnxw.us-east-1.rds.amazonaws.com:5432/retailshop"
+                },
+                {
+                    "name": "DB_PASSWORD",
+                    "value": "ypZcQ36SdMrkLhKxDTmU6em2"
+                },
+                {
+                    "name": "AWS_CLOUDFRONT_DOMAIN",
+                    "value": "djsp4ltryv78n.cloudfront.net"
+                }
+            ],
+            "mountPoints": [],
+            "volumesFrom": [],
+            "secrets": [],
+            "logConfiguration": {
+                "logDriver": "awslogs",
+                "options": {
+                    "awslogs-group": "/aws/ecs/retail-shop-cluster/retail-shop-backend-ecs-b3d8",
+                    "awslogs-region": "us-east-1",
+                    "awslogs-stream-prefix": "ecs"
+                }
+            },
+            "systemControls": []
+        }
+    ],
+    "family": "retail-shop-cluster-retail-shop-backend-ecs",
+    "taskRoleArn": "arn:aws:iam::037227595452:role/retail-shop-ecs-s3-upload-task-role",
+    "executionRoleArn": "arn:aws:iam::037227595452:role/retail-shop-ecs-task-execution-role",
+    "networkMode": "awsvpc",
+    "revision": 9,
+    "volumes": [],
+    "status": "ACTIVE",
+    "requiresAttributes": [
+        {
+            "name": "com.amazonaws.ecs.capability.logging-driver.awslogs"
+        },
+        {
+            "name": "ecs.capability.execution-role-awslogs"
+        },
+        {
+            "name": "com.amazonaws.ecs.capability.ecr-auth"
+        },
+        {
+            "name": "com.amazonaws.ecs.capability.docker-remote-api.1.19"
+        },
+        {
+            "name": "com.amazonaws.ecs.capability.docker-remote-api.1.21"
+        },
+        {
+            "name": "com.amazonaws.ecs.capability.task-iam-role"
+        },
+        {
+            "name": "ecs.capability.execution-role-ecr-pull"
+        },
+        {
+            "name": "com.amazonaws.ecs.capability.docker-remote-api.1.18"
+        },
+        {
+            "name": "ecs.capability.task-eni"
+        }
+    ],
+    "placementConstraints": [],
+    "compatibilities": [
+        "EC2",
+        "MANAGED_INSTANCES",
+        "FARGATE"
+    ],
+    "runtimePlatform": {
+        "cpuArchitecture": "X86_64",
+        "operatingSystemFamily": "LINUX"
+    },
+    "requiresCompatibilities": [
+        "FARGATE"
+    ],
+    "cpu": "1024",
+    "memory": "2048",
+    "registeredAt": "2026-04-24T11:09:17.537000+05:30",
+    "registeredBy": "arn:aws:iam::037227595452:root"
+}

@@ -1,0 +1,142 @@
+name: Deploy Single EC2
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      STACK_NAME: ${{ vars.SINGLE_EC2_STACK_NAME }}
+      ROLE_TO_ASSUME: ${{ vars.AWS_GITHUB_DEPLOY_ROLE_ARN }}
+    steps:
+      - name: Check required GitHub variables
+        run: |
+          test -n "$AWS_REGION"
+          test -n "$STACK_NAME"
+          test -n "$ROLE_TO_ASSUME"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Read stack outputs
+        id: stack
+        run: |
+          STACK_JSON="$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" --region "$AWS_REGION")"
+          ARTIFACT_BUCKET="$(printf '%s' "$STACK_JSON" | jq -r '.Stacks[0].Outputs[] | select(.OutputKey=="ArtifactBucketName") | .OutputValue')"
+          INSTANCE_ID="$(printf '%s' "$STACK_JSON" | jq -r '.Stacks[0].Outputs[] | select(.OutputKey=="InstanceId") | .OutputValue')"
+          APP_SECRET_ARN="$(printf '%s' "$STACK_JSON" | jq -r '.Stacks[0].Outputs[] | select(.OutputKey=="AppConfigSecretArn") | .OutputValue')"
+          DB_SECRET_ARN="$(printf '%s' "$STACK_JSON" | jq -r '.Stacks[0].Outputs[] | select(.OutputKey=="DatabaseSecretArn") | .OutputValue')"
+
+          {
+            echo "artifact_bucket=$ARTIFACT_BUCKET"
+            echo "instance_id=$INSTANCE_ID"
+            echo "app_secret_arn=$APP_SECRET_ARN"
+            echo "db_secret_arn=$DB_SECRET_ARN"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Package release bundle
+        run: |
+          tar \
+            --exclude-vcs \
+            --exclude='./backend/target' \
+            --exclude='./frontend/node_modules' \
+            --exclude='./frontend/dist' \
+            --exclude='./glowjewels/node_modules' \
+            -czf release.tar.gz .
+
+      - name: Upload bundle to artifact bucket
+        id: upload
+        run: |
+          ARTIFACT_KEY="releases/${GITHUB_SHA}/release.tar.gz"
+          aws s3 cp release.tar.gz "s3://${{ steps.stack.outputs.artifact_bucket }}/$ARTIFACT_KEY" --region "$AWS_REGION"
+          echo "artifact_uri=s3://${{ steps.stack.outputs.artifact_bucket }}/$ARTIFACT_KEY" >> "$GITHUB_OUTPUT"
+
+      - name: Send deploy command to EC2 over SSM
+        id: ssm
+        run: |
+          jq -n \
+            --arg artifact_uri "${{ steps.upload.outputs.artifact_uri }}" \
+            --arg release_sha "${GITHUB_SHA}" \
+            --arg app_secret_arn "${{ steps.stack.outputs.app_secret_arn }}" \
+            --arg db_secret_arn "${{ steps.stack.outputs.db_secret_arn }}" \
+            '{
+              commands: [
+                "set -euo pipefail",
+                "mkdir -p /opt/retail-shop/releases",
+                "RELEASE_DIR=/opt/retail-shop/releases/\($release_sha)",
+                "rm -rf \"$RELEASE_DIR\"",
+                "mkdir -p \"$RELEASE_DIR\"",
+                "aws s3 cp \($artifact_uri) /tmp/retail-shop-release.tar.gz",
+                "tar -xzf /tmp/retail-shop-release.tar.gz -C \"$RELEASE_DIR\"",
+                "chmod +x \"$RELEASE_DIR\"/scripts/ec2/*.sh \"$RELEASE_DIR\"/scripts/cloudformation/*.sh || true",
+                "\"$RELEASE_DIR\"/scripts/ec2/deploy-from-bundle.sh \"$RELEASE_DIR\" \($app_secret_arn) \($db_secret_arn)"
+              ]
+            }' > ssm-parameters.json
+
+          COMMAND_ID="$(aws ssm send-command \
+            --region "$AWS_REGION" \
+            --instance-ids "${{ steps.stack.outputs.instance_id }}" \
+            --document-name AWS-RunShellScript \
+            --comment "Deploy retail shop release ${GITHUB_SHA}" \
+            --parameters file://ssm-parameters.json \
+            --query 'Command.CommandId' \
+            --output text)"
+
+          echo "command_id=$COMMAND_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for remote deploy
+        run: |
+          ATTEMPTS=0
+          while true; do
+            STATUS="$(aws ssm get-command-invocation \
+              --region "$AWS_REGION" \
+              --command-id "${{ steps.ssm.outputs.command_id }}" \
+              --instance-id "${{ steps.stack.outputs.instance_id }}" \
+              --query 'Status' \
+              --output text)"
+
+            echo "Current status: $STATUS"
+
+            case "$STATUS" in
+              Success)
+                aws ssm get-command-invocation \
+                  --region "$AWS_REGION" \
+                  --command-id "${{ steps.ssm.outputs.command_id }}" \
+                  --instance-id "${{ steps.stack.outputs.instance_id }}" \
+                  --query 'StandardOutputContent' \
+                  --output text
+                exit 0
+                ;;
+              Failed|Cancelled|TimedOut|Cancelling)
+                aws ssm get-command-invocation \
+                  --region "$AWS_REGION" \
+                  --command-id "${{ steps.ssm.outputs.command_id }}" \
+                  --instance-id "${{ steps.stack.outputs.instance_id }}" \
+                  --query '[StandardOutputContent,StandardErrorContent]' \
+                  --output text
+                exit 1
+                ;;
+            esac
+
+            ATTEMPTS=$((ATTEMPTS + 1))
+            if [ "$ATTEMPTS" -ge 90 ]; then
+              echo "Timed out waiting for SSM deployment"
+              exit 1
+            fi
+            sleep 10
+          done

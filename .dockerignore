@@ -1,0 +1,16 @@
+.git
+.gitignore
+.DS_Store
+**/.DS_Store
+**/node_modules
+**/dist
+**/target
+**/.local-db
+**/.idea
+**/.vscode
+docs
+glowjewels
+backend-taskdef-base.json
+backend-taskdef-register.json
+frontend-taskdef-base.json
+frontend-taskdef-register.json
