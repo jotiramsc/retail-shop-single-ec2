@@ -68,7 +68,7 @@ cp infra/cloudformation/single-ec2-stack.parameters.example.json /tmp/retail-sin
 
 ## GitHub repository settings
 
-Add these **repository variables**:
+These **repository variables** are optional overrides. The workflow now has built-in defaults for the current live stack, so push deploy works even before you add them:
 
 - `AWS_REGION`
 - `SINGLE_EC2_STACK_NAME`

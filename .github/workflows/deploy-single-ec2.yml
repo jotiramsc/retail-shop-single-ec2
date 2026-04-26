@@ -14,15 +14,17 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     env:
-      AWS_REGION: ${{ vars.AWS_REGION }}
-      STACK_NAME: ${{ vars.SINGLE_EC2_STACK_NAME }}
-      ROLE_TO_ASSUME: ${{ vars.AWS_GITHUB_DEPLOY_ROLE_ARN }}
+      AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+      STACK_NAME: ${{ vars.SINGLE_EC2_STACK_NAME || 'retail-shop-single-ec2' }}
+      ROLE_TO_ASSUME: ${{ vars.AWS_GITHUB_DEPLOY_ROLE_ARN || 'arn:aws:iam::037227595452:role/retail-shop-single-github-deploy-role' }}
     steps:
-      - name: Check required GitHub variables
+      - name: Show deploy configuration
         run: |
           test -n "$AWS_REGION"
           test -n "$STACK_NAME"
           test -n "$ROLE_TO_ASSUME"
+          echo "AWS_REGION=$AWS_REGION"
+          echo "STACK_NAME=$STACK_NAME"
 
       - name: Checkout
         uses: actions/checkout@v4
