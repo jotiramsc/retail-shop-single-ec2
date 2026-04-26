@@ -53,19 +53,21 @@ jobs:
 
       - name: Package release bundle
         run: |
+          RELEASE_ARCHIVE="/tmp/retail-shop-release-${GITHUB_SHA}.tar.gz"
           tar \
             --exclude-vcs \
             --exclude='./backend/target' \
             --exclude='./frontend/node_modules' \
             --exclude='./frontend/dist' \
             --exclude='./glowjewels/node_modules' \
-            -czf release.tar.gz .
+            -czf "$RELEASE_ARCHIVE" .
+          echo "RELEASE_ARCHIVE=$RELEASE_ARCHIVE" >> "$GITHUB_ENV"
 
       - name: Upload bundle to artifact bucket
         id: upload
         run: |
           ARTIFACT_KEY="releases/${GITHUB_SHA}/release.tar.gz"
-          aws s3 cp release.tar.gz "s3://${{ steps.stack.outputs.artifact_bucket }}/$ARTIFACT_KEY" --region "$AWS_REGION"
+          aws s3 cp "$RELEASE_ARCHIVE" "s3://${{ steps.stack.outputs.artifact_bucket }}/$ARTIFACT_KEY" --region "$AWS_REGION"
           echo "artifact_uri=s3://${{ steps.stack.outputs.artifact_bucket }}/$ARTIFACT_KEY" >> "$GITHUB_OUTPUT"
 
       - name: Send deploy command to EC2 over SSM
