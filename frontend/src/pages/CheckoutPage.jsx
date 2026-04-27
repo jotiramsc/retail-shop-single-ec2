@@ -693,7 +693,7 @@ export default function CheckoutPage() {
                 {placingOrder ? 'Opening payment...' : 'Pay and place order'}
               </button>
               <small className="customer-helper-copy">
-                PhonePe needs a secure checkout URL. Local environments still fall back safely for test checkout, while live payments should run on an HTTPS address.
+                PhonePe opens when the gateway is configured. Local environments still fall back safely for test checkout.
               </small>
             </aside>
           </div>

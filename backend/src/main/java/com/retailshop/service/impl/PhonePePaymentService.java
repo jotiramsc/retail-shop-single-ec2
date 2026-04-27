@@ -56,7 +56,7 @@ public class PhonePePaymentService implements PaymentService {
             String accessToken = fetchAccessToken();
             String redirectUrl = resolveRedirectUrl(requestedRedirectUrl, merchantOrderId);
             if (redirectUrl == null) {
-                throw new BusinessException("PhonePe checkout needs an HTTPS checkout URL. Configure PHONEPE_REDIRECT_URL or open the secure site before paying.");
+                throw new BusinessException("PhonePe checkout needs a valid absolute checkout URL. Configure PHONEPE_REDIRECT_URL or open the site from its public address before paying.");
             }
             String callbackUrl = resolveCallbackUrl();
             String payload = objectMapper.writeValueAsString(Map.of(
@@ -273,7 +273,7 @@ public class PhonePePaymentService implements PaymentService {
 
     private String resolveCallbackUrl() {
         String callbackUrl = sanitizeUrl(appProperties.getPhonepe().getWebhookUrl());
-        return isPublicHttpsUrl(callbackUrl) ? callbackUrl : null;
+        return isAllowedRedirectUrl(callbackUrl) ? callbackUrl : null;
     }
 
     private String sanitizeUrl(String value) {
@@ -285,23 +285,14 @@ public class PhonePePaymentService implements PaymentService {
     }
 
     private boolean isAllowedRedirectUrl(String value) {
-        return isPublicHttpsUrl(value) || isLocalDevHttpUrl(value);
+        return isAbsoluteHttpUrl(value);
     }
 
-    private boolean isPublicHttpsUrl(String value) {
+    private boolean isAbsoluteHttpUrl(String value) {
         URI uri = parseUri(value);
         return uri != null
-                && "https".equalsIgnoreCase(uri.getScheme())
+                && ("https".equalsIgnoreCase(uri.getScheme()) || "http".equalsIgnoreCase(uri.getScheme()))
                 && !isBlank(uri.getHost());
-    }
-
-    private boolean isLocalDevHttpUrl(String value) {
-        URI uri = parseUri(value);
-        if (uri == null || !"http".equalsIgnoreCase(uri.getScheme())) {
-            return false;
-        }
-        String host = uri.getHost();
-        return "localhost".equalsIgnoreCase(host) || "127.0.0.1".equals(host);
     }
 
     private URI parseUri(String value) {

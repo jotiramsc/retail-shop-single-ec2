@@ -25,7 +25,7 @@ class PhonePePaymentServiceTest {
     }
 
     @Test
-    void shouldRejectConfiguredPhonePeCheckoutWithoutSecureRedirectUrl() {
+    void shouldSurfaceAuthenticationFailureForInvalidConfiguredPhonePeCredentials() {
         AppProperties properties = new AppProperties();
         properties.getPhonepe().setClientId("client-id");
         properties.getPhonepe().setClientSecret("client-secret");
@@ -38,6 +38,9 @@ class PhonePePaymentServiceTest {
                 () -> service.createPaymentOrder(BigDecimal.TEN, "chk-2", "http://retail-shop-single-alb.example.com/checkout")
         );
 
-        assertFalse(exception.getMessage() == null || exception.getMessage().isBlank());
+        assertEquals(
+                "PhonePe authentication failed. Check the client id, client secret, environment, and client version configured on the server.",
+                exception.getMessage()
+        );
     }
 }
