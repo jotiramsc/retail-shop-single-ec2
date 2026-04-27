@@ -221,56 +221,7 @@ export default function ReportsPage() {
         eyebrow="Reports"
         title="Sales and replenishment dashboard"
         description="Track today’s sales performance and quickly see which products need restocking attention."
-        actions={(
-          <div className="page-actions">
-            <div className="search-box-wrap report-filter-search">
-              <input
-                placeholder="Search customer"
-                value={customerFilter}
-                onChange={(e) => setCustomerFilter(e.target.value)}
-                onFocus={() => setCustomerSearchFocused(true)}
-                onBlur={() => window.setTimeout(() => setCustomerSearchFocused(false), 120)}
-                autoComplete="off"
-              />
-              {customerSearchFocused && customerSuggestions.length ? (
-                <div className="autocomplete-menu">
-                  {customerSuggestions.map((customer) => (
-                    <button
-                      key={customer.id}
-                      type="button"
-                      className="autocomplete-item"
-                      onClick={() => {
-                        setCustomerFilter(customer.name);
-                        setCustomerSearchFocused(false);
-                      }}
-                    >
-                      <strong>{customer.name}</strong>
-                      <span>{customer.mobile}</span>
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-            <label className="date-field">
-              <span>From</span>
-              <input
-                type="date"
-                max={today}
-                value={reportFromDate}
-                onChange={(e) => setReportFromDate(e.target.value)}
-              />
-            </label>
-          </div>
-        )}
       />
-
-      {error ? <p className="error-text">{error}</p> : null}
-
-      <div className="metric-grid">
-        <MetricCard label="Orders In Range" value={daily?.invoiceCount || 0} />
-        <MetricCard label="Sales Total" value={currency(daily?.totalSales)} tone="accent" />
-        <MetricCard label="Discount Given" value={currency(daily?.totalDiscount)} />
-      </div>
 
       <div className="report-tabs" role="tablist" aria-label="Report sections">
         <button
@@ -409,6 +360,54 @@ export default function ReportsPage() {
         </Panel>
       ) : (
         <>
+          <div className="page-actions report-dashboard-toolbar">
+            <div className="search-box-wrap report-filter-search">
+              <input
+                placeholder="Search customer"
+                value={customerFilter}
+                onChange={(e) => setCustomerFilter(e.target.value)}
+                onFocus={() => setCustomerSearchFocused(true)}
+                onBlur={() => window.setTimeout(() => setCustomerSearchFocused(false), 120)}
+                autoComplete="off"
+              />
+              {customerSearchFocused && customerSuggestions.length ? (
+                <div className="autocomplete-menu">
+                  {customerSuggestions.map((customer) => (
+                    <button
+                      key={customer.id}
+                      type="button"
+                      className="autocomplete-item"
+                      onClick={() => {
+                        setCustomerFilter(customer.name);
+                        setCustomerSearchFocused(false);
+                      }}
+                    >
+                      <strong>{customer.name}</strong>
+                      <span>{customer.mobile}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+            <label className="date-field">
+              <span>From</span>
+              <input
+                type="date"
+                max={today}
+                value={reportFromDate}
+                onChange={(e) => setReportFromDate(e.target.value)}
+              />
+            </label>
+          </div>
+
+          {error ? <p className="error-text">{error}</p> : null}
+
+          <div className="metric-grid">
+            <MetricCard label="Orders In Range" value={daily?.invoiceCount || 0} />
+            <MetricCard label="Sales Total" value={currency(daily?.totalSales)} tone="accent" />
+            <MetricCard label="Discount Given" value={currency(daily?.totalDiscount)} />
+          </div>
+
           <Panel title="Low stock products" subtitle="These items are at or below the operational threshold.">
             <DataTable
               columns={[

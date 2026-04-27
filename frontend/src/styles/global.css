@@ -962,6 +962,10 @@ code {
   box-shadow: 0 14px 32px rgba(71, 52, 35, 0.08);
 }
 
+.report-dashboard-toolbar {
+  margin-top: 0.35rem;
+}
+
 .report-builder-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
