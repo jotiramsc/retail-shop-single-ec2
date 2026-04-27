@@ -30,6 +30,9 @@ public class ProductRequest {
     @DecimalMin("0.0")
     private BigDecimal sellingPrice;
 
+    @DecimalMin("0.0")
+    private BigDecimal websitePricePercentage;
+
     @NotNull
     @Min(0)
     private Integer quantity;

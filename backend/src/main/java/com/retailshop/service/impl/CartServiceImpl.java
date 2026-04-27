@@ -148,14 +148,15 @@ public class CartServiceImpl implements CartService {
     private CartResponse mapCart(Cart cart) {
         var items = cart.getItems().stream().map(item -> {
             Product product = item.getProduct();
-            BigDecimal lineTotal = product.getSellingPrice().multiply(BigDecimal.valueOf(item.getQuantity()));
+            BigDecimal unitPrice = product.getResolvedWebsitePrice();
+            BigDecimal lineTotal = unitPrice.multiply(BigDecimal.valueOf(item.getQuantity()));
             return CartItemResponse.builder()
                     .productId(product.getId())
                     .name(product.getName())
                     .sku(product.getSku())
                     .category(product.getCategory())
                     .imageDataUrl(product.getImageDataUrl())
-                    .price(product.getSellingPrice())
+                    .price(unitPrice)
                     .quantity(item.getQuantity())
                     .stockAvailable(product.getQuantity())
                     .lineTotal(lineTotal)

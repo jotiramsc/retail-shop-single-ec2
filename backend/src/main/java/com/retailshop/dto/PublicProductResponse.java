@@ -15,6 +15,8 @@ public class PublicProductResponse {
     private String sku;
     private BigDecimal sellingPrice;
     private Integer quantity;
+    private Boolean inStock;
+    private String stockLabel;
     private String imageDataUrl;
     private Boolean showInEditorsPicks;
     private Boolean showInNewRelease;

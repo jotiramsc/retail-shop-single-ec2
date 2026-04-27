@@ -12,6 +12,8 @@ const createBlankProduct = (defaultCategory = '') => ({
   sku: '',
   costPrice: '',
   sellingPrice: '',
+  websitePricePercentage: '',
+  websitePrice: '',
   quantity: '',
   lowStockThreshold: '5',
   imageDataUrl: '',
@@ -83,6 +85,17 @@ export default function ProductsPage() {
   }, [defaultCategoryCode, form.category]);
 
   const products = productsPage.items || [];
+  const computedWebsitePrice = useMemo(() => {
+    const shopPrice = Number(form.sellingPrice || 0);
+    const websitePricePercentage = Number(form.websitePricePercentage || 0);
+    if (!shopPrice) {
+      return '';
+    }
+    if (!websitePricePercentage) {
+      return shopPrice.toFixed(2);
+    }
+    return (shopPrice + (shopPrice * websitePricePercentage / 100)).toFixed(2);
+  }, [form.sellingPrice, form.websitePricePercentage]);
 
   const resetForm = () => {
     setForm(createBlankProduct(defaultCategoryCode));
@@ -108,6 +121,8 @@ export default function ProductsPage() {
       sku: product.sku,
       costPrice: product.costPrice,
       sellingPrice: product.sellingPrice,
+      websitePricePercentage: product.websitePricePercentage ?? '',
+      websitePrice: product.websitePrice ?? '',
       quantity: mode === 'restock' ? '' : product.quantity,
       lowStockThreshold: product.lowStockThreshold,
       imageDataUrl: product.imageDataUrl || '',
@@ -158,25 +173,26 @@ export default function ProductsPage() {
     setError('');
     setSuccess('');
     if (Number(form.sellingPrice) < Number(form.costPrice)) {
-      setError('Selling price cannot be lower than cost price.');
+      setError('Shop price cannot be lower than cost price.');
       return;
     }
+    const payload = {
+      ...form,
+      websitePricePercentage: Number(form.websitePricePercentage || 0) > 0 ? Number(form.websitePricePercentage) : null,
+      quantity: Number(form.quantity),
+      lowStockThreshold: Number(form.lowStockThreshold)
+    };
     try {
       if (editingId) {
         const nextQuantity = formMode === 'restock'
           ? Number(selectedProductSnapshot?.quantity || 0) + Number(form.quantity)
-          : Number(form.quantity);
+          : payload.quantity;
         await retailService.updateProduct(editingId, {
-          ...form,
+          ...payload,
           quantity: nextQuantity,
-          lowStockThreshold: Number(form.lowStockThreshold)
         });
       } else {
-        await retailService.createProduct({
-          ...form,
-          quantity: Number(form.quantity),
-          lowStockThreshold: Number(form.lowStockThreshold)
-        });
+        await retailService.createProduct(payload);
       }
       setSuccess(
         formMode === 'restock'
@@ -314,7 +330,7 @@ export default function ProductsPage() {
                       onClick={() => applyProductToForm(product, 'edit')}
                     >
                       <strong>{product.name}</strong>
-                      <span>{product.sku} • Stock {product.quantity} • {currency(product.sellingPrice)}</span>
+                      <span>{product.sku} • Stock {product.quantity} • Shop {currency(product.sellingPrice)} • Web {currency(product.websitePrice ?? product.sellingPrice)}</span>
                     </button>
                   ))}
                 </div>
@@ -326,6 +342,7 @@ export default function ProductsPage() {
                 <strong>Existing product found</strong>
                 <span>Current stock: {selectedProductSnapshot.quantity}</span>
                 <span>Selected SKU: {selectedProductSnapshot.sku}</span>
+                <span>Website price: {currency(selectedProductSnapshot.websitePrice ?? selectedProductSnapshot.sellingPrice)}</span>
                 <span>Update the fields below to edit it, or change the search text to start a new product.</span>
               </div>
             ) : null}
@@ -337,8 +354,24 @@ export default function ProductsPage() {
               ))}
             </select>
             <input placeholder="SKU" value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} required />
-            <input type="number" step="0.01" min="0" placeholder="Cost price" value={form.costPrice} onChange={(e) => setForm({ ...form, costPrice: e.target.value })} required />
-            <input type="number" step="0.01" min="0" placeholder="Selling price" value={form.sellingPrice} onChange={(e) => setForm({ ...form, sellingPrice: e.target.value })} required />
+            <input type="number" step="0.01" min="0" placeholder="Cost Price" value={form.costPrice} onChange={(e) => setForm({ ...form, costPrice: e.target.value })} required />
+            <input type="number" step="0.01" min="0" placeholder="Shop Price" value={form.sellingPrice} onChange={(e) => setForm({ ...form, sellingPrice: e.target.value })} required />
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              placeholder="Website Price %"
+              value={form.websitePricePercentage}
+              onChange={(e) => setForm({ ...form, websitePricePercentage: e.target.value })}
+            />
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              placeholder="Website Price"
+              value={computedWebsitePrice}
+              readOnly
+            />
             <input
               type="number"
               min="0"
@@ -355,6 +388,7 @@ export default function ProductsPage() {
               onChange={(e) => setForm({ ...form, lowStockThreshold: e.target.value })}
               required
             />
+            <p className="field-note">Leave Website Price % blank or 0 to keep the website price equal to the shop price.</p>
             <div className="image-picker">
               <label className="image-picker-label" htmlFor="product-image">Product picture</label>
               <input
@@ -446,7 +480,17 @@ export default function ProductsPage() {
                 { key: 'name', label: 'Name' },
                 { key: 'category', label: 'Category' },
                 { key: 'sku', label: 'SKU' },
-                { key: 'sellingPrice', label: 'Price', render: (row) => currency(row.sellingPrice) },
+                { key: 'sellingPrice', label: 'Shop Price', render: (row) => currency(row.sellingPrice) },
+                {
+                  key: 'websitePricePercentage',
+                  label: 'Web %',
+                  render: (row) => row.websitePricePercentage ? `${row.websitePricePercentage}%` : 'Same'
+                },
+                {
+                  key: 'websitePrice',
+                  label: 'Website Price',
+                  render: (row) => currency(row.websitePrice ?? row.sellingPrice)
+                },
                 { key: 'quantity', label: 'Stock' },
                 {
                   key: 'showInShopCollection',

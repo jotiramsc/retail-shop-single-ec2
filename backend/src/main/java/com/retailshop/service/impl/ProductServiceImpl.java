@@ -18,6 +18,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -90,14 +91,15 @@ public class ProductServiceImpl implements ProductService {
     public List<PublicProductResponse> getPublicTrendingProducts(int limit) {
         return getTrendingProducts(limit)
                 .stream()
-                .filter(product -> product.getQuantity() != null && product.getQuantity() > 0)
                 .map(product -> PublicProductResponse.builder()
                         .id(product.getId())
                         .name(product.getName())
                         .category(product.getCategory())
                         .sku(product.getSku())
-                        .sellingPrice(product.getSellingPrice())
+                        .sellingPrice(product.getWebsitePrice())
                         .quantity(product.getQuantity())
+                        .inStock(isInStock(product.getQuantity()))
+                        .stockLabel(customerStockLabel(product.getQuantity(), product.getLowStockThreshold()))
                         .imageDataUrl(publicImageUrl(product.getImageDataUrl()))
                         .showInEditorsPicks(product.getShowInEditorsPicks())
                         .showInNewRelease(product.getShowInNewRelease())
@@ -161,7 +163,6 @@ public class ProductServiceImpl implements ProductService {
     public List<PublicProductResponse> getPublicCatalog() {
         return productRepository.findAll()
                 .stream()
-                .filter(product -> product.getQuantity() != null && product.getQuantity() > 0)
                 .sorted((left, right) -> right.getCreatedAt().compareTo(left.getCreatedAt()))
                 .map(this::mapToPublicResponse)
                 .toList();
@@ -170,20 +171,19 @@ public class ProductServiceImpl implements ProductService {
     @Override
     @Transactional(readOnly = true)
     public List<PublicProductResponse> getPublicHomepageCatalog() {
-        List<Product> inStockProducts = productRepository.findAll()
+        List<Product> products = productRepository.findAll()
                 .stream()
-                .filter(product -> product.getQuantity() != null && product.getQuantity() > 0)
                 .sorted((left, right) -> right.getCreatedAt().compareTo(left.getCreatedAt()))
                 .toList();
 
         List<Product> selectedProducts = Stream.of(
-                        inStockProducts.stream().filter(product -> Boolean.TRUE.equals(product.getShowInCustomerAccess())).limit(1),
-                        inStockProducts.stream().filter(product -> Boolean.TRUE.equals(product.getShowInShopCollection())).limit(3),
-                        inStockProducts.stream().filter(product -> Boolean.TRUE.equals(product.getShowInFeaturedPieces())).limit(8),
-                        inStockProducts.stream().filter(product -> Boolean.TRUE.equals(product.getShowInStory())).limit(1),
-                        inStockProducts.stream().filter(product -> Boolean.TRUE.equals(product.getShowInCuratedSelections())).limit(4),
-                        inStockProducts.stream().filter(product -> Boolean.TRUE.equals(product.getShowInNewRelease())).limit(8),
-                        inStockProducts.stream().limit(16)
+                        products.stream().filter(product -> Boolean.TRUE.equals(product.getShowInCustomerAccess())).limit(1),
+                        products.stream().filter(product -> Boolean.TRUE.equals(product.getShowInShopCollection())).limit(3),
+                        products.stream().filter(product -> Boolean.TRUE.equals(product.getShowInFeaturedPieces())).limit(8),
+                        products.stream().filter(product -> Boolean.TRUE.equals(product.getShowInStory())).limit(1),
+                        products.stream().filter(product -> Boolean.TRUE.equals(product.getShowInCuratedSelections())).limit(4),
+                        products.stream().filter(product -> Boolean.TRUE.equals(product.getShowInNewRelease())).limit(8),
+                        products.stream().limit(16)
                 )
                 .flatMap(Function.identity())
                 .collect(Collectors.toMap(Product::getId, Function.identity(), (first, ignored) -> first))
@@ -203,6 +203,7 @@ public class ProductServiceImpl implements ProductService {
         product.setSku(request.getSku());
         product.setCostPrice(request.getCostPrice());
         product.setSellingPrice(request.getSellingPrice());
+        product.setWebsitePricePercentage(normalizeWebsitePricePercentage(request.getWebsitePricePercentage()));
         product.setQuantity(request.getQuantity());
         product.setLowStockThreshold(request.getLowStockThreshold());
         product.setImageDataUrl(request.getImageDataUrl());
@@ -224,6 +225,8 @@ public class ProductServiceImpl implements ProductService {
                 .sku(product.getSku())
                 .costPrice(product.getCostPrice())
                 .sellingPrice(product.getSellingPrice())
+                .websitePricePercentage(product.getWebsitePricePercentage())
+                .websitePrice(product.getResolvedWebsitePrice())
                 .quantity(product.getQuantity())
                 .lowStockThreshold(product.getLowStockThreshold())
                 .imageDataUrl(product.getImageDataUrl())
@@ -245,8 +248,10 @@ public class ProductServiceImpl implements ProductService {
                 .name(product.getName())
                 .category(product.getCategory())
                 .sku(product.getSku())
-                .sellingPrice(product.getSellingPrice())
+                .sellingPrice(product.getResolvedWebsitePrice())
                 .quantity(product.getQuantity())
+                .inStock(isInStock(product.getQuantity()))
+                .stockLabel(customerStockLabel(product.getQuantity(), product.getLowStockThreshold()))
                 .imageDataUrl(publicImageUrl(product.getImageDataUrl()))
                 .showInEditorsPicks(product.getShowInEditorsPicks())
                 .showInNewRelease(product.getShowInNewRelease())
@@ -290,7 +295,32 @@ public class ProductServiceImpl implements ProductService {
             throw new BusinessException("Product category is required");
         }
         if (request.getSellingPrice().compareTo(request.getCostPrice()) < 0) {
-            throw new BusinessException("Selling price cannot be lower than cost price");
+            throw new BusinessException("Shop price cannot be lower than cost price");
         }
+    }
+
+    private BigDecimal normalizeWebsitePricePercentage(BigDecimal websitePricePercentage) {
+        if (websitePricePercentage == null || websitePricePercentage.compareTo(BigDecimal.ZERO) <= 0) {
+            return null;
+        }
+        return websitePricePercentage;
+    }
+
+    private boolean isInStock(Integer quantity) {
+        return quantity != null && quantity > 0;
+    }
+
+    private String customerStockLabel(Integer quantity, Integer lowStockThreshold) {
+        int availableQuantity = quantity == null ? 0 : quantity;
+        if (availableQuantity <= 0) {
+            return "Out of stock";
+        }
+
+        int threshold = lowStockThreshold == null ? 0 : lowStockThreshold;
+        int lowStockCutoff = Math.max(1, Math.min(5, threshold > 0 ? threshold : 5));
+        if (availableQuantity <= lowStockCutoff) {
+            return "Last few remaining";
+        }
+        return "Available now";
     }
 }

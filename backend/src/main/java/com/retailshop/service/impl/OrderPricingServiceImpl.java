@@ -55,12 +55,16 @@ public class OrderPricingServiceImpl implements OrderPricingService {
                         Integer::sum,
                         LinkedHashMap::new
                 ));
-        return priceProducts(quantities, couponCode);
+        return priceProducts(quantities, couponCode, PriceMode.WEBSITE);
     }
 
     @Override
     @Transactional(readOnly = true)
     public OrderPricingResult priceProducts(Map<UUID, Integer> normalizedItems, String couponCode) {
+        return priceProducts(normalizedItems, couponCode, PriceMode.SHOP);
+    }
+
+    private OrderPricingResult priceProducts(Map<UUID, Integer> normalizedItems, String couponCode, PriceMode priceMode) {
         if (normalizedItems == null || normalizedItems.isEmpty()) {
             return emptyResult(normalizeCouponCode(couponCode));
         }
@@ -84,7 +88,8 @@ public class OrderPricingServiceImpl implements OrderPricingService {
                 continue;
             }
 
-            BigDecimal lineTotal = product.getSellingPrice()
+            BigDecimal unitPrice = priceFor(product, priceMode);
+            BigDecimal lineTotal = unitPrice
                     .multiply(BigDecimal.valueOf(quantity))
                     .setScale(2, RoundingMode.HALF_UP);
             DiscountMatch automaticMatch = bestAutomaticDiscount(product, lineTotal, activeOffers);
@@ -97,7 +102,7 @@ public class OrderPricingServiceImpl implements OrderPricingService {
                     .sku(product.getSku())
                     .category(product.getCategory())
                     .imageDataUrl(product.getImageDataUrl())
-                    .unitPrice(product.getSellingPrice())
+                    .unitPrice(unitPrice)
                     .quantity(quantity)
                     .stockAvailable(product.getQuantity())
                     .lineTotal(lineTotal)
@@ -316,9 +321,23 @@ public class OrderPricingServiceImpl implements OrderPricingService {
                 .build();
     }
 
+    private BigDecimal priceFor(Product product, PriceMode priceMode) {
+        BigDecimal sourcePrice = priceMode == PriceMode.WEBSITE
+                ? product.getResolvedWebsitePrice()
+                : product.getSellingPrice();
+        return sourcePrice == null
+                ? BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP)
+                : sourcePrice.setScale(2, RoundingMode.HALF_UP);
+    }
+
     private record DiscountMatch(Offer offer, BigDecimal amount) {
     }
 
     private record CouponEvaluation(String appliedCouponCode, BigDecimal discount) {
+    }
+
+    private enum PriceMode {
+        SHOP,
+        WEBSITE
     }
 }

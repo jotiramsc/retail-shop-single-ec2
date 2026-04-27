@@ -16,6 +16,8 @@ public class ProductResponse {
     private String sku;
     private BigDecimal costPrice;
     private BigDecimal sellingPrice;
+    private BigDecimal websitePricePercentage;
+    private BigDecimal websitePrice;
     private Integer quantity;
     private Integer lowStockThreshold;
     private String imageDataUrl;

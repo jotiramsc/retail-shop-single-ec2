@@ -8,6 +8,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -35,6 +36,12 @@ public class Product {
 
     @Column(name = "selling_price", nullable = false, precision = 12, scale = 2)
     private BigDecimal sellingPrice;
+
+    @Column(name = "website_price_percentage", precision = 7, scale = 2)
+    private BigDecimal websitePricePercentage;
+
+    @Column(name = "website_price", precision = 12, scale = 2)
+    private BigDecimal websitePrice;
 
     @Column(nullable = false)
     private Integer quantity;
@@ -80,6 +87,7 @@ public class Product {
         if (createdAt == null) {
             createdAt = LocalDateTime.now();
         }
+        normalizePricing();
         if (showInEditorsPicks == null) {
             showInEditorsPicks = Boolean.FALSE;
         }
@@ -101,5 +109,41 @@ public class Product {
         if (showInCuratedSelections == null) {
             showInCuratedSelections = Boolean.FALSE;
         }
+    }
+
+    @jakarta.persistence.PreUpdate
+    public void preUpdate() {
+        normalizePricing();
+    }
+
+    public BigDecimal getResolvedWebsitePrice() {
+        if (sellingPrice == null) {
+            return websitePrice == null ? null : websitePrice.setScale(2, RoundingMode.HALF_UP);
+        }
+
+        BigDecimal normalizedShopPrice = sellingPrice.setScale(2, RoundingMode.HALF_UP);
+        if (websitePricePercentage == null || websitePricePercentage.compareTo(BigDecimal.ZERO) <= 0) {
+            return normalizedShopPrice;
+        }
+
+        return normalizedShopPrice
+                .add(normalizedShopPrice.multiply(websitePricePercentage).divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP))
+                .setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private void normalizePricing() {
+        if (costPrice != null) {
+            costPrice = costPrice.setScale(2, RoundingMode.HALF_UP);
+        }
+        if (sellingPrice != null) {
+            sellingPrice = sellingPrice.setScale(2, RoundingMode.HALF_UP);
+        }
+        if (websitePricePercentage != null) {
+            websitePricePercentage = websitePricePercentage.setScale(2, RoundingMode.HALF_UP);
+            if (websitePricePercentage.compareTo(BigDecimal.ZERO) <= 0) {
+                websitePricePercentage = null;
+            }
+        }
+        websitePrice = getResolvedWebsitePrice();
     }
 }

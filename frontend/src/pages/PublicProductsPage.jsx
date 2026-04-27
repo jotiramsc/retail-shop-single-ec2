@@ -214,6 +214,10 @@ export default function PublicProductsPage({ branding }) {
   const addToCart = async (product) => {
     setError('');
     setCartMessage('');
+    if (!product.inStock) {
+      setError(`${product.name} is currently out of stock.`);
+      return;
+    }
     try {
       if (customerSession?.token) {
         try {
@@ -252,7 +256,7 @@ export default function PublicProductsPage({ branding }) {
             <span>Collections</span>
           </nav>
 
-          <span className="glow-kicker glow-reveal glow-reveal-delay-2">{filteredProducts.length} Pieces Available</span>
+          <span className="glow-kicker glow-reveal glow-reveal-delay-2">{filteredProducts.length} Pieces in collection</span>
           <h1 className="editorial-text glow-products-title glow-reveal glow-reveal-delay-3">
             ALL
             <br />
@@ -366,10 +370,15 @@ export default function PublicProductsPage({ branding }) {
                     <span>{product.sku}</span>
                   </div>
                   <div className="glow-product-card-actions">
-                    <button type="button" className="primary-btn compact-btn" onClick={() => addToCart(product)}>
-                      Add to cart
+                    <button
+                      type="button"
+                      className="primary-btn compact-btn"
+                      onClick={() => addToCart(product)}
+                      disabled={!product.inStock}
+                    >
+                      {product.inStock ? 'Add to cart' : 'Out of stock'}
                     </button>
-                    <span>Stock: {product.quantity ?? 0}</span>
+                    <span>{product.stockLabel || (product.inStock ? 'Available now' : 'Out of stock')}</span>
                   </div>
                 </div>
               </article>

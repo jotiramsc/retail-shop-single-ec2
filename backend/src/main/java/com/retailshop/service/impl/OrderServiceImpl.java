@@ -102,9 +102,9 @@ public class OrderServiceImpl implements OrderService {
             orderItem.setProductName(product.getName());
             orderItem.setSku(product.getSku());
             orderItem.setCategory(product.getCategory());
-            orderItem.setPrice(product.getSellingPrice());
+            orderItem.setPrice(cartItem.getPrice());
             orderItem.setQuantity(cartItem.getQuantity());
-            orderItem.setLineTotal(product.getSellingPrice().multiply(BigDecimal.valueOf(cartItem.getQuantity())));
+            orderItem.setLineTotal(cartItem.getLineTotal());
             order.getItems().add(orderItem);
         }
         productRepository.saveAll(order.getItems().stream().map(OrderItem::getProduct).toList());

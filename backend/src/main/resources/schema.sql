@@ -5,6 +5,8 @@ create table if not exists products (
     sku varchar(100) not null unique,
     cost_price numeric(12, 2) not null,
     selling_price numeric(12, 2) not null,
+    website_price_percentage numeric(7, 2),
+    website_price numeric(12, 2),
     quantity integer not null,
     low_stock_threshold integer not null,
     image_data_url text,
@@ -44,6 +46,15 @@ alter table products add column if not exists show_in_shop_collection boolean no
 alter table products add column if not exists show_in_featured_pieces boolean not null default false;
 alter table products add column if not exists show_in_story boolean not null default false;
 alter table products add column if not exists show_in_curated_selections boolean not null default false;
+alter table products add column if not exists website_price_percentage numeric(7, 2);
+alter table products add column if not exists website_price numeric(12, 2);
+update products
+set website_price = round((selling_price + (selling_price * website_price_percentage / 100))::numeric, 2)
+where website_price_percentage is not null
+  and website_price_percentage > 0;
+update products
+set website_price = selling_price
+where website_price is null;
 
 create table if not exists customers (
     id uuid primary key,

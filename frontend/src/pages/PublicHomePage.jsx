@@ -413,7 +413,7 @@ export default function PublicHomePage({ branding }) {
                 <strong>{product.name}</strong>
                 <div className="glow-product-meta-line">
                   <span>{currency(product.sellingPrice)}</span>
-                  <small>{product.sku}</small>
+                  <small>{product.stockLabel || product.sku}</small>
                 </div>
               </div>
             </article>
