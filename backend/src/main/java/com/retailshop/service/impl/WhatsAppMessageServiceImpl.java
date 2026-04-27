@@ -8,7 +8,6 @@ import com.retailshop.entity.Customer;
 import com.retailshop.entity.CustomerOrder;
 import com.retailshop.service.MarketingChannelResult;
 import com.retailshop.service.WhatsAppMessageService;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -21,6 +20,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -30,12 +30,26 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class WhatsAppMessageServiceImpl implements WhatsAppMessageService {
+
+    private static final String TWILIO_SANDBOX_WHATSAPP_NUMBER = "whatsapp:+14155238886";
+    private static final String TWILIO_SANDBOX_OTP_TEMPLATE_NAME = "verifications_2fa_template";
+    private static final String TWILIO_AUTHENTICATION_TEMPLATE_TYPE = "whatsapp/authentication";
 
     private final AppProperties appProperties;
     private final ObjectMapper objectMapper;
-    private final HttpClient httpClient = HttpClient.newHttpClient();
+    private final HttpClient httpClient;
+    private volatile OtpTemplateResolution cachedOtpTemplateResolution;
+
+    public WhatsAppMessageServiceImpl(AppProperties appProperties, ObjectMapper objectMapper) {
+        this(appProperties, objectMapper, HttpClient.newHttpClient());
+    }
+
+    WhatsAppMessageServiceImpl(AppProperties appProperties, ObjectMapper objectMapper, HttpClient httpClient) {
+        this.appProperties = appProperties;
+        this.objectMapper = objectMapper;
+        this.httpClient = httpClient;
+    }
 
     @Override
     public boolean isConfigured() {
@@ -52,10 +66,20 @@ public class WhatsAppMessageServiceImpl implements WhatsAppMessageService {
     @Override
     public MarketingChannelResult sendOtp(String mobile, String otp, long otpTtlMinutes) {
         String body = "Your login code is " + otp + ". It expires in " + otpTtlMinutes + " minutes.";
-        return sendSingleMessage(mobile, body, appProperties.getTwilio().getOtpContentSid(), Map.of(
+        OtpTemplateResolution otpTemplate = resolveOtpTemplate();
+        Map<String, String> contentVariables = otpTemplate.authenticationTemplate()
+                ? Map.of("1", otp)
+                : Map.of(
                 "1", "login",
                 "2", otp
-        ));
+        );
+        if (otpTemplate.requiresTemplateButMissing()) {
+            return MarketingChannelResult.builder()
+                    .success(false)
+                    .errorMessage("Twilio WhatsApp OTP template is not configured")
+                    .build();
+        }
+        return sendSingleMessage(mobile, body, otpTemplate.contentSid(), contentVariables);
     }
 
     @Override
@@ -183,6 +207,83 @@ public class WhatsAppMessageServiceImpl implements WhatsAppMessageService {
         }
     }
 
+    private OtpTemplateResolution resolveOtpTemplate() {
+        AppProperties.Twilio twilio = appProperties.getTwilio();
+        String configuredSid = safeText(twilio.getOtpContentSid());
+        if (!configuredSid.isBlank()) {
+            return new OtpTemplateResolution(configuredSid, configuredSid.equals(discoverAuthenticationTemplateSid()), false);
+        }
+
+        OtpTemplateResolution cachedResolution = cachedOtpTemplateResolution;
+        if (cachedResolution != null && !cachedResolution.contentSid().isBlank()) {
+            return cachedResolution;
+        }
+
+        String discoveredSid = discoverAuthenticationTemplateSid();
+        if (!discoveredSid.isBlank()) {
+            OtpTemplateResolution discoveredResolution = new OtpTemplateResolution(discoveredSid, true, false);
+            cachedOtpTemplateResolution = discoveredResolution;
+            return discoveredResolution;
+        }
+
+        if (isSandboxSender()) {
+            return new OtpTemplateResolution("", false, true);
+        }
+        return OtpTemplateResolution.none();
+    }
+
+    private String discoverAuthenticationTemplateSid() {
+        try {
+            HttpRequest request = HttpRequest.newBuilder(URI.create("https://content.twilio.com/v1/Content"))
+                    .GET()
+                    .header("authorization", basicAuthHeader())
+                    .header("accept", "application/json")
+                    .build();
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() >= 400) {
+                log.warn("Unable to discover Twilio sandbox OTP template. HTTP {}", response.statusCode());
+                return "";
+            }
+
+            JsonNode payload = parseJson(response.body());
+            List<JsonNode> contents = new ArrayList<>();
+            payload.path("contents").forEach(contents::add);
+            for (JsonNode content : contents) {
+                JsonNode types = content.path("types");
+                boolean matchesFriendlyName = TWILIO_SANDBOX_OTP_TEMPLATE_NAME.equals(content.path("friendly_name").asText(""));
+                boolean matchesAuthType = containsTemplateType(types, TWILIO_AUTHENTICATION_TEMPLATE_TYPE);
+                if (matchesFriendlyName || matchesAuthType) {
+                    return safeText(content.path("sid").asText(""));
+                }
+            }
+        } catch (IOException | InterruptedException exception) {
+            if (exception instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            log.warn("Unable to discover Twilio sandbox OTP template", exception);
+        }
+        return "";
+    }
+
+    private boolean isSandboxSender() {
+        return TWILIO_SANDBOX_WHATSAPP_NUMBER.equalsIgnoreCase(formatWhatsAppAddress(appProperties.getTwilio().getWhatsappFrom()));
+    }
+
+    private boolean containsTemplateType(JsonNode types, String expectedType) {
+        if (types == null || types.isMissingNode() || types.isNull()) {
+            return false;
+        }
+        if (types.isArray()) {
+            for (JsonNode type : types) {
+                if (expectedType.equals(type.asText(""))) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        return types.has(expectedType);
+    }
+
     private String buildCampaignBody(Campaign campaign) {
         StringBuilder builder = new StringBuilder();
         if (campaign.getName() != null && !campaign.getName().isBlank()) {
@@ -260,5 +361,13 @@ public class WhatsAppMessageServiceImpl implements WhatsAppMessageService {
 
     private String safeText(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    private record OtpTemplateResolution(String contentSid,
+                                         boolean authenticationTemplate,
+                                         boolean requiresTemplateButMissing) {
+        private static OtpTemplateResolution none() {
+            return new OtpTemplateResolution("", false, false);
+        }
     }
 }
