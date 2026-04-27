@@ -23,10 +23,10 @@ public interface CustomerOrderRepository extends JpaRepository<CustomerOrder, UU
     @EntityGraph(attributePaths = {"items"})
     Optional<CustomerOrder> findByPaymentOrderId(String paymentOrderId);
 
-    @EntityGraph(attributePaths = {"customer"})
+    @EntityGraph(attributePaths = {"customer", "items", "items.product"})
     List<CustomerOrder> findByCreatedAtBetweenOrderByCreatedAtDesc(LocalDateTime start, LocalDateTime end);
 
-    @EntityGraph(attributePaths = {"customer"})
+    @EntityGraph(attributePaths = {"customer", "items", "items.product"})
     List<CustomerOrder> findByCreatedAtBetweenAndCustomer_NameContainingIgnoreCaseOrderByCreatedAtDesc(
             LocalDateTime start,
             LocalDateTime end,

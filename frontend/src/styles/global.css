@@ -930,6 +930,29 @@ code {
   min-width: 260px;
 }
 
+.report-builder-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.9rem;
+  align-items: end;
+}
+
+.report-builder-actions,
+.inventory-table-toolbar {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  align-items: end;
+}
+
+.inventory-table-toolbar {
+  margin-bottom: 1rem;
+}
+
+.report-metric-grid {
+  margin-top: 1rem;
+}
+
 .search-box-wrap {
   position: relative;
 }
@@ -1060,10 +1083,6 @@ code {
   border-radius: 18px;
   background: rgba(32, 71, 60, 0.08);
   color: var(--emerald-soft);
-}
-
-.invoice-edit-helper {
-  margin-top: 1rem;
 }
 
 .inventory-helper-actions {

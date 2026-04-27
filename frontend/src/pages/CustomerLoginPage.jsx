@@ -97,9 +97,7 @@ export default function CustomerLoginPage() {
   const updateOtpChallenge = (response, nextMobile) => {
     const resendCooldownSeconds = Number(response?.resendCooldownSeconds || 30);
     const expiresInSeconds = Number(response?.expiresInSeconds || 300);
-    const nextMessage = response?.devOtp
-      ? `OTP sent for local testing. Use ${response.devOtp} to continue.`
-      : (response?.message || 'OTP sent on WhatsApp.');
+    const nextMessage = response?.message || 'OTP sent on WhatsApp.';
     const nextChallenge = {
       mobile: nextMobile,
       maskedMobile: response?.maskedMobile || nextMobile,
@@ -246,7 +244,7 @@ export default function CustomerLoginPage() {
           ) : null}
           {devOtp ? (
             <div className="customer-dev-otp">
-              <strong>Dev OTP</strong>
+              <strong>OTP on screen</strong>
               <span>{devOtp}</span>
             </div>
           ) : null}

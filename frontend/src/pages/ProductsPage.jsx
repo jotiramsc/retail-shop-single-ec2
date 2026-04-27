@@ -34,6 +34,7 @@ const blankCategoryForm = {
 
 export default function ProductsPage() {
   const [productsPage, setProductsPage] = useState({ items: [], page: 0, totalPages: 0, totalItems: 0, hasNext: false, hasPrevious: false });
+  const [inventoryDirectory, setInventoryDirectory] = useState([]);
   const [categoriesPage, setCategoriesPage] = useState({ items: [], page: 0, totalPages: 0, totalItems: 0, hasNext: false, hasPrevious: false });
   const [categoryOptions, setCategoryOptions] = useState([]);
   const [form, setForm] = useState(createBlankProduct());
@@ -42,6 +43,7 @@ export default function ProductsPage() {
   const [editingCategoryId, setEditingCategoryId] = useState(null);
   const [formMode, setFormMode] = useState('create');
   const [inventorySearch, setInventorySearch] = useState('');
+  const [inventoryTableSearch, setInventoryTableSearch] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
   const [selectedProductSnapshot, setSelectedProductSnapshot] = useState(null);
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -60,6 +62,15 @@ export default function ProductsPage() {
     }
   };
 
+  const loadProductDirectory = async () => {
+    try {
+      const directoryPage = await retailService.getProducts({ page: 0, size: 500 });
+      setInventoryDirectory(directoryPage.items || []);
+    } catch {
+      setInventoryDirectory([]);
+    }
+  };
+
   const loadCategories = async (page = 0) => {
     try {
       const [categories, options] = await Promise.all([
@@ -75,6 +86,7 @@ export default function ProductsPage() {
 
   useEffect(() => {
     loadProducts();
+    loadProductDirectory();
     loadCategories();
   }, []);
 
@@ -85,6 +97,7 @@ export default function ProductsPage() {
   }, [defaultCategoryCode, form.category]);
 
   const products = productsPage.items || [];
+  const searchableProducts = inventoryDirectory.length ? inventoryDirectory : products;
   const computedWebsitePrice = useMemo(() => {
     const shopPrice = Number(form.sellingPrice || 0);
     const websitePricePercentage = Number(form.websitePricePercentage || 0);
@@ -203,6 +216,7 @@ export default function ProductsPage() {
       );
       resetForm();
       loadProducts(productsPage.page || 0);
+      loadProductDirectory();
       loadCategories(categoriesPage.page || 0);
     } catch (requestError) {
       setError(getApiErrorMessage(requestError, 'Unable to save product.'));
@@ -253,13 +267,14 @@ export default function ProductsPage() {
       setSuccess('Product deleted successfully.');
       const nextPage = products.length === 1 && productsPage.page > 0 ? productsPage.page - 1 : productsPage.page;
       loadProducts(nextPage);
+      loadProductDirectory();
     } catch (requestError) {
       setError(getApiErrorMessage(requestError, 'Unable to delete product.'));
     }
   };
 
   const searchResults = inventorySearch
-    ? products
+    ? searchableProducts
       .filter((product) =>
         `${product.name} ${product.sku} ${product.category}`.toLowerCase().includes(inventorySearch.toLowerCase())
       )
@@ -274,7 +289,7 @@ export default function ProductsPage() {
       return;
     }
 
-    const exactMatch = products.find((product) =>
+    const exactMatch = searchableProducts.find((product) =>
       product.name.toLowerCase() === normalized || product.sku.toLowerCase() === normalized
     );
 
@@ -293,6 +308,19 @@ export default function ProductsPage() {
       category: current.category || defaultCategoryCode
     }));
   };
+
+  const inventoryRows = useMemo(() => {
+    const normalized = inventoryTableSearch.trim().toLowerCase();
+    if (!normalized) {
+      return products;
+    }
+
+    return searchableProducts
+      .filter((product) =>
+        `${product.name} ${product.sku} ${product.category}`.toLowerCase().includes(normalized)
+      )
+      .slice(0, 50);
+  }, [inventoryTableSearch, products, searchableProducts]);
 
   const categoryTableRows = useMemo(() => categoriesPage.items || [], [categoriesPage.items]);
 
@@ -470,6 +498,21 @@ export default function ProductsPage() {
         </Panel>
 
         <Panel title="Current stock" subtitle="Low stock visibility helps billing and automation stay ahead.">
+            <div className="inventory-table-toolbar">
+              <div className="search-box-wrap">
+                <input
+                  placeholder="Search all inventory for quick edit"
+                  value={inventoryTableSearch}
+                  onChange={(e) => setInventoryTableSearch(e.target.value)}
+                  autoComplete="off"
+                />
+                <p className="field-note">
+                  {inventoryTableSearch.trim()
+                    ? `Showing up to ${inventoryRows.length} matching products from the full inventory list.`
+                    : 'Filter by name, SKU, or category to jump straight to the right product.'}
+                </p>
+              </div>
+            </div>
             <DataTable
               columns={[
                 {
@@ -536,9 +579,10 @@ export default function ProductsPage() {
                   )
                 }
               ]}
-              rows={products}
-              pagination={productsPage}
-              onPageChange={loadProducts}
+              rows={inventoryRows}
+              emptyMessage="No inventory matched this search."
+              pagination={inventoryTableSearch.trim() ? null : productsPage}
+              onPageChange={inventoryTableSearch.trim() ? null : loadProducts}
             />
         </Panel>
 

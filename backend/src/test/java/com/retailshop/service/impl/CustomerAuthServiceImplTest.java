@@ -20,6 +20,7 @@ import java.time.LocalDateTime;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -78,6 +79,7 @@ class CustomerAuthServiceImplTest {
         assertEquals("+91 ••••••3210", response.getMaskedMobile());
         assertEquals(30L, response.getResendCooldownSeconds());
         assertEquals(300L, response.getExpiresInSeconds());
+        assertFalse(response.getDevOtp().isBlank());
 
         ArgumentCaptor<CustomerOtp> otpCaptor = ArgumentCaptor.forClass(CustomerOtp.class);
         verify(customerOtpRepository).save(otpCaptor.capture());

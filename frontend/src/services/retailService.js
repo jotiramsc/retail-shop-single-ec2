@@ -94,6 +94,16 @@ export const retailService = {
     if (customerName) params.set('customerName', customerName);
     return api.get(`/reports/invoices?${params.toString()}`).then((res) => res.data);
   },
+  getSalesReport: ({ period = 'MONTHLY', month, year, scope = 'ALL', category, productId }) => {
+    const params = new URLSearchParams();
+    params.set('period', period);
+    params.set('scope', scope);
+    if (month) params.set('month', month);
+    if (year) params.set('year', year);
+    if (category) params.set('category', category);
+    if (productId) params.set('productId', productId);
+    return api.get(`/reports/sales?${params.toString()}`).then((res) => res.data);
+  },
   getLowStock: (params) => api.get(`/reports/low-stock?${buildPageParams(params)}`).then((res) => res.data),
   getReceiptSettings: () => api.get('/settings/receipt').then((res) => res.data),
   updateReceiptSettings: (payload) => api.put('/settings/receipt', payload).then((res) => res.data),

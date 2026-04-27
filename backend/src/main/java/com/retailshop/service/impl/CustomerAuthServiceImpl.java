@@ -75,7 +75,8 @@ public class CustomerAuthServiceImpl implements CustomerAuthService {
             }
             return CustomerOtpSendResponse.builder()
                     .externalProviderConfigured(true)
-                    .message("OTP sent on WhatsApp.")
+                    .message("OTP sent on WhatsApp. The same OTP is also shown on screen for quick login.")
+                    .devOtp(otp)
                     .channel("WHATSAPP")
                     .maskedMobile(maskMobile(mobile))
                     .resendCooldownSeconds(resendCooldownSeconds)
@@ -85,7 +86,7 @@ public class CustomerAuthServiceImpl implements CustomerAuthService {
 
         return CustomerOtpSendResponse.builder()
                 .externalProviderConfigured(false)
-                .message("WhatsApp OTP is not configured, so a local testing code was generated.")
+                .message("WhatsApp OTP is currently unavailable, so the OTP is shown on screen.")
                 .devOtp(otp)
                 .channel("WHATSAPP")
                 .maskedMobile(maskMobile(mobile))

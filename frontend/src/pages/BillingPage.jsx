@@ -29,7 +29,6 @@ export default function BillingPage() {
   const [invoiceSearchName, setInvoiceSearchName] = useState('');
   const [invoiceSearchFromDate, setInvoiceSearchFromDate] = useState(today);
   const [invoiceSuggestions, setInvoiceSuggestions] = useState({ invoices: [], page: 0, totalPages: 0, totalItems: 0, hasNext: false, hasPrevious: false });
-  const [invoiceSearchFocused, setInvoiceSearchFocused] = useState(false);
   const [editingInvoiceId, setEditingInvoiceId] = useState(null);
   const [form, setForm] = useState(initialForm);
   const [invoice, setInvoice] = useState(null);
@@ -452,7 +451,6 @@ export default function BillingPage() {
     );
     setEditingInvoiceId(selectedInvoice.id);
     setEditingInvoiceOriginalQuantities(originalQuantities);
-    setInvoiceSearchFocused(false);
     setInvoiceSuggestions([]);
     setInvoiceSearchName(selectedInvoice.customerName);
       setForm({
@@ -510,73 +508,8 @@ export default function BillingPage() {
         <MetricCard label="Products Ready" value={products.length} />
       </div>
 
-      <Panel
-        title="Find Invoice To Edit"
-        subtitle="Search by customer name, review matching invoices, and load the right bill back into the form for correction."
-      >
-        <div className="invoice-search-panel">
-          <div className="search-box-wrap">
-            <label className="input-label" htmlFor="invoice-search-name">Customer name</label>
-            <input
-              id="invoice-search-name"
-              placeholder="Search customer name for invoice correction"
-              value={invoiceSearchName}
-              onChange={(e) => setInvoiceSearchName(e.target.value)}
-              onFocus={() => setInvoiceSearchFocused(true)}
-              onBlur={() => window.setTimeout(() => setInvoiceSearchFocused(false), 120)}
-              autoComplete="off"
-            />
-            <p className="field-note">Choose the right invoice below and it will load into the billing form, cart, and payment section.</p>
-          </div>
-          <label className="date-field">
-            <span>From date</span>
-            <input
-              type="date"
-              max={today}
-              value={invoiceSearchFromDate}
-              onChange={(e) => setInvoiceSearchFromDate(e.target.value)}
-            />
-          </label>
-        </div>
-
-        {invoiceSearchName.trim() ? (
-          <DataTable
-            columns={[
-              { key: 'invoiceNumber', label: 'Invoice' },
-              { key: 'customerName', label: 'Customer' },
-              { key: 'customerMobile', label: 'Mobile' },
-              { key: 'createdAt', label: 'Date', render: (row) => formatDate(row.createdAt) },
-              { key: 'finalAmount', label: 'Amount', render: (row) => currency(row.finalAmount) },
-              {
-                key: 'load',
-                label: 'Action',
-                render: (row) => (
-                  <button
-                    className="ghost-btn compact-btn"
-                    type="button"
-                    onClick={() => loadInvoiceForEdit(row)}
-                  >
-                    Edit
-                  </button>
-                )
-              }
-            ]}
-            rows={invoiceSuggestions.invoices || []}
-            emptyMessage="No matching invoices found for this customer and date."
-            pagination={invoiceSuggestions}
-            onPageChange={loadInvoiceSuggestionPage}
-          />
-        ) : null}
-
-        {editingInvoiceId ? (
-          <div className="inventory-helper-card invoice-edit-helper">
-            <strong>Invoice loaded into billing form</strong>
-            <span>Customer, payment mode, discount, and line items below are now editable. Save with `Update Invoice` when finished.</span>
-          </div>
-        ) : null}
-      </Panel>
-
       <div className="two-column">
+        <div className="inventory-stack">
         <Panel title="Product picker" subtitle="Top 10 frequently bought items stay visible here. Use search if the item is not in quick picks.">
           <div className="catalog-hero">
             <div className="catalog-hero-copy">
@@ -700,6 +633,66 @@ export default function BillingPage() {
             ))}
           </div>
         </Panel>
+
+        <Panel
+          title="Find Invoice To Edit"
+          subtitle={editingInvoiceId
+            ? 'An invoice is already loaded into checkout. Search here any time to replace it with another bill.'
+            : 'Search by customer name, review matching invoices, and load the right bill back into checkout.'}
+        >
+          <div className="invoice-search-panel">
+            <div className="search-box-wrap">
+              <label className="input-label" htmlFor="invoice-search-name">Customer name</label>
+              <input
+                id="invoice-search-name"
+                placeholder="Search customer name for invoice correction"
+                value={invoiceSearchName}
+                onChange={(e) => setInvoiceSearchName(e.target.value)}
+                autoComplete="off"
+              />
+              <p className="field-note">Pick the invoice below and the cart, customer, payment mode, and coupon will load into billing automatically.</p>
+            </div>
+            <label className="date-field">
+              <span>From date</span>
+              <input
+                type="date"
+                max={today}
+                value={invoiceSearchFromDate}
+                onChange={(e) => setInvoiceSearchFromDate(e.target.value)}
+              />
+            </label>
+          </div>
+
+          {invoiceSearchName.trim() ? (
+            <DataTable
+              columns={[
+                { key: 'invoiceNumber', label: 'Invoice' },
+                { key: 'customerName', label: 'Customer' },
+                { key: 'customerMobile', label: 'Mobile' },
+                { key: 'createdAt', label: 'Date', render: (row) => formatDate(row.createdAt) },
+                { key: 'finalAmount', label: 'Amount', render: (row) => currency(row.finalAmount) },
+                {
+                  key: 'load',
+                  label: 'Action',
+                  render: (row) => (
+                    <button
+                      className="ghost-btn compact-btn"
+                      type="button"
+                      onClick={() => loadInvoiceForEdit(row)}
+                    >
+                      Edit
+                    </button>
+                  )
+                }
+              ]}
+              rows={invoiceSuggestions.invoices || []}
+              emptyMessage="No matching invoices found for this customer and date."
+              pagination={invoiceSuggestions}
+              onPageChange={loadInvoiceSuggestionPage}
+            />
+          ) : null}
+        </Panel>
+        </div>
 
         <Panel title="Checkout" subtitle="Customer mobile is mandatory and old data is preserved through new invoices.">
           <form className="form-grid" onSubmit={handleSubmit}>
