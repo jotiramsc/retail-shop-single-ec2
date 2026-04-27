@@ -9,6 +9,7 @@ import com.retailshop.entity.CustomerOrder;
 import com.retailshop.service.MarketingChannelResult;
 import com.retailshop.service.WhatsAppMessageService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -41,6 +42,7 @@ public class WhatsAppMessageServiceImpl implements WhatsAppMessageService {
     private final HttpClient httpClient;
     private volatile OtpTemplateResolution cachedOtpTemplateResolution;
 
+    @Autowired
     public WhatsAppMessageServiceImpl(AppProperties appProperties, ObjectMapper objectMapper) {
         this(appProperties, objectMapper, HttpClient.newHttpClient());
     }
