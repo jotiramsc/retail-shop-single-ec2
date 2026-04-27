@@ -195,7 +195,11 @@ public class PhonePePaymentService implements PaymentService {
                     .header("Content-Type", "application/x-www-form-urlencoded")
                     .header("Accept", "application/json")
                     .build();
-            JsonNode body = readResponse(httpClient.send(request, HttpResponse.BodyHandlers.ofString()));
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() == 401) {
+                throw new BusinessException("PhonePe authentication failed. Check the client id, client secret, environment, and client version configured on the server.");
+            }
+            JsonNode body = readResponse(response);
             String accessToken = firstText(body, "access_token", "data.accessToken", "token");
             long expiresIn = parseLong(firstText(body, "expires_in", "data.expiresIn"), 900L);
             if (isBlank(accessToken)) {
