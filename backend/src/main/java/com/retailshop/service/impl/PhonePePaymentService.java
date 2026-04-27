@@ -35,7 +35,7 @@ public class PhonePePaymentService implements PaymentService {
     private volatile Instant cachedAccessTokenExpiresAt;
 
     @Override
-    public PaymentOrderResponse createPaymentOrder(BigDecimal amount, String receipt) {
+    public PaymentOrderResponse createPaymentOrder(BigDecimal amount, String receipt, String requestedRedirectUrl) {
         BigDecimal safeAmount = amount == null ? BigDecimal.ZERO : amount.max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
         long amountSubunits = safeAmount.movePointRight(2).longValue();
         String merchantOrderId = "PP-" + System.currentTimeMillis();
@@ -54,8 +54,11 @@ public class PhonePePaymentService implements PaymentService {
 
         try {
             String accessToken = fetchAccessToken();
-            String redirectUrl = appendMerchantOrderId(appProperties.getPhonepe().getRedirectUrl(), merchantOrderId);
-            String callbackUrl = blankToNull(appProperties.getPhonepe().getWebhookUrl());
+            String redirectUrl = resolveRedirectUrl(requestedRedirectUrl, merchantOrderId);
+            if (redirectUrl == null) {
+                throw new BusinessException("PhonePe checkout needs an HTTPS checkout URL. Configure PHONEPE_REDIRECT_URL or open the secure site before paying.");
+            }
+            String callbackUrl = resolveCallbackUrl();
             String payload = objectMapper.writeValueAsString(Map.of(
                     "merchantOrderId", merchantOrderId,
                     "amount", amountSubunits,
@@ -85,7 +88,15 @@ public class PhonePePaymentService implements PaymentService {
                     "data.instrumentResponse.redirectInfo.url",
                     "orderTokenDetails.paymentUrl");
             if (paymentUrl == null) {
-                throw new BusinessException(firstText(body, "message", "error.message", "Unable to create PhonePe payment"));
+                throw new BusinessException(firstTextOrDefault(
+                        body,
+                        "Unable to create PhonePe payment",
+                        "message",
+                        "error.message",
+                        "error.description",
+                        "details.0.message",
+                        "error"
+                ));
             }
             return PaymentOrderResponse.builder()
                     .provider("PHONEPE")
@@ -160,8 +171,7 @@ public class PhonePePaymentService implements PaymentService {
 
     private boolean isConfigured() {
         return !isBlank(appProperties.getPhonepe().getClientId())
-                && !isBlank(appProperties.getPhonepe().getClientSecret())
-                && !isBlank(appProperties.getPhonepe().getRedirectUrl());
+                && !isBlank(appProperties.getPhonepe().getClientSecret());
     }
 
     private String fetchAccessToken() throws IOException, InterruptedException {
@@ -189,7 +199,15 @@ public class PhonePePaymentService implements PaymentService {
             String accessToken = firstText(body, "access_token", "data.accessToken", "token");
             long expiresIn = parseLong(firstText(body, "expires_in", "data.expiresIn"), 900L);
             if (isBlank(accessToken)) {
-                throw new BusinessException(firstText(body, "message", "error", "Unable to fetch PhonePe access token"));
+                throw new BusinessException(firstTextOrDefault(
+                        body,
+                        "Unable to fetch PhonePe access token",
+                        "message",
+                        "error.message",
+                        "error.description",
+                        "details.0.message",
+                        "error"
+                ));
             }
             cachedAccessToken = accessToken;
             cachedAccessTokenExpiresAt = Instant.now().plusSeconds(Math.max(expiresIn, 120L));
@@ -200,7 +218,15 @@ public class PhonePePaymentService implements PaymentService {
     private JsonNode readResponse(HttpResponse<String> response) throws IOException {
         JsonNode body = objectMapper.readTree(response.body());
         if (response.statusCode() >= 400) {
-            throw new BusinessException(firstText(body, "message", "error.message", "error", "PhonePe request failed"));
+            throw new BusinessException(firstTextOrDefault(
+                    body,
+                    "PhonePe request failed",
+                    "message",
+                    "error.message",
+                    "error.description",
+                    "details.0.message",
+                    "error"
+            ));
         }
         return body;
     }
@@ -227,6 +253,62 @@ public class PhonePePaymentService implements PaymentService {
     private String appendMerchantOrderId(String baseUrl, String merchantOrderId) {
         String separator = baseUrl != null && baseUrl.contains("?") ? "&" : "?";
         return baseUrl + separator + "phonepeMerchantOrderId=" + encode(merchantOrderId);
+    }
+
+    private String resolveRedirectUrl(String requestedRedirectUrl, String merchantOrderId) {
+        String requested = sanitizeUrl(requestedRedirectUrl);
+        if (isAllowedRedirectUrl(requested)) {
+            return appendMerchantOrderId(requested, merchantOrderId);
+        }
+        String configured = sanitizeUrl(appProperties.getPhonepe().getRedirectUrl());
+        if (isAllowedRedirectUrl(configured)) {
+            return appendMerchantOrderId(configured, merchantOrderId);
+        }
+        return null;
+    }
+
+    private String resolveCallbackUrl() {
+        String callbackUrl = sanitizeUrl(appProperties.getPhonepe().getWebhookUrl());
+        return isPublicHttpsUrl(callbackUrl) ? callbackUrl : null;
+    }
+
+    private String sanitizeUrl(String value) {
+        if (isBlank(value)) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private boolean isAllowedRedirectUrl(String value) {
+        return isPublicHttpsUrl(value) || isLocalDevHttpUrl(value);
+    }
+
+    private boolean isPublicHttpsUrl(String value) {
+        URI uri = parseUri(value);
+        return uri != null
+                && "https".equalsIgnoreCase(uri.getScheme())
+                && !isBlank(uri.getHost());
+    }
+
+    private boolean isLocalDevHttpUrl(String value) {
+        URI uri = parseUri(value);
+        if (uri == null || !"http".equalsIgnoreCase(uri.getScheme())) {
+            return false;
+        }
+        String host = uri.getHost();
+        return "localhost".equalsIgnoreCase(host) || "127.0.0.1".equals(host);
+    }
+
+    private URI parseUri(String value) {
+        if (isBlank(value)) {
+            return null;
+        }
+        try {
+            return URI.create(value);
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
     }
 
     private String encode(String value) {
@@ -269,6 +351,11 @@ public class PhonePePaymentService implements PaymentService {
         return null;
     }
 
+    private String firstTextOrDefault(JsonNode body, String fallback, String... paths) {
+        String text = firstText(body, paths);
+        return !isBlank(text) ? text : fallback;
+    }
+
     private long parseLong(String value, long fallback) {
         if (isBlank(value)) {
             return fallback;
@@ -282,10 +369,6 @@ public class PhonePePaymentService implements PaymentService {
 
     private String firstNonBlank(String first, String second) {
         return !isBlank(first) ? first : second;
-    }
-
-    private String blankToNull(String value) {
-        return isBlank(value) ? null : value;
     }
 
     private boolean isBlank(String value) {

@@ -2,6 +2,7 @@ package com.retailshop.controller;
 
 import com.retailshop.dto.CheckoutQuoteResponse;
 import com.retailshop.dto.CouponRequest;
+import com.retailshop.dto.PaymentOrderRequest;
 import com.retailshop.dto.PaymentOrderResponse;
 import com.retailshop.dto.PaymentStatusResponse;
 import com.retailshop.exception.BusinessException;
@@ -35,7 +36,7 @@ public class CheckoutController {
     }
 
     @PostMapping("/checkout/payment-order")
-    public PaymentOrderResponse createPaymentOrder(@RequestBody(required = false) CouponRequest request) {
+    public PaymentOrderResponse createPaymentOrder(@RequestBody(required = false) PaymentOrderRequest request) {
         CheckoutQuoteResponse quote = checkoutService.quote(
                 CustomerSecurity.currentCustomerId(),
                 request != null ? request.getCouponCode() : null
@@ -43,7 +44,11 @@ public class CheckoutController {
         if (quote.getCart() == null || quote.getCart().getItems() == null || quote.getCart().getItems().isEmpty()) {
             throw new BusinessException("Cart is empty");
         }
-        return paymentService.createPaymentOrder(quote.getFinalTotal(), "chk-" + System.currentTimeMillis());
+        return paymentService.createPaymentOrder(
+                quote.getFinalTotal(),
+                "chk-" + System.currentTimeMillis(),
+                request != null ? request.getRedirectUrl() : null
+        );
     }
 
     @GetMapping("/checkout/payment-status")

@@ -7,7 +7,7 @@ import com.retailshop.dto.PlaceOrderRequest;
 import java.math.BigDecimal;
 
 public interface PaymentService {
-    PaymentOrderResponse createPaymentOrder(BigDecimal amount, String receipt);
+    PaymentOrderResponse createPaymentOrder(BigDecimal amount, String receipt, String redirectUrl);
 
     PaymentStatusResponse getPaymentStatus(String merchantOrderId);
 

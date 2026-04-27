@@ -408,8 +408,12 @@ export default function CheckoutPage() {
     setSuccess('');
 
     try {
+      const paymentRedirectUrl = typeof window === 'undefined'
+        ? undefined
+        : `${window.location.origin}/checkout`;
       const paymentOrder = await retailService.createPaymentOrder({
-        couponCode: resolvedCouponCode
+        couponCode: resolvedCouponCode,
+        redirectUrl: paymentRedirectUrl
       });
 
       const paymentProvider = normalizePaymentProvider(paymentOrder?.provider);
@@ -689,7 +693,7 @@ export default function CheckoutPage() {
                 {placingOrder ? 'Opening payment...' : 'Pay and place order'}
               </button>
               <small className="customer-helper-copy">
-                PhonePe opens when the gateway is configured. Local environments still fall back safely for test checkout.
+                PhonePe needs a secure checkout URL. Local environments still fall back safely for test checkout, while live payments should run on an HTTPS address.
               </small>
             </aside>
           </div>

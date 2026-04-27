@@ -12,6 +12,7 @@ const currentMonth = today.slice(0, 7);
 const currentYear = Number(today.slice(0, 4));
 
 export default function ReportsPage() {
+  const [activeReportTab, setActiveReportTab] = useState('dashboard');
   const [daily, setDaily] = useState(null);
   const [lowStockPage, setLowStockPage] = useState({ items: [], page: 0, totalPages: 0, totalItems: 0, hasNext: false, hasPrevious: false });
   const [orderFeed, setOrderFeed] = useState({ orders: [] });
@@ -271,156 +272,181 @@ export default function ReportsPage() {
         <MetricCard label="Discount Given" value={currency(daily?.totalDiscount)} />
       </div>
 
-      <Panel
-        title="Monthly and annual sales report"
-        subtitle="Generate a printable sales report for all items, one category, or a specific item."
-      >
-        <div className="report-builder-grid">
-          <label className="date-field">
-            <span>Report period</span>
-            <select value={salesPeriod} onChange={(e) => setSalesPeriod(e.target.value)}>
-              <option value="MONTHLY">Monthly</option>
-              <option value="ANNUAL">Annual</option>
-            </select>
-          </label>
+      <div className="report-tabs" role="tablist" aria-label="Report sections">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeReportTab === 'dashboard'}
+          className={`report-tab-btn ${activeReportTab === 'dashboard' ? 'is-active' : ''}`}
+          onClick={() => setActiveReportTab('dashboard')}
+        >
+          Dashboard
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeReportTab === 'sales'}
+          className={`report-tab-btn ${activeReportTab === 'sales' ? 'is-active' : ''}`}
+          onClick={() => setActiveReportTab('sales')}
+        >
+          Sales report
+        </button>
+      </div>
 
-          {salesPeriod === 'MONTHLY' ? (
+      {activeReportTab === 'sales' ? (
+        <Panel
+          title="Monthly and annual sales report"
+          subtitle="Generate a printable sales report for all items, one category, or a specific item."
+        >
+          <div className="report-builder-grid">
             <label className="date-field">
-              <span>Month</span>
-              <input
-                type="month"
-                max={currentMonth}
-                value={salesMonth}
-                onChange={(e) => setSalesMonth(e.target.value)}
-              />
-            </label>
-          ) : (
-            <label className="date-field">
-              <span>Year</span>
-              <select value={salesYear} onChange={(e) => setSalesYear(e.target.value)}>
-                {salesYearOptions.map((yearOption) => (
-                  <option key={yearOption} value={yearOption}>{yearOption}</option>
-                ))}
+              <span>Report period</span>
+              <select value={salesPeriod} onChange={(e) => setSalesPeriod(e.target.value)}>
+                <option value="MONTHLY">Monthly</option>
+                <option value="ANNUAL">Annual</option>
               </select>
             </label>
-          )}
 
-          <label className="date-field">
-            <span>Sales scope</span>
-            <select value={salesScope} onChange={(e) => setSalesScope(e.target.value)}>
-              <option value="ALL">All items</option>
-              <option value="CATEGORY">Category</option>
-              <option value="PRODUCT">Item</option>
-            </select>
-          </label>
+            {salesPeriod === 'MONTHLY' ? (
+              <label className="date-field">
+                <span>Month</span>
+                <input
+                  type="month"
+                  max={currentMonth}
+                  value={salesMonth}
+                  onChange={(e) => setSalesMonth(e.target.value)}
+                />
+              </label>
+            ) : (
+              <label className="date-field">
+                <span>Year</span>
+                <select value={salesYear} onChange={(e) => setSalesYear(e.target.value)}>
+                  {salesYearOptions.map((yearOption) => (
+                    <option key={yearOption} value={yearOption}>{yearOption}</option>
+                  ))}
+                </select>
+              </label>
+            )}
 
-          {salesScope === 'CATEGORY' ? (
             <label className="date-field">
-              <span>Category</span>
-              <select value={salesCategory} onChange={(e) => setSalesCategory(e.target.value)}>
-                <option value="">Choose category</option>
-                {categoryOptions.map((category) => (
-                  <option key={category.id} value={category.code}>{category.displayName}</option>
-                ))}
+              <span>Sales scope</span>
+              <select value={salesScope} onChange={(e) => setSalesScope(e.target.value)}>
+                <option value="ALL">All items</option>
+                <option value="CATEGORY">Category</option>
+                <option value="PRODUCT">Item</option>
               </select>
             </label>
-          ) : null}
 
-          {salesScope === 'PRODUCT' ? (
-            <label className="date-field">
-              <span>Item</span>
-              <select value={salesProductId} onChange={(e) => setSalesProductId(e.target.value)}>
-                <option value="">Choose item</option>
-                {reportProducts.map((product) => (
-                  <option key={product.id} value={product.id}>{product.name} · {product.sku}</option>
-                ))}
-              </select>
-            </label>
-          ) : null}
+            {salesScope === 'CATEGORY' ? (
+              <label className="date-field">
+                <span>Category</span>
+                <select value={salesCategory} onChange={(e) => setSalesCategory(e.target.value)}>
+                  <option value="">Choose category</option>
+                  {categoryOptions.map((category) => (
+                    <option key={category.id} value={category.code}>{category.displayName}</option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
 
-          <div className="report-builder-actions">
-            <button
-              type="button"
-              className="primary-btn"
-              onClick={() => loadSalesReport()}
-              disabled={salesLoading}
-            >
-              {salesLoading ? 'Generating...' : 'Generate report'}
-            </button>
-            <button
-              type="button"
-              className="ghost-btn"
-              onClick={printSalesReport}
-              disabled={!salesReport}
-            >
-              Print report
-            </button>
-          </div>
-        </div>
+            {salesScope === 'PRODUCT' ? (
+              <label className="date-field">
+                <span>Item</span>
+                <select value={salesProductId} onChange={(e) => setSalesProductId(e.target.value)}>
+                  <option value="">Choose item</option>
+                  {reportProducts.map((product) => (
+                    <option key={product.id} value={product.id}>{product.name} · {product.sku}</option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
 
-        {salesError ? <p className="error-text">{salesError}</p> : null}
-
-        {salesReport ? (
-          <>
-            <div className="metric-grid report-metric-grid">
-              <MetricCard label="Orders" value={salesReport.orderCount} />
-              <MetricCard label="Units Sold" value={salesReport.quantitySold} />
-              <MetricCard label="Gross Sales" value={currency(salesReport.grossSales)} tone="accent" />
-              <MetricCard label="Net Sales" value={currency(salesReport.netSales)} />
+            <div className="report-builder-actions">
+              <button
+                type="button"
+                className="primary-btn"
+                onClick={() => loadSalesReport()}
+                disabled={salesLoading}
+              >
+                {salesLoading ? 'Generating...' : 'Generate report'}
+              </button>
+              <button
+                type="button"
+                className="ghost-btn"
+                onClick={printSalesReport}
+                disabled={!salesReport}
+              >
+                Print report
+              </button>
             </div>
+          </div>
+
+          {salesError ? <p className="error-text">{salesError}</p> : null}
+
+          {salesReport ? (
+            <>
+              <div className="metric-grid report-metric-grid">
+                <MetricCard label="Orders" value={salesReport.orderCount} />
+                <MetricCard label="Units Sold" value={salesReport.quantitySold} />
+                <MetricCard label="Gross Sales" value={currency(salesReport.grossSales)} tone="accent" />
+                <MetricCard label="Net Sales" value={currency(salesReport.netSales)} />
+              </div>
+              <DataTable
+                columns={[
+                  { key: 'productName', label: 'Product' },
+                  { key: 'category', label: 'Category' },
+                  { key: 'sku', label: 'SKU' },
+                  { key: 'quantitySold', label: 'Units' },
+                  { key: 'grossSales', label: 'Gross', render: (row) => currency(row.grossSales) },
+                  { key: 'discount', label: 'Discount', render: (row) => currency(row.discount) },
+                  { key: 'netSales', label: 'Net', render: (row) => currency(row.netSales) }
+                ]}
+                rows={salesReport.rows || []}
+                emptyMessage="No sales matched this report."
+              />
+            </>
+          ) : null}
+        </Panel>
+      ) : (
+        <>
+          <Panel title="Low stock products" subtitle="These items are at or below the operational threshold.">
             <DataTable
               columns={[
                 { key: 'productName', label: 'Product' },
                 { key: 'category', label: 'Category' },
                 { key: 'sku', label: 'SKU' },
-                { key: 'quantitySold', label: 'Units' },
-                { key: 'grossSales', label: 'Gross', render: (row) => currency(row.grossSales) },
-                { key: 'discount', label: 'Discount', render: (row) => currency(row.discount) },
-                { key: 'netSales', label: 'Net', render: (row) => currency(row.netSales) }
+                { key: 'quantity', label: 'Quantity Left' },
+                { key: 'threshold', label: 'Alert At' }
               ]}
-              rows={salesReport.rows || []}
-              emptyMessage="No sales matched this report."
+              rows={lowStockPage.items || []}
+              pagination={lowStockPage}
+              onPageChange={loadLowStockPage}
             />
-          </>
-        ) : null}
-      </Panel>
+          </Panel>
 
-      <Panel title="Low stock products" subtitle="These items are at or below the operational threshold.">
-        <DataTable
-          columns={[
-            { key: 'productName', label: 'Product' },
-            { key: 'category', label: 'Category' },
-            { key: 'sku', label: 'SKU' },
-            { key: 'quantity', label: 'Quantity Left' },
-            { key: 'threshold', label: 'Alert At' }
-          ]}
-          rows={lowStockPage.items || []}
-          pagination={lowStockPage}
-          onPageChange={loadLowStockPage}
-        />
-      </Panel>
-
-      <Panel title="Orders in selected range" subtitle="Review both website orders and billing orders in the chosen date range, with live delivery status for online purchases.">
-        <DataTable
-          columns={[
-            { key: 'referenceNumber', label: 'Reference No.' },
-            { key: 'source', label: 'Source' },
-            { key: 'status', label: 'Status' },
-            { key: 'createdAt', label: 'Date', render: (row) => formatDate(row.createdAt) },
-            { key: 'customerName', label: 'Customer' },
-            { key: 'customerMobile', label: 'Mobile' },
-            { key: 'paymentMode', label: 'Payment Mode' },
-            { key: 'paymentStatus', label: 'Payment Status' },
-            { key: 'finalAmount', label: 'Final Amount', render: (row) => currency(row.finalAmount) },
-            { key: 'discount', label: 'Discount', render: (row) => currency(row.discount) },
-            { key: 'couponCode', label: 'Coupon' }
-          ]}
-          rows={orderFeed.orders || []}
-          emptyMessage="No billing or website orders matched this date range and customer filter."
-          pagination={orderFeed}
-          onPageChange={loadInvoicePage}
-        />
-      </Panel>
+          <Panel title="Orders in selected range" subtitle="Review both website orders and billing orders in the chosen date range, with live delivery status for online purchases.">
+            <DataTable
+              columns={[
+                { key: 'referenceNumber', label: 'Reference No.' },
+                { key: 'source', label: 'Source' },
+                { key: 'status', label: 'Status' },
+                { key: 'createdAt', label: 'Date', render: (row) => formatDate(row.createdAt) },
+                { key: 'customerName', label: 'Customer' },
+                { key: 'customerMobile', label: 'Mobile' },
+                { key: 'paymentMode', label: 'Payment Mode' },
+                { key: 'paymentStatus', label: 'Payment Status' },
+                { key: 'finalAmount', label: 'Final Amount', render: (row) => currency(row.finalAmount) },
+                { key: 'discount', label: 'Discount', render: (row) => currency(row.discount) },
+                { key: 'couponCode', label: 'Coupon' }
+              ]}
+              rows={orderFeed.orders || []}
+              emptyMessage="No billing or website orders matched this date range and customer filter."
+              pagination={orderFeed}
+              onPageChange={loadInvoicePage}
+            />
+          </Panel>
+        </>
+      )}
     </div>
   );
 }
