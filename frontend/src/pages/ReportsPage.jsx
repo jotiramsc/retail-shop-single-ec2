@@ -10,6 +10,7 @@ import { getApiErrorMessage } from '../utils/validation';
 const today = new Date().toISOString().slice(0, 10);
 const currentMonth = today.slice(0, 7);
 const currentYear = Number(today.slice(0, 4));
+const websiteSalesPersonOption = { id: 'WEBSITE', displayName: 'Website', username: 'website' };
 
 export default function ReportsPage() {
   const [activeReportTab, setActiveReportTab] = useState('dashboard');
@@ -20,6 +21,8 @@ export default function ReportsPage() {
   const [customerFilter, setCustomerFilter] = useState('');
   const [customerSuggestions, setCustomerSuggestions] = useState([]);
   const [customerSearchFocused, setCustomerSearchFocused] = useState(false);
+  const [salesPeople, setSalesPeople] = useState([websiteSalesPersonOption]);
+  const [salesPersonFilter, setSalesPersonFilter] = useState('');
   const [error, setError] = useState('');
   const [salesError, setSalesError] = useState('');
   const [salesLoading, setSalesLoading] = useState(false);
@@ -37,9 +40,9 @@ export default function ReportsPage() {
     setError('');
     try {
       const [dailyData, lowStockData, orderData] = await Promise.all([
-        retailService.getDailyReport({ fromDate, toDate: today }),
+        retailService.getDailyReport({ fromDate, toDate: today, salesPersonName: salesPersonFilter }),
         retailService.getLowStock({ page: lowStockPageNumber, size: 10 }),
-        retailService.getReportInvoices({ fromDate, toDate: today, customerName: customerFilter, page: invoicePageNumber, size: 10 })
+        retailService.getReportInvoices({ fromDate, toDate: today, customerName: customerFilter, salesPersonName: salesPersonFilter, page: invoicePageNumber, size: 10 })
       ]);
       setDaily(dailyData);
       setLowStockPage(lowStockData);
@@ -51,15 +54,18 @@ export default function ReportsPage() {
 
   const loadReportOptions = async () => {
     try {
-      const [categories, productsPage] = await Promise.all([
+      const [categories, productsPage, salesPeopleList] = await Promise.all([
         retailService.getProductCategoryOptions(),
-        retailService.getProducts({ page: 0, size: 500 })
+        retailService.getProducts({ page: 0, size: 500 }),
+        retailService.getSalesPeople()
       ]);
       setCategoryOptions(categories);
       setReportProducts(productsPage.items || []);
+      setSalesPeople([websiteSalesPersonOption, ...(salesPeopleList || [])]);
     } catch {
       setCategoryOptions([]);
       setReportProducts([]);
+      setSalesPeople([websiteSalesPersonOption]);
     }
   };
 
@@ -83,7 +89,8 @@ export default function ReportsPage() {
         year: nextFilters.period === 'ANNUAL' ? nextFilters.year : undefined,
         scope: nextFilters.scope,
         category: nextFilters.scope === 'CATEGORY' ? nextFilters.category : undefined,
-        productId: nextFilters.scope === 'PRODUCT' ? nextFilters.productId : undefined
+        productId: nextFilters.scope === 'PRODUCT' ? nextFilters.productId : undefined,
+        salesPersonName: salesPersonFilter || undefined
       });
       setSalesReport(response);
     } catch (requestError) {
@@ -101,12 +108,35 @@ export default function ReportsPage() {
   }, []);
 
   useEffect(() => {
+    if (salesPeriod === 'MONTHLY' && !salesMonth) {
+      return;
+    }
+    if (salesPeriod === 'ANNUAL' && !salesYear) {
+      return;
+    }
+    if (salesScope === 'CATEGORY' && !salesCategory) {
+      setSalesReport(null);
+      return;
+    }
+    if (salesScope === 'PRODUCT' && !salesProductId) {
+      setSalesReport(null);
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      loadSalesReport();
+    }, 180);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [salesPeriod, salesMonth, salesYear, salesScope, salesCategory, salesProductId, salesPersonFilter]);
+
+  useEffect(() => {
     const timeoutId = window.setTimeout(() => {
       loadReports(reportFromDate, lowStockPage.page || 0, 0);
     }, 250);
 
     return () => window.clearTimeout(timeoutId);
-  }, [reportFromDate, customerFilter]);
+  }, [reportFromDate, customerFilter, salesPersonFilter]);
 
   const loadLowStockPage = (page) => loadReports(reportFromDate, page, orderFeed.page || 0);
   const loadInvoicePage = (page) => loadReports(reportFromDate, lowStockPage.page || 0, page);
@@ -187,6 +217,7 @@ export default function ReportsPage() {
           <h1>${salesReport.reportLabel}</h1>
           <p class="meta">Range: ${salesReport.fromDate} to ${salesReport.toDate}</p>
           <p class="meta">Scope: ${salesReport.scope}${salesReport.category ? ` · ${salesReport.category}` : ''}</p>
+          <p class="meta">Sales Person: ${salesReport.salesPersonName || 'All sales persons'}</p>
           <div class="summary">
             <div class="card"><strong>Orders</strong><div>${salesReport.orderCount}</div></div>
             <div class="card"><strong>Units Sold</strong><div>${salesReport.quantitySold}</div></div>
@@ -247,7 +278,7 @@ export default function ReportsPage() {
       {activeReportTab === 'sales' ? (
         <Panel
           title="Monthly and annual sales report"
-          subtitle="Generate a printable sales report for all items, one category, or a specific item."
+          subtitle="Filter by period, category, or item and print the current sales view."
         >
           <div className="report-builder-grid">
             <label className="date-field">
@@ -288,6 +319,16 @@ export default function ReportsPage() {
               </select>
             </label>
 
+            <label className="date-field">
+              <span>Sales person</span>
+              <select value={salesPersonFilter} onChange={(e) => setSalesPersonFilter(e.target.value)}>
+                <option value="">All sales persons</option>
+                {salesPeople.map((salesPerson) => (
+                  <option key={salesPerson.id} value={salesPerson.displayName}>{salesPerson.displayName}</option>
+                ))}
+              </select>
+            </label>
+
             {salesScope === 'CATEGORY' ? (
               <label className="date-field">
                 <span>Category</span>
@@ -317,7 +358,11 @@ export default function ReportsPage() {
                 type="button"
                 className="primary-btn"
                 onClick={() => loadSalesReport()}
-                disabled={salesLoading}
+                disabled={
+                  salesLoading
+                  || (salesScope === 'CATEGORY' && !salesCategory)
+                  || (salesScope === 'PRODUCT' && !salesProductId)
+                }
               >
                 {salesLoading ? 'Generating...' : 'Generate report'}
               </button>
@@ -333,6 +378,14 @@ export default function ReportsPage() {
           </div>
 
           {salesError ? <p className="error-text">{salesError}</p> : null}
+
+          {(salesScope === 'CATEGORY' && !salesCategory) ? (
+            <p className="field-note">Choose a category to load the category sales report.</p>
+          ) : null}
+
+          {(salesScope === 'PRODUCT' && !salesProductId) ? (
+            <p className="field-note">Choose an item to load the item sales report.</p>
+          ) : null}
 
           {salesReport ? (
             <>
@@ -390,6 +443,15 @@ export default function ReportsPage() {
               ) : null}
             </div>
             <label className="date-field">
+              <span>Sales person</span>
+              <select value={salesPersonFilter} onChange={(e) => setSalesPersonFilter(e.target.value)}>
+                <option value="">All sales persons</option>
+                {salesPeople.map((salesPerson) => (
+                  <option key={salesPerson.id} value={salesPerson.displayName}>{salesPerson.displayName}</option>
+                ))}
+              </select>
+            </label>
+            <label className="date-field">
               <span>From</span>
               <input
                 type="date"
@@ -432,6 +494,7 @@ export default function ReportsPage() {
                 { key: 'createdAt', label: 'Date', render: (row) => formatDate(row.createdAt) },
                 { key: 'customerName', label: 'Customer' },
                 { key: 'customerMobile', label: 'Mobile' },
+                { key: 'salesPersonName', label: 'Sales Person' },
                 { key: 'paymentMode', label: 'Payment Mode' },
                 { key: 'paymentStatus', label: 'Payment Status' },
                 { key: 'finalAmount', label: 'Final Amount', render: (row) => currency(row.finalAmount) },

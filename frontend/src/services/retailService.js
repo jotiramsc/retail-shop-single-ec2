@@ -16,6 +16,8 @@ export const retailService = {
   login: (payload) => api.post('/auth/login', payload).then((res) => res.data),
   sendOtp: (payload) => api.post('/auth/send-otp', payload).then((res) => res.data),
   verifyOtp: (payload) => api.post('/auth/verify-otp', payload).then((res) => res.data),
+  recordSiteVisit: (payload) => api.post('/site-interactions/visit', payload || {}).then((res) => res.data),
+  getSiteInteractionReport: (days = 30) => api.get(`/site-interactions/report?days=${days}`).then((res) => res.data),
   uploadImage: ({ file, category }) => {
     const formData = new FormData();
     formData.append('image', file);
@@ -79,22 +81,32 @@ export const retailService = {
   publishCampaign: (campaignId) => api.post(`/campaign/${campaignId}/publish`).then((res) => res.data),
   retryCampaignLog: (campaignLogId) => api.post(`/campaign/history/${campaignLogId}/retry`).then((res) => res.data),
   getCampaignHistory: (params) => api.get(`/campaign/history?${buildPageParams(params)}`).then((res) => res.data),
-  getDailyReport: ({ fromDate, toDate }) => {
+  getDailyReport: ({ fromDate, toDate, salesPersonName }) => {
     const params = new URLSearchParams();
     if (fromDate) params.set('fromDate', fromDate);
     if (toDate) params.set('toDate', toDate);
+    if (salesPersonName) params.set('salesPersonName', salesPersonName);
     return api.get(`/reports/daily?${params.toString()}`).then((res) => res.data);
   },
-  getReportInvoices: ({ fromDate, toDate, customerName, page = 0, size = 10 }) => {
+  getReportInvoices: ({ fromDate, toDate, customerName, salesPersonName, page = 0, size = 10 }) => {
     const params = new URLSearchParams();
     params.set('page', page);
     params.set('size', size);
     if (fromDate) params.set('fromDate', fromDate);
     if (toDate) params.set('toDate', toDate);
     if (customerName) params.set('customerName', customerName);
+    if (salesPersonName) params.set('salesPersonName', salesPersonName);
     return api.get(`/reports/invoices?${params.toString()}`).then((res) => res.data);
   },
-  getSalesReport: ({ period = 'MONTHLY', month, year, scope = 'ALL', category, productId }) => {
+  getSalespersonSales: ({ salespersonId, fromDate, toDate, viewType = 'DAILY' } = {}) => {
+    const params = new URLSearchParams();
+    params.set('viewType', viewType);
+    if (salespersonId) params.set('salespersonId', salespersonId);
+    if (fromDate) params.set('fromDate', fromDate);
+    if (toDate) params.set('toDate', toDate);
+    return api.get(`/salesperson-sales?${params.toString()}`).then((res) => res.data);
+  },
+  getSalesReport: ({ period = 'MONTHLY', month, year, scope = 'ALL', category, productId, salesPersonName }) => {
     const params = new URLSearchParams();
     params.set('period', period);
     params.set('scope', scope);
@@ -102,12 +114,14 @@ export const retailService = {
     if (year) params.set('year', year);
     if (category) params.set('category', category);
     if (productId) params.set('productId', productId);
+    if (salesPersonName) params.set('salesPersonName', salesPersonName);
     return api.get(`/reports/sales?${params.toString()}`).then((res) => res.data);
   },
   getLowStock: (params) => api.get(`/reports/low-stock?${buildPageParams(params)}`).then((res) => res.data),
   getReceiptSettings: () => api.get('/settings/receipt').then((res) => res.data),
   updateReceiptSettings: (payload) => api.put('/settings/receipt', payload).then((res) => res.data),
   getUsers: (params) => api.get(`/users?${buildPageParams(params)}`).then((res) => res.data),
+  getSalesPeople: () => api.get('/users/salespeople').then((res) => res.data),
   createUser: (payload) => api.post('/users', payload).then((res) => res.data),
   updateUser: (id, payload) => api.put(`/users/${id}`, payload).then((res) => res.data)
 };

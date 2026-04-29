@@ -47,7 +47,7 @@ public class ReportServiceImpl implements ReportService {
 
     @Override
     @Transactional(readOnly = true)
-    public DailyReportResponse getDailyReport(LocalDate fromDate, LocalDate toDate) {
+    public DailyReportResponse getDailyReport(LocalDate fromDate, LocalDate toDate, String salesPersonName) {
         LocalDate rangeEnd = toDate != null ? toDate : LocalDate.now();
         LocalDate rangeStart = fromDate != null ? fromDate : rangeEnd;
         if (rangeStart.isAfter(rangeEnd)) {
@@ -57,9 +57,13 @@ public class ReportServiceImpl implements ReportService {
         }
         LocalDateTime start = rangeStart.atStartOfDay();
         LocalDateTime end = rangeEnd.atTime(LocalTime.MAX);
-        List<Invoice> invoices = invoiceRepository.findByCreatedAtBetweenOrderByCreatedAtDesc(start, end);
+        String normalizedSalesPerson = normalizeSalesPersonName(salesPersonName);
+        List<Invoice> invoices = invoiceRepository.findByCreatedAtBetweenOrderByCreatedAtDesc(start, end).stream()
+                .filter(invoice -> matchesSalesPerson(normalizedSalesPerson, invoice.getSalesPersonName()))
+                .toList();
         List<CustomerOrder> websiteOrders = customerOrderRepository.findByCreatedAtBetweenOrderByCreatedAtDesc(start, end).stream()
                 .filter(order -> order.getSource() == OrderSource.WEBSITE)
+                .filter(order -> matchesSalesPerson(normalizedSalesPerson, order.getSalesPersonName()))
                 .toList();
 
         return DailyReportResponse.builder()
@@ -89,7 +93,7 @@ public class ReportServiceImpl implements ReportService {
 
     @Override
     @Transactional(readOnly = true)
-    public ReportOrderFeedResponse getOrders(LocalDate fromDate, LocalDate toDate, String customerName, Pageable pageable) {
+    public ReportOrderFeedResponse getOrders(LocalDate fromDate, LocalDate toDate, String customerName, String salesPersonName, Pageable pageable) {
         LocalDate rangeEnd = toDate != null ? toDate : LocalDate.now();
         LocalDate rangeStart = fromDate != null ? fromDate : rangeEnd;
         if (rangeStart.isAfter(rangeEnd)) {
@@ -100,15 +104,19 @@ public class ReportServiceImpl implements ReportService {
         LocalDateTime start = rangeStart.atStartOfDay();
         LocalDateTime end = rangeEnd.atTime(LocalTime.MAX);
         String normalizedName = customerName == null || customerName.isBlank() ? null : customerName.trim();
+        String normalizedSalesPerson = normalizeSalesPersonName(salesPersonName);
 
-        List<Invoice> invoices = normalizedName == null
+        List<Invoice> invoices = (normalizedName == null
                 ? invoiceRepository.findByCreatedAtBetweenOrderByCreatedAtDesc(start, end)
-                : invoiceRepository.findByCreatedAtBetweenAndCustomer_NameContainingIgnoreCaseOrderByCreatedAtDesc(start, end, normalizedName);
+                : invoiceRepository.findByCreatedAtBetweenAndCustomer_NameContainingIgnoreCaseOrderByCreatedAtDesc(start, end, normalizedName)).stream()
+                .filter(invoice -> matchesSalesPerson(normalizedSalesPerson, invoice.getSalesPersonName()))
+                .toList();
 
         List<CustomerOrder> websiteOrders = (normalizedName == null
                 ? customerOrderRepository.findByCreatedAtBetweenOrderByCreatedAtDesc(start, end)
                 : customerOrderRepository.findByCreatedAtBetweenAndCustomer_NameContainingIgnoreCaseOrderByCreatedAtDesc(start, end, normalizedName)).stream()
                 .filter(order -> order.getSource() == OrderSource.WEBSITE)
+                .filter(order -> matchesSalesPerson(normalizedSalesPerson, order.getSalesPersonName()))
                 .toList();
 
         List<ReportOrderRowResponse> combined = Stream.concat(
@@ -145,15 +153,20 @@ public class ReportServiceImpl implements ReportService {
                                               Integer year,
                                               String scope,
                                               String category,
-                                              UUID productId) {
+                                              UUID productId,
+                                              String salesPersonName) {
         PeriodSelection periodSelection = resolvePeriodSelection(period, month, year);
         SalesScopeFilter scopeFilter = resolveScopeFilter(scope, category, productId);
         LocalDateTime start = periodSelection.fromDate().atStartOfDay();
         LocalDateTime end = periodSelection.toDate().atTime(LocalTime.MAX);
+        String normalizedSalesPerson = normalizeSalesPersonName(salesPersonName);
 
-        List<Invoice> invoices = invoiceRepository.findByCreatedAtBetweenOrderByCreatedAtDesc(start, end);
+        List<Invoice> invoices = invoiceRepository.findByCreatedAtBetweenOrderByCreatedAtDesc(start, end).stream()
+                .filter(invoice -> matchesSalesPerson(normalizedSalesPerson, invoice.getSalesPersonName()))
+                .toList();
         List<CustomerOrder> websiteOrders = customerOrderRepository.findByCreatedAtBetweenOrderByCreatedAtDesc(start, end).stream()
                 .filter(order -> order.getSource() == OrderSource.WEBSITE)
+                .filter(order -> matchesSalesPerson(normalizedSalesPerson, order.getSalesPersonName()))
                 .toList();
 
         Map<String, SalesAccumulator> rowsByKey = new LinkedHashMap<>();
@@ -200,6 +213,7 @@ public class ReportServiceImpl implements ReportService {
                 .fromDate(periodSelection.fromDate())
                 .toDate(periodSelection.toDate())
                 .scope(scopeFilter.scope())
+                .salesPersonName(normalizedSalesPerson)
                 .category(scopeFilter.category())
                 .productId(scopeFilter.productId())
                 .orderCount(matchedOrderCount)
@@ -401,6 +415,7 @@ public class ReportServiceImpl implements ReportService {
                 .createdAt(invoice.getCreatedAt())
                 .customerName(invoice.getCustomer().getName())
                 .customerMobile(invoice.getCustomer().getMobile())
+                .salesPersonName(invoice.getSalesPersonName())
                 .paymentMode(invoice.getPaymentMode().name())
                 .paymentStatus("PAID")
                 .finalAmount(invoice.getFinalAmount())
@@ -418,6 +433,7 @@ public class ReportServiceImpl implements ReportService {
                 .createdAt(order.getCreatedAt())
                 .customerName(order.getCustomer().getName())
                 .customerMobile(order.getCustomer().getMobile())
+                .salesPersonName(order.getSalesPersonName())
                 .paymentMode(order.getPaymentGateway())
                 .paymentStatus(order.getPaymentStatus())
                 .finalAmount(order.getFinalAmount())
@@ -430,6 +446,14 @@ public class ReportServiceImpl implements ReportService {
     }
 
     private record SalesScopeFilter(String scope, String category, UUID productId) {
+    }
+
+    private String normalizeSalesPersonName(String salesPersonName) {
+        return safeText(salesPersonName);
+    }
+
+    private boolean matchesSalesPerson(String filterValue, String recordValue) {
+        return filterValue.isBlank() || safeText(recordValue).equalsIgnoreCase(filterValue);
     }
 
     private static final class SalesAccumulator {

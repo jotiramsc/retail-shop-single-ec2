@@ -9,7 +9,7 @@ WORK_DIR="${WORK_DIR:-/opt/retail-shop}"
 APP_ENV_FILE="${APP_ENV_FILE:-$WORK_DIR/app.env}"
 POSTGRES_ENV_FILE="${POSTGRES_ENV_FILE:-$WORK_DIR/postgres.env}"
 
-"$RELEASE_DIR/scripts/ec2/write-env-files-from-secrets.sh" \
+sh "$RELEASE_DIR/scripts/ec2/write-env-files-from-secrets.sh" \
   "$APP_SECRET_ID" \
   "$POSTGRES_SECRET_ID" \
   "$APP_ENV_FILE" \
@@ -23,7 +23,7 @@ APP_ENV_FILE="$APP_ENV_FILE" \
 POSTGRES_DB="${POSTGRES_DB:-retail_shop}" \
 POSTGRES_USER="${POSTGRES_USER:-retail_user}" \
 POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
-"$RELEASE_DIR/scripts/ec2/deploy-single-host.sh"
+sh "$RELEASE_DIR/scripts/ec2/deploy-single-host.sh"
 
 ln -sfn "$RELEASE_DIR" "$WORK_DIR/current"
 

@@ -2,20 +2,10 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { retailService } from '../services/retailService';
 import { buildBasicToken, storeAuthSession } from '../utils/auth';
+import { defaultBranding } from '../utils/branding';
 import { getApiErrorMessage } from '../utils/validation';
 
-const emptyBranding = {
-  shopName: '',
-  headerLine: '',
-  loginKicker: '',
-  homepageTitle: '',
-  homepageSubtitle: '',
-  trustPoints: [],
-  media: {},
-  contact: {}
-};
-
-export default function LoginPage({ onLogin, branding = emptyBranding }) {
+export default function LoginPage({ onLogin, branding = defaultBranding }) {
   const [form, setForm] = useState({ username: '', password: '' });
   const [customerAccessProducts, setCustomerAccessProducts] = useState([]);
   const [error, setError] = useState('');
@@ -79,7 +69,7 @@ export default function LoginPage({ onLogin, branding = emptyBranding }) {
         </p>
         <div className="login-hero-grid">
           <div className="login-hero-copy">
-            <strong>{branding.homepageTitle}</strong>
+            <strong>{branding.homepageTitle || branding.shopName}</strong>
             <span>{branding.homepageSubtitle}</span>
             <div className="trust-chip-row">
               {(branding.trustPoints || []).map((point) => (

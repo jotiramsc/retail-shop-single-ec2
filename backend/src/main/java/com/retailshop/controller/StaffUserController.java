@@ -3,6 +3,7 @@ package com.retailshop.controller;
 import com.retailshop.dto.StaffUserRequest;
 import com.retailshop.dto.StaffUserResponse;
 import com.retailshop.dto.PaginatedResponse;
+import com.retailshop.dto.SalesPersonOptionResponse;
 import com.retailshop.service.StaffUserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -26,25 +27,33 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/users")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('ADMIN')")
 public class StaffUserController {
 
     private final StaffUserService staffUserService;
 
     @GetMapping
+    @PreAuthorize("hasRole('ADMIN')")
     public PaginatedResponse<StaffUserResponse> getUsers(@RequestParam(defaultValue = "0") int page,
                                                          @RequestParam(defaultValue = "10") int size) {
         Pageable pageable = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 100));
         return staffUserService.getAllUsers(pageable);
     }
 
+    @GetMapping("/salespeople")
+    @PreAuthorize("hasAnyAuthority('PERM_BILLING', 'PERM_REPORTS', 'PERM_USER_MANAGEMENT')")
+    public List<SalesPersonOptionResponse> getSalesPeople() {
+        return staffUserService.getActiveSalesPeople();
+    }
+
     @PostMapping
+    @PreAuthorize("hasRole('ADMIN')")
     @ResponseStatus(HttpStatus.CREATED)
     public StaffUserResponse createUser(@Valid @RequestBody StaffUserRequest request) {
         return staffUserService.createUser(request);
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public StaffUserResponse updateUser(@PathVariable UUID id, @Valid @RequestBody StaffUserRequest request) {
         return staffUserService.updateUser(id, request);
     }

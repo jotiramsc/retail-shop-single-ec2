@@ -31,6 +31,7 @@ public class AppProperties {
     private Razorpay razorpay = new Razorpay();
     private PhonePe phonepe = new PhonePe();
     private Twilio twilio = new Twilio();
+    private Gupshup gupshup = new Gupshup();
     private Meta meta = new Meta();
 
     @Getter
@@ -121,6 +122,15 @@ public class AppProperties {
         private String otpContentSid = "";
         private String orderUpdateContentSid = "";
         private String offerContentSid = "";
+    }
+
+    @Getter
+    @Setter
+    public static class Gupshup {
+        private String apiKey = "";
+        private String appName = "";
+        private String sourceNumber = "";
+        private String otpTemplateId = "";
     }
 
     @Getter

@@ -7,7 +7,9 @@ import {
   getStoredCustomerSession,
   isCustomerAuthError
 } from '../utils/auth';
+import { defaultBranding } from '../utils/branding';
 import { getGuestCartCount } from '../utils/cart';
+import { applySeo, preloadImage } from '../utils/seo';
 import StorefrontHeader from '../components/StorefrontHeader';
 
 const templateImages = {
@@ -129,7 +131,7 @@ function buildMenuCategories(categoryOptions, categoryGroups) {
 }
 
 function buildHeroTitle(homepageTitle, shopName) {
-  const source = String(homepageTitle || shopName || 'Glow Jewels').trim();
+  const source = String(homepageTitle || shopName || defaultBranding.shopName).trim();
   const parts = source.split(/\s+/).filter(Boolean);
 
   if (parts.length <= 1) {
@@ -146,19 +148,29 @@ function buildHeroTitle(homepageTitle, shopName) {
 }
 
 function buildHeroDescription(homepageSubtitle) {
-  if (homepageSubtitle) {
-    return homepageSubtitle;
+  const trimmedSubtitle = String(homepageSubtitle || '').trim();
+  const looksInternal = /customer-ready jewellery operations|live backend|published inventory|storefront/i.test(trimmedSubtitle);
+  if (trimmedSubtitle && !looksInternal) {
+    return trimmedSubtitle;
+  }
+
+  if (trimmedSubtitle && looksInternal) {
+    return 'Discover pearl jewellery, bangles, earrings, cosmetics, and festive favourites curated for daily wear, gifting, and special occasions.';
   }
 
   return 'Inspired by the timeless elegance of Maharashtrian heritage - Nath, Kolhapuri Saaj, Bangdi and more. Wear your culture, wear your confidence.';
 }
 
-export default function PublicHomePage({ branding }) {
+function formatVisitCount(value) {
+  const safeValue = Math.max(Number(value || 0), 0);
+  return `${new Intl.NumberFormat('en-IN').format(safeValue)}+`;
+}
+
+export default function PublicHomePage({ branding, siteVisitCount }) {
   const [products, setProducts] = useState([]);
   const [trendingProducts, setTrendingProducts] = useState([]);
   const [categoryOptions, setCategoryOptions] = useState([]);
   const [error, setError] = useState('');
-  const [motionReady, setMotionReady] = useState(false);
   const [heroDrift, setHeroDrift] = useState({ x: 0, y: 0 });
   const [cartCount, setCartCount] = useState(0);
   const [customerSession, setCustomerSession] = useState(() => getStoredCustomerSession());
@@ -183,11 +195,6 @@ export default function PublicHomePage({ branding }) {
       .catch(() => {
         setError('Unable to load the latest collection right now.');
       });
-  }, []);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => setMotionReady(true), 120);
-    return () => window.clearTimeout(timer);
   }, []);
 
   useEffect(() => {
@@ -259,19 +266,20 @@ export default function PublicHomePage({ branding }) {
   const collectionProducts = (shopCollectionProducts.length ? shopCollectionProducts : latestProducts).slice(0, 3);
   const featuredProducts = (featuredPieceProducts.length ? featuredPieceProducts : latestProducts).slice(0, 8);
   const editorsProducts = (curatedSelectionProducts.length ? curatedSelectionProducts : latestProducts).slice(0, 4);
+  const trendingDisplayProducts = (trendingProducts.length ? trendingProducts : editorsProducts).slice(0, 4);
   const storyProducts = (storyFlaggedProducts.length ? storyFlaggedProducts : trendingProducts.length ? trendingProducts : latestProducts).slice(0, 1);
   const bentoGridClassName = collectionProducts.length <= 2 ? 'glow-bento-grid glow-bento-grid-two' : 'glow-bento-grid';
 
-  const shopName = branding.shopName || 'GlowJewels';
+  const shopName = branding.shopName || defaultBranding.shopName;
   const logo = branding.media?.logo || templateImages.logo;
-  const heroPrimary = productImage(heroProduct, branding.media?.heroPrimary || templateImages.hero);
+  const heroPrimary = branding.media?.heroPrimary || productImage(heroProduct, templateImages.hero);
   const heroSecondary = branding.media?.heroSecondary || templateImages.fullLook;
   const heroTitle = buildHeroTitle(branding.homepageTitle, shopName);
   const heroDescription = buildHeroDescription(branding.homepageSubtitle);
   const trustPoints = branding.trustPoints?.length
     ? branding.trustPoints
     : ['Premium finish', 'Secure checkout', 'Fresh collections', 'Store-published products'];
-  const siteClassName = motionReady ? 'glow-site grid-lines glow-motion-ready' : 'glow-site grid-lines';
+  const siteClassName = 'glow-site grid-lines glow-motion-ready';
 
   const handleHeroMove = (event) => {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -283,6 +291,44 @@ export default function PublicHomePage({ branding }) {
   const handleHeroLeave = () => {
     setHeroDrift({ x: 0, y: 0 });
   };
+
+  const seoDescription = `${shopName} brings together pearl jewellery, bangles, earrings, festive sets, and beauty essentials for shoppers looking for elegant daily wear and occasion pieces in Pune and across Maharashtra.`;
+  const seoKeywords = [
+    shopName,
+    'pearl jewellery',
+    'bangles',
+    'earrings',
+    'cosmetics',
+    'Maharashtrian jewellery',
+    'jewellery shop Pune',
+    ...categoryGroups.slice(0, 4).map((category) => category.name)
+  ].join(', ');
+  const seoCategoryText = categoryGroups.length
+    ? categoryGroups.slice(0, 4).map((category) => category.name.toLowerCase()).join(', ')
+    : 'pearl jewellery, bangles, festive sets, and cosmetics';
+
+  useEffect(() => {
+    applySeo({
+      title: `${shopName} | Pearl Jewellery, Bangles & Cosmetics`,
+      description: seoDescription,
+      path: '/',
+      image: heroPrimary,
+      keywords: seoKeywords,
+      jsonLd: {
+        '@context': 'https://schema.org',
+        '@type': 'JewelryStore',
+        name: shopName,
+        url: 'https://kpskrishnai.com/',
+        image: heroPrimary ? [heroPrimary] : undefined,
+        description: seoDescription,
+        telephone: branding.contact?.phoneLabel || undefined,
+        address: branding.contact?.address || undefined
+      }
+    });
+    preloadImage(logo, 'high');
+    preloadImage(heroPrimary, 'high');
+    preloadImage(heroSecondary, 'low');
+  }, [branding.contact?.address, branding.contact?.phoneLabel, heroPrimary, heroSecondary, logo, seoDescription, seoKeywords, shopName]);
 
   return (
     <main className={siteClassName}>
@@ -330,7 +376,7 @@ export default function PublicHomePage({ branding }) {
               { label: 'Saaj', src: templateImages.necklace }
             ].map((item) => (
               <div key={item.label} className="glow-tradition-item">
-                <img src={item.src} alt={item.label} />
+                <img src={item.src} alt={item.label} loading="lazy" decoding="async" />
                 <span>{item.label}</span>
               </div>
             ))}
@@ -348,11 +394,18 @@ export default function PublicHomePage({ branding }) {
           <span className="glow-sparkle glow-sparkle-bottom animate-sparkle">✦</span>
           <div className="glow-hero-visual-label">Nath · Mangalsutra · Bangdi · Chandrakor</div>
           <div className="glow-hero-card shimmer-border">
-            <img src={heroPrimary} alt={heroProduct?.name || shopName} className="glow-hero-main-image" />
+            <img
+              src={heroPrimary}
+              alt={heroProduct?.name || shopName}
+              className="glow-hero-main-image"
+              fetchPriority="high"
+              loading="eager"
+              decoding="async"
+            />
             <div className="glow-hero-stat-card">
               <div>
                 <span>Loved by</span>
-                <strong>{products.length ? `${products.length * 708}+` : '24,800+'}</strong>
+                <strong>{formatVisitCount(siteVisitCount)}</strong>
               </div>
             </div>
             <div className="glow-hero-rating">★ 4.9</div>
@@ -373,10 +426,10 @@ export default function PublicHomePage({ branding }) {
             <article
               key={product.id}
               id={`collection-${normalizeId(product.name)}`}
-              className={`category-card glow-bento-card glow-reveal ${index === 0 ? 'glow-bento-card-large' : ''}`}
-              style={{ transitionDelay: `${Math.min(index * 0.08, 0.42)}s` }}
-            >
-              <img src={productImage(product, pickCategoryFallback(index))} alt={product.name} />
+            className={`category-card glow-bento-card glow-reveal ${index === 0 ? 'glow-bento-card-large' : ''}`}
+            style={{ transitionDelay: `${Math.min(index * 0.08, 0.42)}s` }}
+          >
+              <img src={productImage(product, pickCategoryFallback(index))} alt={product.name} loading="lazy" decoding="async" />
               <div className="glow-bento-overlay">
                 <span>{titleCaseCategory(product.category)}</span>
                 <strong>{product.name}</strong>
@@ -405,7 +458,13 @@ export default function PublicHomePage({ branding }) {
               style={{ transitionDelay: `${Math.min(index * 0.06, 0.4)}s` }}
             >
               <div className="glow-product-image-wrap">
-                <img src={productImage(product, templateImages.flatlay)} alt={product.name} className="glow-product-image" />
+                <img
+                  src={productImage(product, templateImages.flatlay)}
+                  alt={product.name}
+                  className="glow-product-image"
+                  loading="lazy"
+                  decoding="async"
+                />
                 {product.showInNewRelease ? <span className="glow-product-badge">New</span> : null}
               </div>
               <div className="glow-product-copy">
@@ -453,7 +512,12 @@ export default function PublicHomePage({ branding }) {
 
       <section className="glow-brand-story" id="story">
         <div className="glow-brand-story-media glow-reveal glow-reveal-delay-2">
-          <img src={storyProducts[0] ? productImage(storyProducts[0], heroSecondary) : heroSecondary} alt={storyProducts[0]?.name || shopName} />
+          <img
+            src={storyProducts[0] ? productImage(storyProducts[0], heroSecondary) : heroSecondary}
+            alt={storyProducts[0]?.name || shopName}
+            loading="lazy"
+            decoding="async"
+          />
           <div className="glow-brand-story-stats">
             <div>
               <p>{products.length || 0}</p>
@@ -476,13 +540,13 @@ export default function PublicHomePage({ branding }) {
           <p>
             {storyProducts[0]
               ? `${storyProducts[0].name} is highlighted from Inventory as the featured story piece for this storefront section.`
-              : branding.headerLine || `${shopName} now reads homepage story, featured, collection, and curated selections directly from your live backend.`}
+              : branding.headerLine || `${shopName} curates bridal jewellery, festive sets, everyday pearls, and cosmetics with a focus on elegant styling and ready-to-shop picks.`}
           </p>
           <div className="glow-story-points">
             {trustPoints.map((point) => (
               <div key={point} className="glow-story-point">
                 <strong>{point}</strong>
-                <p>Driven from your configured brand settings and published inventory.</p>
+                <p>Chosen to make gifting, festive shopping, and daily styling feel easy and reliable.</p>
               </div>
             ))}
           </div>
@@ -498,23 +562,52 @@ export default function PublicHomePage({ branding }) {
       <section className="glow-editors-picks">
         <div className="glow-section-head glow-reveal glow-reveal-delay-1">
           <div>
-            <span className="glow-kicker">Editors' Picks</span>
-            <h2 className="editorial-text">Curated <span className="text-outline">Selections</span></h2>
+            <span className="glow-kicker">Trending Now</span>
+            <h2 className="editorial-text">Most <span className="text-outline">Purchased</span></h2>
+            <p className="glow-section-caption">Ranked from real sales across counter billing and website orders.</p>
           </div>
         </div>
 
         <div className="glow-editors-grid">
-          {editorsProducts.map((product, index) => (
+          {trendingDisplayProducts.map((product, index) => (
             <article
               key={product.id || index}
               className="glow-editor-card glow-reveal"
               style={{ transitionDelay: `${Math.min(index * 0.08, 0.32)}s` }}
             >
-              <img src={productImage(product, pickCategoryFallback(index))} alt={product.name} className="glow-editor-image" />
+              <span className="glow-editor-rank">#{index + 1}</span>
+              <img
+                src={productImage(product, pickCategoryFallback(index))}
+                alt={product.name}
+                className="glow-editor-image"
+                loading="lazy"
+                decoding="async"
+              />
               <strong>{product.name}</strong>
-              <span>{titleCaseCategory(product.category)}</span>
+              <span>{titleCaseCategory(product.category)} · {product.stockLabel || 'Available now'}</span>
             </article>
           ))}
+        </div>
+      </section>
+
+      <section className="glow-seo-copy">
+        <div className="glow-section-head glow-reveal glow-reveal-delay-1">
+          <div>
+            <span className="glow-kicker">About {shopName}</span>
+            <h2 className="editorial-text">Pearls, bridal picks, and everyday store favourites</h2>
+          </div>
+        </div>
+        <div className="glow-seo-copy-grid">
+          <p>
+            {shopName} is a Pune-based jewellery and cosmetics storefront focused on pearl sets, bangles, earrings,
+            festive Maharashtrian styles, and practical beauty essentials. We publish live inventory from the store so
+            shoppers can browse pieces that are actually available instead of outdated catalog placeholders.
+          </p>
+          <p>
+            Customers looking for {seoCategoryText}
+            {' '}can explore current arrivals, featured picks, and ready-to-order designs in one place. The goal is a
+            cleaner online shopping experience with trusted pricing, current stock visibility, and a smoother checkout flow.
+          </p>
         </div>
       </section>
 

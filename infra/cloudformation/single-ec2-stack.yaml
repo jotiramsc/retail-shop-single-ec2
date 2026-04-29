@@ -124,6 +124,19 @@ Parameters:
   TwilioWhatsAppOfferContentSid:
     Type: String
     Default: ''
+  GupshupApiKey:
+    Type: String
+    Default: ''
+    NoEcho: true
+  GupshupAppName:
+    Type: String
+    Default: ''
+  GupshupSourceNumber:
+    Type: String
+    Default: ''
+  GupshupOtpTemplateId:
+    Type: String
+    Default: ''
   MetaAccessToken:
     Type: String
     Default: ''
@@ -393,6 +406,10 @@ Resources:
           "TWILIO_WHATSAPP_OTP_CONTENT_SID":"${TwilioWhatsAppOtpContentSid}",
           "TWILIO_WHATSAPP_ORDER_CONTENT_SID":"${TwilioWhatsAppOrderContentSid}",
           "TWILIO_WHATSAPP_OFFER_CONTENT_SID":"${TwilioWhatsAppOfferContentSid}",
+          "GUPSHUP_API_KEY":"${GupshupApiKey}",
+          "GUPSHUP_APP_NAME":"${GupshupAppName}",
+          "GUPSHUP_SOURCE_NUMBER":"${GupshupSourceNumber}",
+          "GUPSHUP_OTP_TEMPLATE_ID":"${GupshupOtpTemplateId}",
           "META_ACCESS_TOKEN":"${MetaAccessToken}",
           "FB_PAGE_ID":"${FacebookPageId}",
           "IG_BUSINESS_ACCOUNT_ID":"${InstagramBusinessAccountId}",
@@ -458,6 +475,15 @@ Resources:
                 Resource:
                   - !Ref AppConfigSecret
                   - !Ref DatabaseSecret
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                Resource: !Sub arn:aws:s3:::${AwsS3Bucket}/*
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                Resource: !Sub arn:aws:s3:::${AwsS3Bucket}
 
   Ec2InstanceProfile:
     Type: AWS::IAM::InstanceProfile

@@ -19,6 +19,7 @@ public class ReportOrderRowResponse {
     private LocalDateTime createdAt;
     private String customerName;
     private String customerMobile;
+    private String salesPersonName;
     private String paymentMode;
     private String paymentStatus;
     private BigDecimal finalAmount;

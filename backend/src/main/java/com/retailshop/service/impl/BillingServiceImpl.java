@@ -21,6 +21,7 @@ import com.retailshop.repository.InvoiceRepository;
 import com.retailshop.repository.ProductRepository;
 import com.retailshop.service.BillingService;
 import com.retailshop.service.CustomerService;
+import com.retailshop.service.StaffUserService;
 import com.retailshop.service.pricing.OrderPricingResult;
 import com.retailshop.service.pricing.OrderPricingService;
 import lombok.RequiredArgsConstructor;
@@ -50,6 +51,7 @@ public class BillingServiceImpl implements BillingService {
     private final ProductRepository productRepository;
     private final CustomerOrderRepository customerOrderRepository;
     private final CustomerService customerService;
+    private final StaffUserService staffUserService;
     private final OrderPricingService orderPricingService;
 
     @Override
@@ -80,8 +82,11 @@ public class BillingServiceImpl implements BillingService {
         invoice.getItems().clear();
 
         Customer customer = customerService.findOrCreateCustomer(request.getCustomerName(), request.getCustomerMobile());
+        SalesPersonSelection salesPerson = resolveSalesPerson(request.getSalesPersonUserId());
         invoice.setCustomer(customer);
         invoice.setPaymentMode(request.getPaymentMode());
+        invoice.setSalesPersonUserId(salesPerson.id());
+        invoice.setSalesPersonName(salesPerson.name());
         String normalizedCouponCode = normalizeCouponCode(request.getCouponCode());
 
         Map<UUID, Integer> normalizedItems = normalizeItems(request);
@@ -176,6 +181,8 @@ public class BillingServiceImpl implements BillingService {
                 .customerId(invoice.getCustomer().getId())
                 .customerName(invoice.getCustomer().getName())
                 .customerMobile(invoice.getCustomer().getMobile())
+                .salesPersonUserId(invoice.getSalesPersonUserId())
+                .salesPersonName(invoice.getSalesPersonName())
                 .totalAmount(invoice.getTotalAmount())
                 .discount(invoice.getDiscount())
                 .finalAmount(invoice.getFinalAmount())
@@ -199,6 +206,7 @@ public class BillingServiceImpl implements BillingService {
         Customer customer = persist
                 ? customerService.findOrCreateCustomer(request.getCustomerName(), request.getCustomerMobile())
                 : buildPreviewCustomer(request);
+        SalesPersonSelection salesPerson = resolveSalesPerson(request.getSalesPersonUserId());
 
         Invoice invoice = new Invoice();
         invoice.setInvoiceNumber(persist
@@ -206,6 +214,8 @@ public class BillingServiceImpl implements BillingService {
                 : "PREVIEW");
         invoice.setCustomer(customer);
         invoice.setPaymentMode(request.getPaymentMode());
+        invoice.setSalesPersonUserId(salesPerson.id());
+        invoice.setSalesPersonName(salesPerson.name());
         String normalizedCouponCode = normalizeCouponCode(request.getCouponCode());
 
         Map<UUID, Integer> normalizedItems = normalizeItems(request);
@@ -311,6 +321,8 @@ public class BillingServiceImpl implements BillingService {
         order.setPaymentStatus("PAID");
         order.setSource(OrderSource.BILLING);
         order.setInvoiceId(invoice.getId());
+        order.setSalesPersonUserId(invoice.getSalesPersonUserId());
+        order.setSalesPersonName(invoice.getSalesPersonName());
         order.setStatus(OrderStatus.COMPLETED);
         order.getItems().clear();
 
@@ -340,5 +352,13 @@ public class BillingServiceImpl implements BillingService {
             return null;
         }
         return couponCode.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private SalesPersonSelection resolveSalesPerson(UUID salesPersonUserId) {
+        var salesPerson = staffUserService.getActiveSalesPerson(salesPersonUserId);
+        return new SalesPersonSelection(salesPerson.getId(), salesPerson.getDisplayName());
+    }
+
+    private record SalesPersonSelection(UUID id, String name) {
     }
 }

@@ -46,6 +46,9 @@ public class StaffUser {
     @Column(nullable = false)
     private Boolean enabled;
 
+    @Column(name = "sales_person", nullable = false)
+    private Boolean salesPerson;
+
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "staff_user_permissions", joinColumns = @JoinColumn(name = "user_id"))
     @Column(name = "permission", nullable = false)
@@ -65,6 +68,9 @@ public class StaffUser {
         }
         if (enabled == null) {
             enabled = Boolean.TRUE;
+        }
+        if (salesPerson == null) {
+            salesPerson = Boolean.FALSE;
         }
         if (permissions == null) {
             permissions = new LinkedHashSet<>();

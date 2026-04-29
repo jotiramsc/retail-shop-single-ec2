@@ -28,8 +28,9 @@ public class ReportController {
 
     @GetMapping("/daily")
     public DailyReportResponse getDailyReport(@RequestParam(required = false) LocalDate fromDate,
-                                              @RequestParam(required = false) LocalDate toDate) {
-        return reportService.getDailyReport(fromDate, toDate);
+                                              @RequestParam(required = false) LocalDate toDate,
+                                              @RequestParam(required = false) String salesPersonName) {
+        return reportService.getDailyReport(fromDate, toDate, salesPersonName);
     }
 
     @GetMapping("/low-stock")
@@ -43,10 +44,11 @@ public class ReportController {
     public ReportOrderFeedResponse getInvoices(@RequestParam(required = false) LocalDate fromDate,
                                                @RequestParam(required = false) LocalDate toDate,
                                                @RequestParam(required = false) String customerName,
+                                               @RequestParam(required = false) String salesPersonName,
                                                @RequestParam(defaultValue = "0") int page,
                                                @RequestParam(defaultValue = "10") int size) {
         Pageable pageable = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 100));
-        return reportService.getOrders(fromDate, toDate, customerName, pageable);
+        return reportService.getOrders(fromDate, toDate, customerName, salesPersonName, pageable);
     }
 
     @GetMapping("/sales")
@@ -55,7 +57,8 @@ public class ReportController {
                                               @RequestParam(required = false) Integer year,
                                               @RequestParam(defaultValue = "ALL") String scope,
                                               @RequestParam(required = false) String category,
-                                              @RequestParam(required = false) UUID productId) {
-        return reportService.getSalesReport(period, month, year, scope, category, productId);
+                                              @RequestParam(required = false) UUID productId,
+                                              @RequestParam(required = false) String salesPersonName) {
+        return reportService.getSalesReport(period, month, year, scope, category, productId, salesPersonName);
     }
 }

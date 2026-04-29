@@ -6,6 +6,7 @@ import com.retailshop.entity.Customer;
 import com.retailshop.entity.Invoice;
 import com.retailshop.entity.InvoiceItem;
 import com.retailshop.entity.Product;
+import com.retailshop.entity.StaffUser;
 import com.retailshop.enums.PaymentMode;
 import com.retailshop.exception.BusinessException;
 import com.retailshop.repository.CustomerOrderRepository;
@@ -13,6 +14,7 @@ import com.retailshop.repository.InvoiceItemRepository;
 import com.retailshop.repository.InvoiceRepository;
 import com.retailshop.repository.ProductRepository;
 import com.retailshop.service.CustomerService;
+import com.retailshop.service.StaffUserService;
 import com.retailshop.service.pricing.OrderPricingItem;
 import com.retailshop.service.pricing.OrderPricingResult;
 import com.retailshop.service.pricing.OrderPricingService;
@@ -56,6 +58,9 @@ class BillingServiceImplTest {
     private CustomerService customerService;
 
     @Mock
+    private StaffUserService staffUserService;
+
+    @Mock
     private OrderPricingService orderPricingService;
 
     @InjectMocks
@@ -63,6 +68,7 @@ class BillingServiceImplTest {
 
     private Product product;
     private Customer customer;
+    private StaffUser salesPerson;
 
     @BeforeEach
     void setUp() {
@@ -78,8 +84,13 @@ class BillingServiceImplTest {
         customer.setName("Anika Sharma");
         customer.setMobile("9876543210");
 
+        salesPerson = new StaffUser();
+        salesPerson.setId(UUID.randomUUID());
+        salesPerson.setDisplayName("Rutuja");
+
         lenient().when(customerOrderRepository.findByInvoiceId(any())).thenReturn(Optional.empty());
         lenient().when(customerOrderRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        lenient().when(staffUserService.getActiveSalesPerson(salesPerson.getId())).thenReturn(salesPerson);
     }
 
     @Test
@@ -95,6 +106,7 @@ class BillingServiceImplTest {
         InvoiceCreateRequest request = new InvoiceCreateRequest();
         request.setCustomerName(customer.getName());
         request.setCustomerMobile(customer.getMobile());
+        request.setSalesPersonUserId(salesPerson.getId());
         request.setItems(List.of(lineOne, lineTwo));
         request.setPaymentMode(PaymentMode.UPI);
         request.setManualDiscount(BigDecimal.TEN);
@@ -117,6 +129,7 @@ class BillingServiceImplTest {
 
         assertEquals(1, response.getItems().size());
         assertEquals(5, response.getItems().get(0).getQuantity());
+        assertEquals("Rutuja", response.getSalesPersonName());
         assertEquals(BigDecimal.valueOf(2995.00).setScale(2), response.getTotalAmount());
         assertEquals(BigDecimal.valueOf(60.00).setScale(2), response.getDiscount());
         assertEquals(BigDecimal.valueOf(2935.00).setScale(2), response.getFinalAmount());
@@ -132,6 +145,7 @@ class BillingServiceImplTest {
         InvoiceCreateRequest request = new InvoiceCreateRequest();
         request.setCustomerName(customer.getName());
         request.setCustomerMobile(customer.getMobile());
+        request.setSalesPersonUserId(salesPerson.getId());
         request.setItems(List.of(line));
         request.setPaymentMode(PaymentMode.CASH);
         request.setManualDiscount(BigDecimal.valueOf(1000));

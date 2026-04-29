@@ -16,6 +16,7 @@ public class SalesReportResponse {
     private LocalDate fromDate;
     private LocalDate toDate;
     private String scope;
+    private String salesPersonName;
     private String category;
     private UUID productId;
     private long orderCount;

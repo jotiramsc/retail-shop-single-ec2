@@ -30,6 +30,7 @@ Holds application env values like:
 - `CUSTOMER_JWT_SECRET`
 - `PHONEPE_*`
 - `TWILIO_*`
+- `GUPSHUP_*`
 - `META_*`
 - `AWS_S3_BUCKET`
 - `AWS_CLOUDFRONT_DOMAIN`

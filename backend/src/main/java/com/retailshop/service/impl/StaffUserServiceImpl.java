@@ -3,6 +3,7 @@ package com.retailshop.service.impl;
 import com.retailshop.dto.StaffUserRequest;
 import com.retailshop.dto.StaffUserResponse;
 import com.retailshop.dto.PaginatedResponse;
+import com.retailshop.dto.SalesPersonOptionResponse;
 import com.retailshop.entity.StaffUser;
 import com.retailshop.enums.AppPermission;
 import com.retailshop.enums.StaffRole;
@@ -19,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -68,9 +70,39 @@ public class StaffUserServiceImpl implements StaffUserService {
 
     @Override
     @Transactional(readOnly = true)
+    public List<SalesPersonOptionResponse> getActiveSalesPeople() {
+        List<StaffUser> explicitSalesPeople = staffUserRepository.findByEnabledTrueAndSalesPersonTrueOrderByDisplayNameAsc();
+        List<StaffUser> candidates = explicitSalesPeople.isEmpty()
+                ? staffUserRepository.findByEnabledTrueOrderByDisplayNameAsc().stream()
+                .filter(this::isFallbackSalesPersonCandidate)
+                .toList()
+                : explicitSalesPeople;
+
+        return candidates.stream()
+                .map(this::mapToSalesPersonOption)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public StaffUser getByUsername(String username) {
         return staffUserRepository.findByUsername(username)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public StaffUser getActiveSalesPerson(UUID id) {
+        return staffUserRepository.findByIdAndEnabledTrueAndSalesPersonTrue(id)
+                .or(() -> {
+                    List<StaffUser> explicitSalesPeople = staffUserRepository.findByEnabledTrueAndSalesPersonTrueOrderByDisplayNameAsc();
+                    if (!explicitSalesPeople.isEmpty()) {
+                        return Optional.empty();
+                    }
+                    return staffUserRepository.findByIdAndEnabledTrue(id)
+                            .filter(this::isFallbackSalesPersonCandidate);
+                })
+                .orElseThrow(() -> new ResourceNotFoundException("Sales person not found"));
     }
 
     @Override
@@ -95,6 +127,7 @@ public class StaffUserServiceImpl implements StaffUserService {
         user.setDisplayName(request.getDisplayName().trim());
         user.setRole(request.getRole());
         user.setEnabled(Boolean.TRUE.equals(request.getEnabled()));
+        user.setSalesPerson(Boolean.TRUE.equals(request.getSalesPerson()));
         user.setPermissions(new LinkedHashSet<>(request.getPermissions()));
         if (creating || (request.getPassword() != null && !request.getPassword().isBlank())) {
             user.setPasswordHash(passwordEncoder.encode(request.getPassword().trim()));
@@ -108,8 +141,21 @@ public class StaffUserServiceImpl implements StaffUserService {
                 .displayName(user.getDisplayName())
                 .role(user.getRole())
                 .enabled(user.getEnabled())
+                .salesPerson(user.getSalesPerson())
                 .permissions(getEffectivePermissions(user))
                 .createdAt(user.getCreatedAt())
                 .build();
+    }
+
+    private SalesPersonOptionResponse mapToSalesPersonOption(StaffUser user) {
+        return SalesPersonOptionResponse.builder()
+                .id(user.getId())
+                .username(user.getUsername())
+                .displayName(user.getDisplayName())
+                .build();
+    }
+
+    private boolean isFallbackSalesPersonCandidate(StaffUser user) {
+        return user.getRole() == StaffRole.ADMIN || getEffectivePermissions(user).contains(AppPermission.BILLING);
     }
 }

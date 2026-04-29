@@ -1,4 +1,4 @@
-import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
+import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import BillingPage from './pages/BillingPage';
 import ProductsPage from './pages/ProductsPage';
@@ -6,6 +6,8 @@ import CustomersPage from './pages/CustomersPage';
 import OffersPage from './pages/OffersPage';
 import CampaignsPage from './pages/CampaignsPage';
 import ReportsPage from './pages/ReportsPage';
+import SalespersonSalesPage from './pages/SalespersonSalesPage';
+import SiteInteractionsPage from './pages/SiteInteractionsPage';
 import LoginPage from './pages/LoginPage';
 import ReceiptSettingsPage from './pages/ReceiptSettingsPage';
 import UsersPage from './pages/UsersPage';
@@ -18,6 +20,8 @@ import OrdersPage from './pages/OrdersPage';
 import CustomerProfilePage from './pages/CustomerProfilePage';
 import { retailService } from './services/retailService';
 import { clearAuthSession, getStoredAuthSession } from './utils/auth';
+import { defaultBranding, getStoredBranding, normalizeBranding, storeBranding } from './utils/branding';
+import { getStoredVisitCount, storeVisitCount, trackCurrentSiteVisit } from './utils/siteInteraction';
 
 const resolvedApiBaseUrl = window.__APP_CONFIG__?.API_BASE_URL || import.meta.env.VITE_API_BASE_URL || '/api';
 
@@ -28,31 +32,11 @@ const navItems = [
   { to: '/app/offers', label: 'Offers', permission: 'OFFERS' },
   { to: '/app/campaigns', label: 'Marketing', permission: 'CAMPAIGNS' },
   { to: '/app/reports', label: 'Reports', permission: 'REPORTS' },
+  { to: '/app/salesperson-sales', label: 'Salesperson Sales', permission: 'SALESPERSON_SALES' },
+  { to: '/app/site-interactions', label: 'Site Interaction', permission: 'REPORTS' },
   { to: '/app/settings/receipt', label: 'Receipt Settings', permission: 'RECEIPT_SETTINGS' },
   { to: '/app/users', label: 'Users', permission: 'USER_MANAGEMENT' }
 ];
-
-const emptyBranding = {
-  shopName: '',
-  headerLine: '',
-  sidebarKicker: '',
-  loginKicker: '',
-  homepageTitle: '',
-  homepageSubtitle: '',
-  trustPoints: [],
-  featuredCollections: [],
-  contact: {
-    phoneLabel: '',
-    phoneHref: '',
-    email: '',
-    address: ''
-  },
-  media: {
-    logo: '',
-    heroPrimary: '',
-    heroSecondary: ''
-  }
-};
 
 function ProtectedApp({ auth, onLogout, branding }) {
   const permissions = Array.isArray(auth.permissions) ? auth.permissions : [];
@@ -113,6 +97,8 @@ function ProtectedApp({ auth, onLogout, branding }) {
           <Route path="offers" element={canAccess('OFFERS') ? <OffersPage /> : <Navigate to={firstAllowedRoute} replace />} />
           <Route path="campaigns" element={canAccess('CAMPAIGNS') ? <CampaignsPage /> : <Navigate to={firstAllowedRoute} replace />} />
           <Route path="reports" element={canAccess('REPORTS') ? <ReportsPage /> : <Navigate to={firstAllowedRoute} replace />} />
+          <Route path="salesperson-sales" element={canAccess('SALESPERSON_SALES') ? <SalespersonSalesPage auth={auth} /> : <Navigate to={firstAllowedRoute} replace />} />
+          <Route path="site-interactions" element={canAccess('REPORTS') ? <SiteInteractionsPage /> : <Navigate to={firstAllowedRoute} replace />} />
           <Route path="settings/receipt" element={canAccess('RECEIPT_SETTINGS') ? <ReceiptSettingsPage /> : <Navigate to={firstAllowedRoute} replace />} />
           <Route path="users" element={canAccess('USER_MANAGEMENT') ? <UsersPage /> : <Navigate to={firstAllowedRoute} replace />} />
           <Route path="*" element={<Navigate to={firstAllowedRoute} replace />} />
@@ -123,45 +109,44 @@ function ProtectedApp({ auth, onLogout, branding }) {
 }
 
 export default function App() {
+  const location = useLocation();
   const [auth, setAuth] = useState(getStoredAuthSession());
-  const [branding, setBranding] = useState(emptyBranding);
+  const [branding, setBranding] = useState(() => getStoredBranding());
+  const [siteVisitCount, setSiteVisitCount] = useState(() => getStoredVisitCount());
+
+  useEffect(() => {
+    document.title = branding.shopName || defaultBranding.shopName;
+  }, [branding.shopName]);
 
   useEffect(() => {
     retailService.getReceiptSettings()
       .then((settings) => {
-        setBranding({
-          shopName: settings.shopName || '',
-          headerLine: settings.headerLine || '',
-          sidebarKicker: settings.loginKicker || '',
-          loginKicker: settings.loginKicker || '',
-          homepageTitle: settings.homepageTitle || '',
-          homepageSubtitle: settings.homepageSubtitle || '',
-          trustPoints: [
-            settings.trustBadgeOne,
-            settings.trustBadgeTwo,
-            settings.trustBadgeThree,
-            settings.trustBadgeFour
-          ].filter(Boolean),
-          featuredCollections: [],
-          contact: {
-            phoneLabel: settings.phoneNumber || '',
-            phoneHref: settings.phoneNumber
-              ? `tel:${String(settings.phoneNumber).replace(/[^+\d]/g, '')}`
-              : '',
-            email: '',
-            address: settings.address || ''
-          },
-          media: {
-            logo: settings.logoUrl || '',
-            heroPrimary: settings.heroPrimaryImageUrl || '',
-            heroSecondary: settings.heroSecondaryImageUrl || ''
-          }
-        });
+        setBranding(storeBranding(normalizeBranding(settings)));
       })
       .catch(() => {
-        setBranding(emptyBranding);
+        setBranding(defaultBranding);
       });
   }, []);
+
+  useEffect(() => {
+    if (location.pathname.startsWith('/app') || location.pathname === '/login') {
+      return;
+    }
+
+    let cancelled = false;
+
+    trackCurrentSiteVisit()
+      .then((response) => {
+        if (!cancelled && typeof response?.totalVisits === 'number') {
+          setSiteVisitCount(storeVisitCount(response.totalVisits));
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [location.pathname, location.search]);
 
   const handleLogout = () => {
     clearAuthSession();
@@ -175,7 +160,7 @@ export default function App() {
         element={auth ? <Navigate to="/app" replace /> : <LoginPage onLogin={setAuth} branding={branding} />}
       />
       <Route path="/customer-login" element={<CustomerLoginPage />} />
-      <Route path="/" element={<PublicHomePage branding={branding} />} />
+      <Route path="/" element={<PublicHomePage branding={branding} siteVisitCount={siteVisitCount} />} />
       <Route path="/products" element={<PublicProductsPage branding={branding} />} />
       <Route path="/cart" element={<CartPage />} />
       <Route path="/checkout" element={<CheckoutPage />} />

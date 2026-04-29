@@ -87,6 +87,8 @@ public class OrderServiceImpl implements OrderService {
         order.setPaymentId(firstNonBlank(request.getPhonepeTransactionId(), request.getRazorpayPaymentId()));
         order.setPaymentStatus("PAID");
         order.setSource(OrderSource.WEBSITE);
+        order.setSalesPersonUserId(null);
+        order.setSalesPersonName("Website");
         order.setStatus(OrderStatus.CONFIRMED);
 
         for (CartItemResponse cartItem : quote.getCart().getItems()) {
@@ -136,6 +138,8 @@ public class OrderServiceImpl implements OrderService {
                 .delivery(order.getDelivery())
                 .finalAmount(order.getFinalAmount())
                 .couponCode(order.getCouponCode())
+                .salesPersonUserId(order.getSalesPersonUserId())
+                .salesPersonName(order.getSalesPersonName())
                 .createdAt(order.getCreatedAt())
                 .items(order.getItems().stream().map(item -> OrderItemResponse.builder()
                         .productId(item.getProduct() != null ? item.getProduct().getId() : null)

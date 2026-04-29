@@ -7,6 +7,7 @@ public enum AppPermission {
     OFFERS,
     CAMPAIGNS,
     REPORTS,
+    SALESPERSON_SALES,
     RECEIPT_SETTINGS,
     USER_MANAGEMENT
 }

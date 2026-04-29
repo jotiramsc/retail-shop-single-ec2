@@ -7,7 +7,9 @@ import {
   getStoredCustomerSession,
   isCustomerAuthError
 } from '../utils/auth';
+import { defaultBranding } from '../utils/branding';
 import { addGuestCartItem, getGuestCartCount } from '../utils/cart';
+import { applySeo, preloadImage } from '../utils/seo';
 import StorefrontHeader from '../components/StorefrontHeader';
 
 const templateImages = {
@@ -94,7 +96,6 @@ export default function PublicProductsPage({ branding }) {
   const [error, setError] = useState('');
   const [cartMessage, setCartMessage] = useState('');
   const [cartCount, setCartCount] = useState(0);
-  const [motionReady, setMotionReady] = useState(false);
   const [customerSession, setCustomerSession] = useState(() => getStoredCustomerSession());
 
   useEffect(() => {
@@ -131,11 +132,6 @@ export default function PublicProductsPage({ branding }) {
 
     setCartCount(getGuestCartCount());
   }, [customerSession?.token]);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => setMotionReady(true), 120);
-    return () => window.clearTimeout(timer);
-  }, []);
 
   const categories = useMemo(
     () => buildPublicCategories(categoryOptions, products),
@@ -196,10 +192,24 @@ export default function PublicProductsPage({ branding }) {
     'Above Rs. 2,000'
   ];
 
-  const shopName = branding.shopName || 'GlowJewels';
+  const shopName = branding.shopName || defaultBranding.shopName;
   const logo = branding.media?.logo || templateImages.logo;
   const heroImage = branding.media?.heroPrimary || templateImages.hero;
-  const pageClassName = motionReady ? 'glow-site grid-lines glow-motion-ready' : 'glow-site grid-lines';
+  const pageClassName = 'glow-site grid-lines glow-motion-ready';
+  const seoDescription = activeCategory === 'all'
+    ? `Browse the full ${shopName} collection with live product availability, pearl jewellery, bangles, earrings, cosmetics, and festive store picks.`
+    : `Browse ${heroTitle} at ${shopName} with live product availability, pricing, and ready-to-order collection pieces.`;
+
+  useEffect(() => {
+    applySeo({
+      title: `${heroTitle} | ${shopName}`,
+      description: seoDescription,
+      path: window.location.pathname + window.location.search,
+      image: heroImage,
+      keywords: [shopName, heroTitle, 'collection', 'jewellery', 'cosmetics', 'online shopping'].join(', ')
+    });
+    preloadImage(heroImage, 'high');
+  }, [heroImage, heroTitle, seoDescription, shopName]);
 
   const updateCategory = (id) => {
     const next = new URLSearchParams(searchParams);
@@ -263,12 +273,12 @@ export default function PublicProductsPage({ branding }) {
             <span className="text-outline">{heroTitle}</span>
           </h1>
           <p className="glow-products-subtitle glow-reveal glow-reveal-delay-4">
-            Browse the full storefront with live backend products, dynamic categories, and the template-style filter flow.
+            Browse ready-to-order jewellery, cosmetics, festive picks, and daily-wear styles with current pricing and live stock visibility.
           </p>
         </div>
 
         <div className="glow-products-hero-image shimmer-border glow-reveal glow-reveal-delay-4">
-          <img src={heroImage} alt={heroTitle} />
+          <img src={heroImage} alt={heroTitle} fetchPriority="high" loading="eager" decoding="async" />
         </div>
       </section>
 
@@ -359,6 +369,8 @@ export default function PublicProductsPage({ branding }) {
                   <img
                     src={productImage(product, productFallback(index))}
                     alt={product.name}
+                    loading="lazy"
+                    decoding="async"
                   />
                   {product.showInNewRelease ? <span className="glow-product-badge">New</span> : null}
                 </div>

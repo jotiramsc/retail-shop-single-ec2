@@ -74,6 +74,55 @@ create table if not exists customer_otps (
     updated_at timestamp not null
 );
 
+create table if not exists site_visits (
+    id uuid primary key,
+    visitor_id varchar(100) not null,
+    visit_date date not null,
+    landing_path varchar(500) not null,
+    referrer text,
+    referrer_host varchar(255),
+    utm_source varchar(255),
+    utm_medium varchar(255),
+    utm_campaign varchar(255),
+    source_type varchar(50) not null,
+    source_label varchar(255) not null,
+    ip_address varchar(100),
+    city varchar(255),
+    region varchar(255),
+    country_name varchar(255),
+    country_code varchar(20),
+    timezone varchar(255),
+    exact_location_name varchar(500),
+    postal_code varchar(40),
+    location_source varchar(40),
+    latitude double precision,
+    longitude double precision,
+    location_accuracy_meters double precision,
+    organization varchar(255),
+    accept_language varchar(255),
+    user_agent varchar(1000),
+    created_at timestamp not null
+);
+
+alter table site_visits add column if not exists ip_address varchar(100);
+alter table site_visits add column if not exists city varchar(255);
+alter table site_visits add column if not exists region varchar(255);
+alter table site_visits add column if not exists country_name varchar(255);
+alter table site_visits add column if not exists country_code varchar(20);
+alter table site_visits add column if not exists timezone varchar(255);
+alter table site_visits add column if not exists exact_location_name varchar(500);
+alter table site_visits add column if not exists postal_code varchar(40);
+alter table site_visits add column if not exists location_source varchar(40);
+alter table site_visits add column if not exists latitude double precision;
+alter table site_visits add column if not exists longitude double precision;
+alter table site_visits add column if not exists location_accuracy_meters double precision;
+alter table site_visits add column if not exists organization varchar(255);
+alter table site_visits add column if not exists accept_language varchar(255);
+
+create unique index if not exists idx_site_visits_unique_daily_visitor on site_visits(visitor_id, visit_date);
+create index if not exists idx_site_visits_created_at on site_visits(created_at desc);
+create index if not exists idx_site_visits_source_type on site_visits(source_type);
+
 create table if not exists cart (
     id uuid primary key,
     customer_id uuid not null unique references customers(id) on delete cascade,
@@ -125,6 +174,8 @@ create table if not exists orders (
     payment_status varchar(50) not null,
     order_source varchar(50) not null default 'WEBSITE',
     invoice_id uuid,
+    sales_person_user_id uuid,
+    sales_person_name varchar(255) not null default 'Website',
     status varchar(50) not null,
     created_at timestamp not null
 );
@@ -133,8 +184,17 @@ alter table orders add column if not exists order_source varchar(50) not null de
 alter table orders add column if not exists invoice_id uuid;
 alter table orders add column if not exists tax numeric(12, 2) not null default 0;
 alter table orders add column if not exists delivery numeric(12, 2) not null default 0;
+alter table orders add column if not exists sales_person_user_id uuid;
+alter table orders add column if not exists sales_person_name varchar(255) not null default 'Website';
 update orders set order_source = 'WEBSITE' where order_source is null;
+update orders
+set sales_person_name = case
+    when order_source = 'WEBSITE' then 'Website'
+    else 'Unassigned'
+end
+where sales_person_name is null or trim(sales_person_name) = '';
 create unique index if not exists idx_orders_invoice_id_unique on orders(invoice_id) where invoice_id is not null;
+create index if not exists idx_orders_sales_person_created_at on orders (sales_person_user_id, created_at desc);
 
 create table if not exists order_items (
     id uuid primary key,
@@ -157,10 +217,18 @@ create table if not exists invoices (
     final_amount numeric(12, 2) not null,
     payment_mode varchar(20) not null,
     coupon_code varchar(100),
+    sales_person_user_id uuid,
+    sales_person_name varchar(255) not null default 'Unassigned',
     created_at timestamp not null
 );
 
 alter table invoices add column if not exists coupon_code varchar(100);
+alter table invoices add column if not exists sales_person_user_id uuid;
+alter table invoices add column if not exists sales_person_name varchar(255) not null default 'Unassigned';
+update invoices
+set sales_person_name = 'Unassigned'
+where sales_person_name is null or trim(sales_person_name) = '';
+create index if not exists idx_invoices_sales_person_created_at on invoices (sales_person_user_id, created_at desc);
 
 create table if not exists invoice_items (
     id uuid primary key,
@@ -291,8 +359,11 @@ create table if not exists staff_users (
     display_name varchar(255) not null,
     role varchar(50) not null,
     enabled boolean not null default true,
+    sales_person boolean not null default false,
     created_at timestamp not null
 );
+
+alter table staff_users add column if not exists sales_person boolean not null default false;
 
 create table if not exists staff_user_permissions (
     user_id uuid not null references staff_users(id) on delete cascade,

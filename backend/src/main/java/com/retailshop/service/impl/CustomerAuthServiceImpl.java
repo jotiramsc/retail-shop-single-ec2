@@ -13,7 +13,7 @@ import com.retailshop.repository.CustomerRepository;
 import com.retailshop.security.CustomerJwtService;
 import com.retailshop.service.CustomerAuthService;
 import com.retailshop.service.MarketingChannelResult;
-import com.retailshop.service.WhatsAppMessageService;
+import com.retailshop.service.OtpDeliveryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,7 +35,7 @@ public class CustomerAuthServiceImpl implements CustomerAuthService {
     private final CustomerJwtService customerJwtService;
     private final CustomerRepository customerRepository;
     private final CustomerOtpRepository customerOtpRepository;
-    private final WhatsAppMessageService whatsAppMessageService;
+    private final OtpDeliveryService otpDeliveryService;
     private final SecureRandom secureRandom = new SecureRandom();
 
     @Override
@@ -61,34 +61,35 @@ public class CustomerAuthServiceImpl implements CustomerAuthService {
         nextRecord.setRetryCount(0);
         nextRecord.setResendAllowedAt(now.plusSeconds(resendCooldownSeconds));
         customerOtpRepository.save(nextRecord);
+        String fallbackMessage = "WhatsApp OTP is currently unavailable, so the OTP is shown on screen.";
 
-        if (whatsAppMessageService.isConfigured()) {
-            MarketingChannelResult result = whatsAppMessageService.sendOtp(
+        if (otpDeliveryService.isConfigured()) {
+            MarketingChannelResult result = otpDeliveryService.sendOtp(
                     mobile,
                     otp,
                     appProperties.getCustomerAuth().getOtpTtlMinutes()
             );
-            if (!result.isSuccess()) {
-                throw new BusinessException(result.getErrorMessage() == null
-                        ? "Unable to send OTP on WhatsApp"
-                        : result.getErrorMessage());
+            if (result.isSuccess()) {
+                return CustomerOtpSendResponse.builder()
+                        .externalProviderConfigured(true)
+                        .message("OTP sent on WhatsApp via Gupshup. The same OTP is also shown on screen for quick login.")
+                        .devOtp(otp)
+                        .channel(otpDeliveryService.getChannel())
+                        .maskedMobile(maskMobile(mobile))
+                        .resendCooldownSeconds(resendCooldownSeconds)
+                        .expiresInSeconds(expiresInSeconds)
+                        .build();
             }
-            return CustomerOtpSendResponse.builder()
-                    .externalProviderConfigured(true)
-                    .message("OTP sent on WhatsApp. The same OTP is also shown on screen for quick login.")
-                    .devOtp(otp)
-                    .channel("WHATSAPP")
-                    .maskedMobile(maskMobile(mobile))
-                    .resendCooldownSeconds(resendCooldownSeconds)
-                    .expiresInSeconds(expiresInSeconds)
-                    .build();
+            if (result.getErrorMessage() != null && !result.getErrorMessage().isBlank()) {
+                fallbackMessage = result.getErrorMessage() + " The OTP is shown on screen instead.";
+            }
         }
 
         return CustomerOtpSendResponse.builder()
                 .externalProviderConfigured(false)
-                .message("WhatsApp OTP is currently unavailable, so the OTP is shown on screen.")
+                .message(fallbackMessage)
                 .devOtp(otp)
-                .channel("WHATSAPP")
+                .channel(otpDeliveryService.getChannel())
                 .maskedMobile(maskMobile(mobile))
                 .resendCooldownSeconds(resendCooldownSeconds)
                 .expiresInSeconds(expiresInSeconds)

@@ -13,6 +13,7 @@ import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.UUID;
 
 @Getter
 @Setter
@@ -24,6 +25,9 @@ public class InvoiceCreateRequest {
     @NotBlank
     @Pattern(regexp = "^[0-9]{10,15}$", message = "Mobile must contain 10 to 15 digits")
     private String customerMobile;
+
+    @NotNull
+    private UUID salesPersonUserId;
 
     @Valid
     @NotEmpty

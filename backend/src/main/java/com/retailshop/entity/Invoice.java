@@ -53,6 +53,12 @@ public class Invoice {
     @Column(name = "coupon_code")
     private String couponCode;
 
+    @Column(name = "sales_person_user_id")
+    private UUID salesPersonUserId;
+
+    @Column(name = "sales_person_name", nullable = false)
+    private String salesPersonName;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -66,6 +72,9 @@ public class Invoice {
         }
         if (createdAt == null) {
             createdAt = LocalDateTime.now();
+        }
+        if (salesPersonName == null || salesPersonName.isBlank()) {
+            salesPersonName = "Unassigned";
         }
     }
 }

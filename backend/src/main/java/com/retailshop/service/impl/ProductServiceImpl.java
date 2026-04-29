@@ -6,9 +6,11 @@ import com.retailshop.dto.ProductRequest;
 import com.retailshop.dto.ProductResponse;
 import com.retailshop.dto.PublicProductResponse;
 import com.retailshop.entity.Product;
+import com.retailshop.enums.OrderStatus;
 import com.retailshop.exception.BusinessException;
 import com.retailshop.exception.ResourceNotFoundException;
 import com.retailshop.repository.InvoiceItemRepository;
+import com.retailshop.repository.OrderItemRepository;
 import com.retailshop.repository.ProductRepository;
 import com.retailshop.service.ProductCategoryOptionService;
 import com.retailshop.service.ProductService;
@@ -31,6 +33,7 @@ import java.util.stream.Stream;
 public class ProductServiceImpl implements ProductService {
 
     private final InvoiceItemRepository invoiceItemRepository;
+    private final OrderItemRepository orderItemRepository;
     private final ProductRepository productRepository;
     private final ProductCategoryOptionService productCategoryOptionService;
 
@@ -62,7 +65,7 @@ public class ProductServiceImpl implements ProductService {
                 .stream()
                 .collect(Collectors.toMap(Product::getId, Function.identity()));
 
-        List<ProductResponse> trending = invoiceItemRepository.findTrendingProductSales()
+        List<ProductResponse> trending = orderItemRepository.findTrendingProductSales(OrderStatus.CANCELLED)
                 .stream()
                 .map(row -> products.get((UUID) row[0]))
                 .filter(product -> product != null)
@@ -89,8 +92,9 @@ public class ProductServiceImpl implements ProductService {
     @Override
     @Transactional(readOnly = true)
     public List<PublicProductResponse> getPublicTrendingProducts(int limit) {
-        return getTrendingProducts(limit)
+        List<PublicProductResponse> trending = getTrendingProducts(limit * 2)
                 .stream()
+                .filter(product -> isInStock(product.getQuantity()))
                 .map(product -> PublicProductResponse.builder()
                         .id(product.getId())
                         .name(product.getName())
@@ -110,7 +114,24 @@ public class ProductServiceImpl implements ProductService {
                         .showInCuratedSelections(product.getShowInCuratedSelections())
                         .createdAt(product.getCreatedAt())
                         .build())
+                .limit(limit)
                 .toList();
+
+        if (trending.size() >= limit) {
+            return trending;
+        }
+
+        List<UUID> selectedIds = trending.stream().map(PublicProductResponse::getId).toList();
+        List<PublicProductResponse> fallback = productRepository.findAll()
+                .stream()
+                .filter(product -> isInStock(product.getQuantity()))
+                .filter(product -> !selectedIds.contains(product.getId()))
+                .sorted((left, right) -> right.getCreatedAt().compareTo(left.getCreatedAt()))
+                .limit(limit - trending.size())
+                .map(this::mapToPublicResponse)
+                .toList();
+
+        return Stream.concat(trending.stream(), fallback.stream()).toList();
     }
 
     @Override

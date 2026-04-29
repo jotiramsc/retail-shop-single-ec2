@@ -29,6 +29,9 @@ public class StaffUserRequest {
     @NotNull
     private Boolean enabled;
 
+    @NotNull
+    private Boolean salesPerson;
+
     @NotEmpty
     private Set<AppPermission> permissions = new LinkedHashSet<>();
 }

@@ -9,6 +9,8 @@ spring:
     username: ${DB_USERNAME:retail_user}
     password: ${DB_PASSWORD:retail_pass}
     driver-class-name: org.postgresql.Driver
+  jackson:
+    time-zone: Asia/Kolkata
   jpa:
     hibernate:
       ddl-auto: validate
@@ -88,6 +90,11 @@ app:
     otp-content-sid: ${TWILIO_WHATSAPP_OTP_CONTENT_SID:}
     order-update-content-sid: ${TWILIO_WHATSAPP_ORDER_CONTENT_SID:}
     offer-content-sid: ${TWILIO_WHATSAPP_OFFER_CONTENT_SID:}
+  gupshup:
+    api-key: ${GUPSHUP_API_KEY:}
+    app-name: ${GUPSHUP_APP_NAME:}
+    source-number: ${GUPSHUP_SOURCE_NUMBER:}
+    otp-template-id: ${GUPSHUP_OTP_TEMPLATE_ID:}
   meta:
     access-token: ${META_ACCESS_TOKEN:}
     page-id: ${FB_PAGE_ID:}

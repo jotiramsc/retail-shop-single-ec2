@@ -72,6 +72,7 @@ Runbook:
 
 - [Single EC2 deployment](docs/single-ec2-deployment.md)
 - [GitHub deploy for Single EC2](docs/github-single-ec2-deploy.md)
+- [Security hardening plan](docs/security-hardening-plan.md)
 
 ## Run With Docker
 
@@ -135,6 +136,10 @@ export TWILIO_WHATSAPP_FROM=whatsapp:+14155238886
 export TWILIO_WHATSAPP_OTP_CONTENT_SID=
 export TWILIO_WHATSAPP_ORDER_CONTENT_SID=
 export TWILIO_WHATSAPP_OFFER_CONTENT_SID=
+export GUPSHUP_API_KEY=
+export GUPSHUP_APP_NAME=
+export GUPSHUP_SOURCE_NUMBER=
+export GUPSHUP_OTP_TEMPLATE_ID=
 export META_ACCESS_TOKEN=
 export FB_PAGE_ID=
 export IG_BUSINESS_ACCOUNT_ID=

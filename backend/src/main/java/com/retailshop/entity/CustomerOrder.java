@@ -80,6 +80,12 @@ public class CustomerOrder {
     @Column(name = "invoice_id")
     private UUID invoiceId;
 
+    @Column(name = "sales_person_user_id")
+    private UUID salesPersonUserId;
+
+    @Column(name = "sales_person_name", nullable = false)
+    private String salesPersonName;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private OrderStatus status;
@@ -97,6 +103,9 @@ public class CustomerOrder {
         }
         if (createdAt == null) {
             createdAt = LocalDateTime.now();
+        }
+        if (salesPersonName == null || salesPersonName.isBlank()) {
+            salesPersonName = source == OrderSource.WEBSITE ? "Website" : "Unassigned";
         }
     }
 }

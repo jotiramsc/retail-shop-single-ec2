@@ -17,6 +17,8 @@ public class InvoiceResponse {
     private UUID customerId;
     private String customerName;
     private String customerMobile;
+    private UUID salesPersonUserId;
+    private String salesPersonName;
     private BigDecimal totalAmount;
     private BigDecimal discount;
     private BigDecimal finalAmount;

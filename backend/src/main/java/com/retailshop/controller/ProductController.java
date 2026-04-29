@@ -59,7 +59,7 @@ public class ProductController {
 
     @GetMapping("/catalog/trending")
     public List<PublicProductResponse> getPublicTrendingCatalog() {
-        return productService.getPublicTrendingProducts(3);
+        return productService.getPublicTrendingProducts(4);
     }
 
     @GetMapping("/trending")

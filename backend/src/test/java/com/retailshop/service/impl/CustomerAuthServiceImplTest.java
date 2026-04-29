@@ -8,7 +8,7 @@ import com.retailshop.repository.CustomerOtpRepository;
 import com.retailshop.repository.CustomerRepository;
 import com.retailshop.security.CustomerJwtService;
 import com.retailshop.service.MarketingChannelResult;
-import com.retailshop.service.WhatsAppMessageService;
+import com.retailshop.service.OtpDeliveryService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -41,7 +41,7 @@ class CustomerAuthServiceImplTest {
     private CustomerOtpRepository customerOtpRepository;
 
     @Mock
-    private WhatsAppMessageService whatsAppMessageService;
+    private OtpDeliveryService otpDeliveryService;
 
     private CustomerAuthServiceImpl customerAuthService;
 
@@ -56,7 +56,7 @@ class CustomerAuthServiceImplTest {
                 customerJwtService,
                 customerRepository,
                 customerOtpRepository,
-                whatsAppMessageService
+                otpDeliveryService
         );
     }
 
@@ -67,10 +67,11 @@ class CustomerAuthServiceImplTest {
 
         when(customerOtpRepository.findById("9876543210")).thenReturn(Optional.empty());
         when(customerOtpRepository.save(any(CustomerOtp.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(whatsAppMessageService.isConfigured()).thenReturn(true);
-        when(whatsAppMessageService.sendOtp(eq("9876543210"), any(), eq(5L))).thenReturn(
+        when(otpDeliveryService.isConfigured()).thenReturn(true);
+        when(otpDeliveryService.sendOtp(eq("9876543210"), any(), eq(5L))).thenReturn(
                 MarketingChannelResult.builder().success(true).build()
         );
+        when(otpDeliveryService.getChannel()).thenReturn("WHATSAPP");
 
         var response = customerAuthService.sendOtp(request);
 
@@ -86,6 +87,27 @@ class CustomerAuthServiceImplTest {
         CustomerOtp savedOtp = otpCaptor.getValue();
         assertEquals("9876543210", savedOtp.getMobile());
         assertEquals("WHATSAPP", savedOtp.getChannel());
+    }
+
+    @Test
+    void shouldFallbackToOnScreenOtpWhenProviderFails() {
+        CustomerOtpRequest request = new CustomerOtpRequest();
+        request.setMobile("+91 98765 43210");
+
+        when(customerOtpRepository.findById("9876543210")).thenReturn(Optional.empty());
+        when(customerOtpRepository.save(any(CustomerOtp.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(otpDeliveryService.isConfigured()).thenReturn(true);
+        when(otpDeliveryService.sendOtp(eq("9876543210"), any(), eq(5L))).thenReturn(
+                MarketingChannelResult.builder().success(false).errorMessage("Gupshup send failed").build()
+        );
+        when(otpDeliveryService.getChannel()).thenReturn("WHATSAPP");
+
+        var response = customerAuthService.sendOtp(request);
+
+        assertFalse(response.isExternalProviderConfigured());
+        assertTrue(response.getMessage().contains("Gupshup send failed"));
+        assertEquals("WHATSAPP", response.getChannel());
+        assertFalse(response.getDevOtp().isBlank());
     }
 
     @Test

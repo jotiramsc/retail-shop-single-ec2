@@ -24,6 +24,8 @@ public class OrderResponse {
     private BigDecimal delivery;
     private BigDecimal finalAmount;
     private String couponCode;
+    private UUID salesPersonUserId;
+    private String salesPersonName;
     private List<OrderItemResponse> items;
     private LocalDateTime createdAt;
 }

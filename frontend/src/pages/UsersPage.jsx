@@ -12,6 +12,7 @@ const permissionOptions = [
   { value: 'OFFERS', label: 'Offers' },
   { value: 'CAMPAIGNS', label: 'Marketing' },
   { value: 'REPORTS', label: 'Reports' },
+  { value: 'SALESPERSON_SALES', label: 'Salesperson Sales' },
   { value: 'RECEIPT_SETTINGS', label: 'Receipt Settings' },
   { value: 'USER_MANAGEMENT', label: 'User Management' }
 ];
@@ -22,6 +23,7 @@ const blankForm = {
   displayName: '',
   role: 'STAFF',
   enabled: true,
+  salesPerson: false,
   permissions: ['BILLING']
 };
 
@@ -79,6 +81,7 @@ export default function UsersPage() {
         displayName: form.displayName.trim(),
         role: form.role,
         enabled: form.enabled,
+        salesPerson: form.salesPerson,
         permissions: form.permissions
       };
 
@@ -105,6 +108,7 @@ export default function UsersPage() {
       displayName: user.displayName,
       role: user.role,
       enabled: Boolean(user.enabled),
+      salesPerson: Boolean(user.salesPerson),
       permissions: user.permissions || []
     });
   };
@@ -156,6 +160,15 @@ export default function UsersPage() {
               <span>User can sign in</span>
             </label>
 
+            <label className="toggle-field">
+              <input
+                type="checkbox"
+                checked={Boolean(form.salesPerson)}
+                onChange={(e) => setForm({ ...form, salesPerson: e.target.checked })}
+              />
+              <span>Available in billing sales person list</span>
+            </label>
+
             <div className="permission-grid">
               {permissionOptions.map((option) => (
                 <label key={option.value} className="toggle-field">
@@ -192,6 +205,7 @@ export default function UsersPage() {
               { key: 'username', label: 'Username' },
               { key: 'role', label: 'Role' },
               { key: 'enabled', label: 'Status', render: (row) => row.enabled ? 'Active' : 'Disabled' },
+              { key: 'salesPerson', label: 'Sales Person', render: (row) => row.salesPerson ? 'Yes' : 'No' },
               {
                 key: 'permissions',
                 label: 'Menus',

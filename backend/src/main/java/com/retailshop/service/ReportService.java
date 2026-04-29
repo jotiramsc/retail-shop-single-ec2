@@ -11,8 +11,8 @@ import java.time.LocalDate;
 import java.util.UUID;
 
 public interface ReportService {
-    DailyReportResponse getDailyReport(LocalDate fromDate, LocalDate toDate);
+    DailyReportResponse getDailyReport(LocalDate fromDate, LocalDate toDate, String salesPersonName);
     PaginatedResponse<LowStockProductResponse> getLowStockProducts(Pageable pageable);
-    ReportOrderFeedResponse getOrders(LocalDate fromDate, LocalDate toDate, String customerName, Pageable pageable);
-    SalesReportResponse getSalesReport(String period, String month, Integer year, String scope, String category, UUID productId);
+    ReportOrderFeedResponse getOrders(LocalDate fromDate, LocalDate toDate, String customerName, String salesPersonName, Pageable pageable);
+    SalesReportResponse getSalesReport(String period, String month, Integer year, String scope, String category, UUID productId, String salesPersonName);
 }

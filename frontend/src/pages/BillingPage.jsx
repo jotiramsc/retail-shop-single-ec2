@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import DataTable from '../components/DataTable';
 import MetricCard from '../components/MetricCard';
-import PageHeader from '../components/PageHeader';
 import Panel from '../components/Panel';
 import { retailService } from '../services/retailService';
+import { getStoredAuthSession } from '../utils/auth';
 import { currency, formatDate } from '../utils/format';
 import { getApiErrorMessage, isValidMobile } from '../utils/validation';
 
 const initialForm = {
+  salesPersonUserId: '',
   customerName: '',
   customerMobile: '',
   paymentMode: 'CASH',
@@ -20,9 +21,11 @@ const today = new Date().toISOString().slice(0, 10);
 
 export default function BillingPage() {
   const latestInvoiceRef = useRef(null);
+  const authSession = getStoredAuthSession();
   const [products, setProducts] = useState([]);
   const [offers, setOffers] = useState([]);
   const [trendingProducts, setTrendingProducts] = useState([]);
+  const [salesPeople, setSalesPeople] = useState([]);
   const [cart, setCart] = useState([]);
   const [editingInvoiceOriginalQuantities, setEditingInvoiceOriginalQuantities] = useState({});
   const [searchPickedProducts, setSearchPickedProducts] = useState([]);
@@ -49,13 +52,27 @@ export default function BillingPage() {
       retailService.getProducts({ page: 0, size: 250 }),
       retailService.getTrendingProducts(),
       retailService.getReceiptSettings(),
-      retailService.getOffers({ page: 0, size: 250 })
+      retailService.getOffers({ page: 0, size: 250 }),
+      retailService.getSalesPeople()
     ])
-      .then(([allProducts, trending, settings, offersPage]) => {
+      .then(([allProducts, trending, settings, offersPage, salesPeopleList]) => {
         setProducts(allProducts.items || []);
         setTrendingProducts(trending);
         setReceiptSettings(settings);
         setOffers(offersPage.items || []);
+        setSalesPeople(salesPeopleList || []);
+        setForm((current) => {
+          if (current.salesPersonUserId) {
+            return current;
+          }
+          const currentUserMatch = (salesPeopleList || []).find((user) =>
+            user.username === authSession?.username || user.displayName === authSession?.displayName
+          );
+          return {
+            ...current,
+            salesPersonUserId: currentUserMatch?.id || salesPeopleList?.[0]?.id || ''
+          };
+        });
       })
       .catch(() => setError('Unable to load billing data.'));
   }, []);
@@ -108,7 +125,7 @@ export default function BillingPage() {
   }, [form.customerName, form.customerMobile, customerSearchFocused]);
 
   useEffect(() => {
-    if (!cart.length) {
+    if (!cart.length || !form.salesPersonUserId) {
       setPreviewInvoice(null);
       return;
     }
@@ -116,6 +133,7 @@ export default function BillingPage() {
     const timeoutId = window.setTimeout(async () => {
       try {
         const preview = await retailService.previewInvoice({
+          salesPersonUserId: form.salesPersonUserId,
           customerName: form.customerName || 'Walk-in Customer',
           customerMobile: isValidMobile(form.customerMobile) ? form.customerMobile : '9999999999',
           paymentMode: form.paymentMode,
@@ -131,7 +149,7 @@ export default function BillingPage() {
     }, 250);
 
     return () => window.clearTimeout(timeoutId);
-  }, [cart, form.customerName, form.customerMobile, form.paymentMode, form.couponCode, form.manualDiscount, form.manualDiscountType]);
+  }, [cart, form.salesPersonUserId, form.customerName, form.customerMobile, form.paymentMode, form.couponCode, form.manualDiscount, form.manualDiscountType]);
 
   useEffect(() => {
     const normalized = invoiceSearchName.trim();
@@ -276,6 +294,7 @@ export default function BillingPage() {
           <div class="meta">
             <div><strong>Invoice:</strong> ${printableInvoice.invoiceNumber}</div>
             <div><strong>Customer:</strong> ${printableInvoice.customerName} (${printableInvoice.customerMobile})</div>
+            <div><strong>Sales Person:</strong> ${printableInvoice.salesPersonName || 'Unassigned'}</div>
             <div><strong>Created:</strong> ${formatDate(printableInvoice.createdAt)}</div>
             <div><strong>Payment:</strong> ${printableInvoice.paymentMode}</div>
           </div>
@@ -312,6 +331,10 @@ export default function BillingPage() {
       setError('Enter a valid mobile number with 10 to 15 digits.');
       return false;
     }
+    if (!form.salesPersonUserId) {
+      setError('Choose the sales person for this bill.');
+      return false;
+    }
     if (!cart.length) {
       setError('Add at least one product to the cart.');
       return false;
@@ -333,8 +356,12 @@ export default function BillingPage() {
       if (shouldPrintAfterSave) {
         window.setTimeout(() => printInvoice(response), 120);
       }
+      const selectedSalesPersonUserId = form.salesPersonUserId;
       setCart([]);
-      setForm(initialForm);
+      setForm({
+        ...initialForm,
+        salesPersonUserId: selectedSalesPersonUserId
+      });
       setCustomerSnapshot(null);
       setEditingInvoiceId(null);
       setEditingInvoiceOriginalQuantities({});
@@ -454,6 +481,7 @@ export default function BillingPage() {
     setInvoiceSuggestions([]);
     setInvoiceSearchName(selectedInvoice.customerName);
       setForm({
+        salesPersonUserId: selectedInvoice.salesPersonUserId || '',
         customerName: selectedInvoice.customerName,
         customerMobile: selectedInvoice.customerMobile,
         paymentMode: selectedInvoice.paymentMode,
@@ -495,34 +523,10 @@ export default function BillingPage() {
   };
 
   return (
-    <div className="page">
-      <PageHeader
-        eyebrow="POS Billing"
-        title="Fast billing for the counter"
-        description="Build the cart, validate stock, auto-apply the best live offer, and close the sale in one move."
-      />
-
-      <div className="metric-grid">
-        <MetricCard label="Cart Items" value={cart.length} />
-        <MetricCard label="Subtotal" value={currency(subtotal)} tone="accent" />
-        <MetricCard label="Products Ready" value={products.length} />
-      </div>
-
+    <div className="page billing-page">
       <div className="two-column">
         <div className="inventory-stack">
-        <Panel title="Product picker" subtitle="Top 10 frequently bought items stay visible here. Use search if the item is not in quick picks.">
-          <div className="catalog-hero">
-            <div className="catalog-hero-copy">
-              <p className="eyebrow">Curated Counter</p>
-              <h4>Jewellery highlights and beauty essentials in one polished counter view.</h4>
-              <p>Search fast, keep premium picks visible, and catch low-stock items before they disappoint a customer at checkout.</p>
-            </div>
-            <div className="catalog-hero-art">
-              <div className="hero-image hero-image-jewel" />
-              <div className="hero-image hero-image-vanity" />
-            </div>
-          </div>
-
+        <Panel title="Product picker" subtitle="Search products or use quick picks.">
           {lowStockBillingAlerts.length ? (
             <div className="billing-alert">
               <strong>Low stock alert</strong>
@@ -637,8 +641,8 @@ export default function BillingPage() {
         <Panel
           title="Find Invoice To Edit"
           subtitle={editingInvoiceId
-            ? 'An invoice is already loaded into checkout. Search here any time to replace it with another bill.'
-            : 'Search by customer name, review matching invoices, and load the right bill back into checkout.'}
+            ? 'An invoice is already loaded into checkout.'
+            : 'Search by customer name and load the bill into checkout.'}
         >
           <div className="invoice-search-panel">
             <div className="search-box-wrap">
@@ -650,7 +654,6 @@ export default function BillingPage() {
                 onChange={(e) => setInvoiceSearchName(e.target.value)}
                 autoComplete="off"
               />
-              <p className="field-note">Pick the invoice below and the cart, customer, payment mode, and coupon will load into billing automatically.</p>
             </div>
             <label className="date-field">
               <span>From date</span>
@@ -667,6 +670,7 @@ export default function BillingPage() {
             <DataTable
               columns={[
                 { key: 'invoiceNumber', label: 'Invoice' },
+                { key: 'salesPersonName', label: 'Sales Person' },
                 { key: 'customerName', label: 'Customer' },
                 { key: 'customerMobile', label: 'Mobile' },
                 { key: 'createdAt', label: 'Date', render: (row) => formatDate(row.createdAt) },
@@ -694,8 +698,29 @@ export default function BillingPage() {
         </Panel>
         </div>
 
-        <Panel title="Checkout" subtitle="Customer mobile is mandatory and old data is preserved through new invoices.">
+        <Panel title="Checkout" subtitle="Customer, payment, and discount details.">
+          <div className="billing-summary-grid">
+            <MetricCard label="Cart Items" value={cart.length} />
+            <MetricCard label="Subtotal" value={currency(subtotal)} tone="accent" />
+            <MetricCard label="Products Ready" value={products.length} />
+          </div>
           <form className="form-grid" onSubmit={handleSubmit}>
+            <div className="search-box-wrap">
+              <label className="input-label" htmlFor="billing-sales-person">Sales person</label>
+              <select
+                id="billing-sales-person"
+                value={form.salesPersonUserId}
+                onChange={(e) => setForm({ ...form, salesPersonUserId: e.target.value })}
+                required
+              >
+                <option value="">Choose sales person</option>
+                {salesPeople.map((salesPerson) => (
+                  <option key={salesPerson.id} value={salesPerson.id}>
+                    {salesPerson.displayName}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div className="search-box-wrap">
               <label className="input-label" htmlFor="billing-customer-name">Customer name</label>
               <input
@@ -708,7 +733,6 @@ export default function BillingPage() {
                 autoComplete="off"
                 required
               />
-              <p className="field-note">Start typing and choose an existing customer to fill mobile number and billing details automatically.</p>
               {customerSearchFocused && customerSuggestions.length ? (
                 <div className="autocomplete-menu">
                   {customerSuggestions.map((customer) => (
@@ -754,10 +778,7 @@ export default function BillingPage() {
               <option value="CARD">Card</option>
               <option value="UPI">UPI</option>
             </select>
-            <div className="label-with-note">
-              <span className="input-label">Coupon selection</span>
-              <span className="field-note inline-field-note">Choose a valid coupon for the current cart. Coupon and custom discount cannot be combined.</span>
-            </div>
+            <label className="input-label">Coupon selection</label>
             <select
               value={form.couponCode}
               onChange={(e) => setForm((current) => ({
@@ -774,14 +795,7 @@ export default function BillingPage() {
                 </option>
               ))}
             </select>
-            <div className="label-with-note">
-              <span className="input-label">Custom discount type</span>
-              <span className="field-note inline-field-note">
-                {couponSelected
-                  ? 'Custom discount is locked because a coupon is selected.'
-                  : 'Choose whether the discount value is a fixed amount or a percentage.'}
-              </span>
-            </div>
+            <label className="input-label">Custom discount type</label>
             <div className="discount-mode-toggle" role="group" aria-label="Custom discount type">
               <button
                 type="button"
@@ -922,6 +936,7 @@ export default function BillingPage() {
           <Panel title="Latest invoice" subtitle="The final amount reflects the best non-stacked offer plus any manual discount.">
           <div className="invoice-summary">
             <MetricCard label="Invoice No." value={invoice.invoiceNumber} />
+            <MetricCard label="Sales Person" value={invoice.salesPersonName} />
             <MetricCard label="Customer" value={invoice.customerName} />
             <MetricCard label="Final Amount" value={currency(invoice.finalAmount)} tone="accent" />
             <MetricCard label="Created" value={formatDate(invoice.createdAt)} />

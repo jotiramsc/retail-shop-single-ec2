@@ -3,6 +3,7 @@ package com.retailshop.service.impl;
 import com.retailshop.dto.ProductRequest;
 import com.retailshop.entity.Product;
 import com.retailshop.repository.InvoiceItemRepository;
+import com.retailshop.repository.OrderItemRepository;
 import com.retailshop.repository.ProductRepository;
 import com.retailshop.service.ProductCategoryOptionService;
 import org.junit.jupiter.api.BeforeEach;
@@ -31,6 +32,9 @@ class ProductServiceImplTest {
     private InvoiceItemRepository invoiceItemRepository;
 
     @Mock
+    private OrderItemRepository orderItemRepository;
+
+    @Mock
     private ProductRepository productRepository;
 
     @Mock
@@ -40,7 +44,7 @@ class ProductServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        productService = new ProductServiceImpl(invoiceItemRepository, productRepository, productCategoryOptionService);
+        productService = new ProductServiceImpl(invoiceItemRepository, orderItemRepository, productRepository, productCategoryOptionService);
     }
 
     @Test
@@ -109,5 +113,53 @@ class ProductServiceImplTest {
         assertFalse(catalog.get(1).getInStock());
         assertEquals(BigDecimal.valueOf(100.00).setScale(2), catalog.get(1).getSellingPrice());
         assertNull(catalog.get(1).getImageDataUrl());
+    }
+
+    @Test
+    void shouldRankTrendingProductsFromPaidOrdersAndKeepPublicResultsInStock() {
+        Product bestSeller = new Product();
+        bestSeller.setId(UUID.randomUUID());
+        bestSeller.setName("Temple Necklace");
+        bestSeller.setCategory("JEWELLERY");
+        bestSeller.setSku("JEW-TEMP-001");
+        bestSeller.setSellingPrice(BigDecimal.valueOf(1200));
+        bestSeller.setQuantity(8);
+        bestSeller.setLowStockThreshold(2);
+        bestSeller.setCreatedAt(LocalDateTime.now().minusDays(1));
+        bestSeller.prePersist();
+
+        Product soldOut = new Product();
+        soldOut.setId(UUID.randomUUID());
+        soldOut.setName("Pearl Drop Earrings");
+        soldOut.setCategory("JEWELLERY");
+        soldOut.setSku("JEW-PRL-001");
+        soldOut.setSellingPrice(BigDecimal.valueOf(699));
+        soldOut.setQuantity(0);
+        soldOut.setLowStockThreshold(2);
+        soldOut.setCreatedAt(LocalDateTime.now().minusDays(2));
+        soldOut.prePersist();
+
+        Product fallback = new Product();
+        fallback.setId(UUID.randomUUID());
+        fallback.setName("Daily Pearl Studs");
+        fallback.setCategory("JEWELLERY");
+        fallback.setSku("JEW-STD-001");
+        fallback.setSellingPrice(BigDecimal.valueOf(499));
+        fallback.setQuantity(6);
+        fallback.setLowStockThreshold(2);
+        fallback.setCreatedAt(LocalDateTime.now());
+        fallback.prePersist();
+
+        when(productRepository.findAll()).thenReturn(List.of(bestSeller, soldOut, fallback));
+        when(orderItemRepository.findTrendingProductSales(any())).thenReturn(List.of(
+                new Object[]{soldOut.getId(), 14L},
+                new Object[]{bestSeller.getId(), 11L}
+        ));
+
+        var trendingProducts = productService.getTrendingProducts(2);
+        var publicTrending = productService.getPublicTrendingProducts(2);
+
+        assertEquals(List.of(soldOut.getId(), bestSeller.getId()), trendingProducts.stream().map(product -> product.getId()).toList());
+        assertEquals(List.of(bestSeller.getId(), fallback.getId()), publicTrending.stream().map(product -> product.getId()).toList());
     }
 }

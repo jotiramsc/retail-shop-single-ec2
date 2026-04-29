@@ -17,6 +17,7 @@ public class StaffUserResponse {
     private String displayName;
     private StaffRole role;
     private Boolean enabled;
+    private Boolean salesPerson;
     private Set<AppPermission> permissions;
     private LocalDateTime createdAt;
 }

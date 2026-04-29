@@ -58,6 +58,7 @@ class ReportServiceImplTest {
         Invoice invoice = new Invoice();
         invoice.setDiscount(BigDecimal.valueOf(20).setScale(2));
         invoice.setCustomer(customer("Anika", "9876543210"));
+        invoice.setSalesPersonName("Rutuja");
         invoice.setCreatedAt(LocalDateTime.of(2026, 4, 10, 12, 0));
         invoice.setItems(List.of(
                 invoiceItem(invoice, jewelleryProduct, 2, 100, 10),
@@ -69,6 +70,7 @@ class ReportServiceImplTest {
         websiteOrder.setStatus(OrderStatus.COMPLETED);
         websiteOrder.setCustomer(customer("Riya", "9988776655"));
         websiteOrder.setDiscount(BigDecimal.valueOf(15).setScale(2));
+        websiteOrder.setSalesPersonName("Website");
         websiteOrder.setCreatedAt(LocalDateTime.of(2026, 4, 18, 16, 30));
         websiteOrder.setItems(List.of(
                 orderItem(websiteOrder, jewelleryProduct, 1, 120),
@@ -78,15 +80,16 @@ class ReportServiceImplTest {
         when(invoiceRepository.findByCreatedAtBetweenOrderByCreatedAtDesc(any(), any())).thenReturn(List.of(invoice));
         when(customerOrderRepository.findByCreatedAtBetweenOrderByCreatedAtDesc(any(), any())).thenReturn(List.of(websiteOrder));
 
-        var response = reportService.getSalesReport("MONTHLY", "2026-04", null, "CATEGORY", "JEWELLERY", null);
+        var response = reportService.getSalesReport("MONTHLY", "2026-04", null, "CATEGORY", "JEWELLERY", null, "Rutuja");
 
         assertEquals("MONTHLY", response.getPeriod());
         assertEquals("CATEGORY", response.getScope());
-        assertEquals(2, response.getOrderCount());
-        assertEquals(3, response.getQuantitySold());
-        assertEquals(BigDecimal.valueOf(320.00).setScale(2), response.getGrossSales());
-        assertEquals(BigDecimal.valueOf(26.92).setScale(2), response.getDiscount());
-        assertEquals(BigDecimal.valueOf(293.08).setScale(2), response.getNetSales());
+        assertEquals("Rutuja", response.getSalesPersonName());
+        assertEquals(1, response.getOrderCount());
+        assertEquals(2, response.getQuantitySold());
+        assertEquals(BigDecimal.valueOf(200.00).setScale(2), response.getGrossSales());
+        assertEquals(BigDecimal.valueOf(17.92).setScale(2), response.getDiscount());
+        assertEquals(BigDecimal.valueOf(182.08).setScale(2), response.getNetSales());
         assertEquals(1, response.getRows().size());
         assertEquals("Temple Necklace", response.getRows().get(0).getProductName());
     }
