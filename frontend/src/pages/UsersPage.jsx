@@ -12,6 +12,7 @@ const permissionOptions = [
   { value: 'OFFERS', label: 'Offers' },
   { value: 'CAMPAIGNS', label: 'Marketing' },
   { value: 'REPORTS', label: 'Reports' },
+  { value: 'SITE_INTERACTIONS', label: 'Site Interaction' },
   { value: 'SALESPERSON_SALES', label: 'Salesperson Sales' },
   { value: 'RECEIPT_SETTINGS', label: 'Receipt Settings' },
   { value: 'USER_MANAGEMENT', label: 'User Management' }

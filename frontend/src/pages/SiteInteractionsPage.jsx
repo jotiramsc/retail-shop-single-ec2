@@ -102,18 +102,35 @@ function normalizeLanguage(value) {
   }
 }
 
-function formatVisitDetails(row) {
+function formatSourceMeta(row) {
   const details = [];
   if (row.sourceType === 'CAMPAIGN' && row.utmCampaign) {
     details.push(`Campaign ${row.utmCampaign}`);
-  } else if (row.referrerHost && row.sourceType !== 'DIRECT') {
+  } else if (row.referrerHost && row.sourceType !== 'DIRECT' && row.referrerHost !== row.sourceLabel) {
     details.push(row.referrerHost);
   }
   const language = normalizeLanguage(row.acceptLanguage);
   if (language) {
     details.push(`Lang ${language}`);
   }
-  return details.length ? details.join(' · ') : '—';
+  return details.length ? details.join(' · ') : 'No extra source details';
+}
+
+function formatLocationMeta(row) {
+  const parts = [];
+  if (row.locationSource) {
+    parts.push(row.locationSource === 'BROWSER' ? 'Browser precise' : 'IP approximate');
+  }
+  if (row.postalCode) {
+    parts.push(`PIN ${row.postalCode}`);
+  }
+  if (row.latitude != null && row.longitude != null) {
+    parts.push(`${row.latitude.toFixed(5)}, ${row.longitude.toFixed(5)}`);
+  }
+  if (row.locationAccuracyMeters != null) {
+    parts.push(`±${Math.round(row.locationAccuracyMeters)}m`);
+  }
+  return parts.length ? parts.join(' · ') : 'Location details unavailable';
 }
 
 function locationLabel(row) {
@@ -281,11 +298,11 @@ export default function SiteInteractionsPage() {
             { key: 'landingPath', label: 'Landing page' },
             {
               key: 'ipAddress',
-              label: 'IP / Network',
+              label: 'Visitor network',
               render: (row) => (
                 <div>
                   <strong>{row.ipAddress || 'Unknown'}</strong>
-                  <div className="table-subcopy">{row.organization || '—'}</div>
+                  <div className="table-subcopy">{row.organization || 'Network unavailable'}</div>
                 </div>
               )
             },
@@ -295,14 +312,7 @@ export default function SiteInteractionsPage() {
               render: (row) => (
                 <div>
                   <strong>{locationLabel(row)}</strong>
-                  <div className="table-subcopy">
-                    {[
-                      row.locationSource ? `${row.locationSource === 'BROWSER' ? 'Browser precise' : 'IP approximate'}` : null,
-                      row.postalCode ? `PIN ${row.postalCode}` : null,
-                      row.latitude != null && row.longitude != null ? `${row.latitude.toFixed(5)}, ${row.longitude.toFixed(5)}` : null,
-                      row.locationAccuracyMeters != null ? `±${Math.round(row.locationAccuracyMeters)}m` : null
-                    ].filter(Boolean).join(' · ')}
-                  </div>
+                  <div className="table-subcopy">{formatLocationMeta(row)}</div>
                 </div>
               )
             },
@@ -312,17 +322,7 @@ export default function SiteInteractionsPage() {
               render: (row) => (
                 <div>
                   <strong>{formatSourceLabel(row)}</strong>
-                  <div className="table-subcopy">{formatSourceTypeLabel(row.sourceType)}</div>
-                </div>
-              )
-            },
-            {
-              key: 'detail',
-              label: 'Details',
-              render: (row) => (
-                <div>
-                  <strong>{formatVisitDetails(row)}</strong>
-                  <div className="table-subcopy">{row.timezone || 'Timezone unavailable'}</div>
+                  <div className="table-subcopy">{formatSourceTypeLabel(row.sourceType)} · {formatSourceMeta(row)}</div>
                 </div>
               )
             }

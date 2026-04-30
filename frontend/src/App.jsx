@@ -33,7 +33,7 @@ const navItems = [
   { to: '/app/campaigns', label: 'Marketing', permission: 'CAMPAIGNS' },
   { to: '/app/reports', label: 'Reports', permission: 'REPORTS' },
   { to: '/app/salesperson-sales', label: 'Salesperson Sales', permission: 'SALESPERSON_SALES' },
-  { to: '/app/site-interactions', label: 'Site Interaction', permission: 'REPORTS' },
+  { to: '/app/site-interactions', label: 'Site Interaction', permission: 'SITE_INTERACTIONS' },
   { to: '/app/settings/receipt', label: 'Receipt Settings', permission: 'RECEIPT_SETTINGS' },
   { to: '/app/users', label: 'Users', permission: 'USER_MANAGEMENT' }
 ];
@@ -98,7 +98,7 @@ function ProtectedApp({ auth, onLogout, branding }) {
           <Route path="campaigns" element={canAccess('CAMPAIGNS') ? <CampaignsPage /> : <Navigate to={firstAllowedRoute} replace />} />
           <Route path="reports" element={canAccess('REPORTS') ? <ReportsPage /> : <Navigate to={firstAllowedRoute} replace />} />
           <Route path="salesperson-sales" element={canAccess('SALESPERSON_SALES') ? <SalespersonSalesPage auth={auth} /> : <Navigate to={firstAllowedRoute} replace />} />
-          <Route path="site-interactions" element={canAccess('REPORTS') ? <SiteInteractionsPage /> : <Navigate to={firstAllowedRoute} replace />} />
+          <Route path="site-interactions" element={canAccess('SITE_INTERACTIONS') ? <SiteInteractionsPage /> : <Navigate to={firstAllowedRoute} replace />} />
           <Route path="settings/receipt" element={canAccess('RECEIPT_SETTINGS') ? <ReceiptSettingsPage /> : <Navigate to={firstAllowedRoute} replace />} />
           <Route path="users" element={canAccess('USER_MANAGEMENT') ? <UsersPage /> : <Navigate to={firstAllowedRoute} replace />} />
           <Route path="*" element={<Navigate to={firstAllowedRoute} replace />} />

@@ -37,7 +37,7 @@ public class SiteInteractionController {
     }
 
     @GetMapping("/report")
-    @PreAuthorize("hasAuthority('PERM_REPORTS')")
+    @PreAuthorize("hasAuthority('PERM_SITE_INTERACTIONS')")
     public SiteInteractionReportResponse getReport(@RequestParam(defaultValue = "30") int days) {
         return siteInteractionService.getReport(days);
     }
