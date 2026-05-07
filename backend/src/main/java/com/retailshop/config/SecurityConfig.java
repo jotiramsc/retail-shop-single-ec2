@@ -63,6 +63,7 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/health", "/api/auth/login", "/api/auth/send-otp", "/api/auth/verify-otp").permitAll()
                         .requestMatchers("/api/phonepe/webhook", "/api/razorpay/webhook").permitAll()
                         .requestMatchers("/api/omnichannel/webhooks/**").permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/images/**").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/omnichannel/products/**").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/omnichannel/products/**", "/api/omnichannel/leads").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/site-interactions/visit").permitAll()
