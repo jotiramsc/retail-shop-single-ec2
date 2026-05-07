@@ -1247,6 +1247,12 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
         if (!"MARATHI".equals(resolveLanguage(campaign))) {
             return caption;
         }
+        if (isOccasion(festivalContext, "mothers-day")) {
+            return normalizeMarathiMarketingText(buildMarathiMothersDayCaption(campaign, shopName, platform));
+        }
+        if (isOccasion(festivalContext, "wedding-season")) {
+            return normalizeMarathiMarketingText(buildMarathiWeddingSeasonCaption(campaign, shopName, platform));
+        }
         String cleaned = normalizeMarathiMarketingText(caption);
         if (isWeakCaption(cleaned, campaign, festivalContext)) {
             return normalizeMarathiMarketingText(buildMockCaption(campaign, shopName, productName, platform, festivalContext));
