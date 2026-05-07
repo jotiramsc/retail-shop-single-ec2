@@ -101,6 +101,32 @@ class AIContentGenerationServiceImplTest {
     }
 
     @Test
+    void shouldGenerateCleanMarathiMothersDayCopy() {
+        MarketingProperties properties = new MarketingProperties();
+        properties.getAi().setEnabled(false);
+        AIContentGenerationServiceImpl service = new AIContentGenerationServiceImpl(properties, new ObjectMapper(), noOpImageUploadService);
+
+        Campaign campaign = new Campaign();
+        campaign.setCampaignName("मातृ दिन");
+        campaign.setCampaignType(MarketingCampaignType.SEASONAL);
+        campaign.setOfferTitle("मातृ दिनासाठी आईंसाठी खास भेटवस्तू");
+        campaign.setDiscountType(MarketingDiscountType.PERCENTAGE);
+        campaign.setDiscountValue(BigDecimal.valueOf(15));
+        campaign.setLanguage(MarketingLanguage.MARATHI);
+        campaign.setTone(MarketingTone.EMOTIONAL);
+
+        var draft = service.generateDraft(campaign, "Krishnai Pearl Shopee", "JEWELLERY", null, MarketingPlatform.FACEBOOK);
+
+        assertTrue(draft.captionText().contains("आईने नेहमी आपली काळजी घेतली"));
+        assertTrue(draft.captionText().contains("आईसाठी खास भेटवस्तूंवर 15% पर्यंत सूट"));
+        assertTrue(draft.hashtags().contains("#मातृदिन"));
+        assertEquals("आईसाठी कलेक्शन पाहा", draft.callToAction());
+        assertFalse(draft.captionText().contains("मातु"));
+        assertFalse(draft.captionText().contains("जपरी"));
+        assertFalse(draft.captionText().contains("आईंसाठी"));
+    }
+
+    @Test
     void shouldFallbackToInlineCreativePreviewWhenAiImageGenerationIsUnavailable() {
         MarketingProperties properties = new MarketingProperties();
         properties.getAi().setEnabled(false);

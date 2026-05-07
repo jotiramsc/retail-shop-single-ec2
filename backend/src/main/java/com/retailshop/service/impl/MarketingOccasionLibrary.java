@@ -97,7 +97,7 @@ final class MarketingOccasionLibrary {
                     "Marathi pride, local celebration and premium regional styling", BigDecimal.valueOf(12)),
             nthWeekday("mothers-day", "Mother's Day", "मातृ दिन", Month.MAY, DayOfWeek.SUNDAY, 2,
                     "Gift-driven campaign focused on thoughtful gifting for mothers.",
-                    "मातृ दिनासाठी आईंसाठी खास भेटवस्तू",
+                    "आईसाठी खास भेटवस्तू",
                     "#मातृदिन", "#MothersDay",
                     "warm family gifting, elegant jewellery accents and emotional storytelling", BigDecimal.valueOf(15)),
             approximate("vat-pournima", "Vat Pournima", "वट पौर्णिमा", 6, 15,

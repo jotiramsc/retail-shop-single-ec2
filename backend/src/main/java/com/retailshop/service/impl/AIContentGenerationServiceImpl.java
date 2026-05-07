@@ -114,6 +114,9 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
                 captionText, hashtags, callToAction, imagePrompt.
                 Keep content brand-safe and never invent fake discounts.
                 If the selected language is MARATHI, write natural Marathi in Devanagari script, not translated corporate English.
+                Use correct Marathi grammar and spelling. For Mother's Day, use "मातृ दिन" or "मातृदिन" and never "मातु दिन".
+                For Mother's Day Marathi copy, avoid repeated phrases like "मातृ दिनासाठी आईसाठी"; prefer "आईसाठी खास भेट" or "आईसाठी खास भेटवस्तूंवर".
+                Never use awkward phrases like "जपरी", "तिने नेहमी जपरी", or "तिची देखभाल करा"; use "तिने नेहमी आपली काळजी घेतली" and "आता तिच्यासाठी सुंदर भेट निवडा".
                 Understand Indian festival and occasion names mentioned in the campaign name or offer title and reflect that context correctly in the wording, emotion, gifting angle, and visual mood.
                 Never repeat the festival name back-to-back or create awkward patterns like "{festival} निमित्त {festival}".
                 If the offer title already contains the festival name, avoid echoing the same name again in the first line.
@@ -269,11 +272,13 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
         graphics.setPaint(new GradientPaint(0, size * 0.62f, new Color(0, 0, 0, 0), 0, size, new Color(0, 0, 0, 192)));
         graphics.fillRect(0, (int) (size * 0.62), size, (int) (size * 0.38));
 
-        Font brandFont = preferredFont(Font.BOLD, Math.max(46, size / 14), "Noto Serif Devanagari", "Noto Sans Devanagari", "Serif");
+        String brand = defaultString(trimToNull(shopName), "Krishnai Pearl Shopee");
+        Font brandFont = containsDevanagari(brand)
+                ? preferredFont(Font.BOLD, Math.max(46, size / 14), "Noto Serif Devanagari", "Noto Sans Devanagari", Font.SERIF)
+                : preferredFont(Font.BOLD, Math.max(46, size / 14), "DejaVu Serif", "Liberation Serif", Font.SERIF);
         Font headlineFont = preferredFont(Font.BOLD, Math.max(34, size / 24), "Noto Sans Devanagari", "Nirmala UI", "SansSerif");
         Font ctaFont = preferredFont(Font.BOLD, Math.max(22, size / 40), "Noto Sans Devanagari", "Nirmala UI", "SansSerif");
 
-        String brand = defaultString(trimToNull(shopName), "Krishnai Pearl Shopee");
         drawWrappedText(graphics, brand, brandFont, new Color(0, 0, 0, 130), margin + 3, margin + 3, size - (margin * 2), 2, TextAlign.CENTER);
         drawWrappedText(graphics, brand, brandFont, ivory, margin, margin, size - (margin * 2), 2, TextAlign.CENTER);
 
@@ -384,6 +389,13 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
         return new Font(Font.SANS_SERIF, style, size);
     }
 
+    private boolean containsDevanagari(String value) {
+        if (value == null) {
+            return false;
+        }
+        return value.codePoints().anyMatch(codePoint -> codePoint >= 0x0900 && codePoint <= 0x097F);
+    }
+
     private Set<String> availableFontFamilies() {
         Set<String> families = new HashSet<>();
         for (String family : GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames(Locale.ROOT)) {
@@ -405,6 +417,9 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
         String language = resolveLanguage(campaign);
         String offerLine = buildOfferLine(campaign, festivalContext);
         if ("MARATHI".equals(language)) {
+            if (isOccasion(festivalContext, "mothers-day")) {
+                return buildMarathiMothersDayOfferLine(campaign);
+            }
             String subject = defaultString(resolveShowcaseSubject(campaign, productName, festivalContext), "निवडक कलेक्शन");
             if (festivalContext != null) {
                 return "%s साठी %s".formatted(festivalDisplayName(festivalContext), defaultString(offerLine, subject));
@@ -658,6 +673,9 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
         String offerLine = buildOfferLine(campaign, festivalContext);
         String language = resolveLanguage(campaign);
         if ("MARATHI".equals(language)) {
+            if (isOccasion(festivalContext, "mothers-day")) {
+                return buildMarathiMothersDayCaption(campaign, shopName, platform);
+            }
             return switch (platform) {
                 case INSTAGRAM -> buildMarathiInstagramCaption(campaign, productOrCampaign, offerLine, festivalContext);
                 case FACEBOOK -> buildMarathiFacebookCaption(campaign, shopName, productOrCampaign, offerLine, festivalContext);
@@ -678,6 +696,9 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
         String normalizedCategory = defaultString(categoryName, "RetailStyle").replaceAll("[^A-Za-z0-9]", "");
         String language = resolveLanguage(campaign);
         if ("MARATHI".equals(language)) {
+            if (isOccasion(festivalContext, "mothers-day")) {
+                return "#मातृदिन #आईसाठीगिफ्ट #ज्वेलरीकलेक्शन #नेकलेस #बांगड्या #इयररिंग्स #सौंदर्य #KrishnaiPearl";
+            }
             String festivalTag = festivalContext == null ? "#सणासुदीचीऑफर" : festivalContext.marathiHashtag();
             return "%s #महाराष्ट्रीयनस्टाईल #खासऑफर #महिलांसाठी #उत्सवीकलेक्शन #%s #ShopLocal #PremiumCollection"
                     .formatted(festivalTag, normalizedCategory.isBlank() ? "RetailStyle" : normalizedCategory);
@@ -690,6 +711,9 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
     private String buildMockCta(Campaign campaign, MarketingPlatform platform, MarketingOccasionLibrary.Occasion festivalContext) {
         String language = resolveLanguage(campaign);
         if ("MARATHI".equals(language)) {
+            if (isOccasion(festivalContext, "mothers-day")) {
+                return platform == MarketingPlatform.WHATSAPP ? "आईसाठी भेट निवडा" : "आईसाठी कलेक्शन पाहा";
+            }
             return switch (platform) {
                 case INSTAGRAM -> "आता कलेक्शन पाहा";
                 case FACEBOOK -> defaultString(festivalContext == null ? null : festivalContext.marathiVisitCta(), "आजच दुकानात किंवा वेबसाईटवर भेट द्या");
@@ -700,6 +724,21 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
             case INSTAGRAM -> "Tap to explore the collection";
             case FACEBOOK -> "Visit the shop or website today";
             case WHATSAPP -> "Shop now";
+        };
+    }
+
+    private String buildMarathiMothersDayCaption(Campaign campaign,
+                                                 String shopName,
+                                                 MarketingPlatform platform) {
+        String offerLine = buildMarathiMothersDayOfferLine(campaign);
+        String brand = defaultString(trimToNull(shopName), "Krishnai Pearl Shopee");
+        return switch (platform) {
+            case INSTAGRAM -> "आईच्या प्रेमासाठी एक सुंदर भेट. %s. तुमची आवडती निवड आजच पाहा."
+                    .formatted(offerLine);
+            case FACEBOOK -> "आईने नेहमी आपली काळजी घेतली; आता तिच्यासाठी एक सुंदर भेट निवडा. %s. %s मधील निवडक कलेक्शनमधून तिच्या आवडीची भेट आजच निवडा."
+                    .formatted(offerLine, brand);
+            case WHATSAPP -> "आईसाठी एक सुंदर भेट निवडा. %s. आजच कलेक्शन पाहा."
+                    .formatted(offerLine);
         };
     }
 
@@ -732,8 +771,8 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
         BigDecimal value = campaign.getDiscountValue() == null ? BigDecimal.ZERO : campaign.getDiscountValue();
         if ("MARATHI".equals(language)) {
             return switch (campaign.getDiscountType()) {
-                case PERCENTAGE -> "%s वर %s%% पर्यंत सूट".formatted(offerSubject, value.stripTrailingZeros().toPlainString());
-                case FLAT -> "%s वर ₹%s पर्यंत सूट".formatted(offerSubject, value.stripTrailingZeros().toPlainString());
+                case PERCENTAGE -> "%sवर %s%% पर्यंत सूट".formatted(marathiDiscountObject(offerSubject, festivalContext), value.stripTrailingZeros().toPlainString());
+                case FLAT -> "%sवर ₹%s पर्यंत सूट".formatted(marathiDiscountObject(offerSubject, festivalContext), value.stripTrailingZeros().toPlainString());
                 case NONE -> offerSubject;
             };
         }
@@ -749,6 +788,29 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
             case FLAT -> "%s - flat %s off".formatted(offerSubject, value.stripTrailingZeros().toPlainString());
             case NONE -> offerSubject;
         };
+    }
+
+    private String buildMarathiMothersDayOfferLine(Campaign campaign) {
+        if (campaign.getDiscountType() == null || campaign.getDiscountType().name().equals("NONE")) {
+            return "आईसाठी खास भेटवस्तू";
+        }
+        BigDecimal value = campaign.getDiscountValue() == null ? BigDecimal.ZERO : campaign.getDiscountValue();
+        return switch (campaign.getDiscountType()) {
+            case PERCENTAGE -> "आईसाठी खास भेटवस्तूंवर %s%% पर्यंत सूट".formatted(value.stripTrailingZeros().toPlainString());
+            case FLAT -> "आईसाठी खास भेटवस्तूंवर ₹%s पर्यंत सूट".formatted(value.stripTrailingZeros().toPlainString());
+            case NONE -> "आईसाठी खास भेटवस्तू";
+        };
+    }
+
+    private String marathiDiscountObject(String offerSubject, MarketingOccasionLibrary.Occasion festivalContext) {
+        if (isOccasion(festivalContext, "mothers-day")) {
+            return "आईसाठी खास भेटवस्तूं";
+        }
+        String subject = defaultString(offerSubject, "निवडक कलेक्शन");
+        if (subject.endsWith("भेटवस्तू")) {
+            return subject + "ं";
+        }
+        return subject;
     }
 
     private String buildMockWhatsAppLine(Campaign campaign, String productOrCampaign, String offerLine, MarketingOccasionLibrary.Occasion festivalContext) {
@@ -1049,6 +1111,9 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
     }
 
     private String resolveOfferSubject(Campaign campaign, MarketingOccasionLibrary.Occasion festivalContext, String language) {
+        if ("MARATHI".equals(language) && isOccasion(festivalContext, "mothers-day")) {
+            return "आईसाठी खास भेटवस्तू";
+        }
         String cleanedOfferProduct = normalizeOfferTitle(campaign.getOfferProduct(), festivalContext);
         if (!isBlank(cleanedOfferProduct)) {
             return cleanedOfferProduct;
@@ -1125,6 +1190,15 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
         if (cleaned.contains("Offer वर") || cleaned.contains("खास ऑफर उपलब्ध")) {
             return true;
         }
+        if (cleaned.contains("मातु")
+                || cleaned.contains("जपरी")
+                || cleaned.contains("तिची देखभाल करा")
+                || cleaned.contains("तुमची देखभाल करा")
+                || cleaned.contains("मातृ दिनासाठी आईंसाठी")
+                || cleaned.contains("मातृ दिन साठी")
+                || cleaned.contains("आईंसाठी")) {
+            return true;
+        }
         String comparableCaption = comparableText(cleaned);
         String campaignName = comparableText(campaign.getCampaignName());
         String offerTitle = comparableText(campaign.getOfferTitle());
@@ -1172,6 +1246,10 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
 
     private String festivalDisplayName(MarketingOccasionLibrary.Occasion festivalContext) {
         return festivalContext == null ? null : festivalContext.marathiName();
+    }
+
+    private boolean isOccasion(MarketingOccasionLibrary.Occasion festivalContext, String key) {
+        return festivalContext != null && festivalContext.key().equals(key);
     }
 
     private MarketingOccasionLibrary.Occasion detectFestivalContext(Campaign campaign) {
