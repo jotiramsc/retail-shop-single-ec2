@@ -26,7 +26,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/campaign")
 @RequiredArgsConstructor
-@PreAuthorize("hasAuthority('PERM_CAMPAIGNS')")
+@PreAuthorize("hasAuthority('PERM_CAMPAIGNS') or hasAuthority('PERM_MARKETING_AUTOMATION') or hasRole('ADMIN') or hasRole('OWNER')")
 public class CampaignController {
 
     private final CampaignService campaignService;

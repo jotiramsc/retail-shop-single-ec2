@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { retailService } from '../services/retailService';
 import { currency } from '../utils/format';
 import {
@@ -9,6 +9,7 @@ import {
 } from '../utils/auth';
 import { defaultBranding } from '../utils/branding';
 import { addGuestCartItem, getGuestCartCount } from '../utils/cart';
+import { storeCheckoutCouponCode } from '../utils/checkout';
 import { applySeo, preloadImage } from '../utils/seo';
 import StorefrontHeader from '../components/StorefrontHeader';
 
@@ -87,7 +88,9 @@ function priceRangeLabel(price) {
 }
 
 export default function PublicProductsPage({ branding }) {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const autoAddHandledRef = useRef('');
   const [products, setProducts] = useState([]);
   const [categoryOptions, setCategoryOptions] = useState([]);
   const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
@@ -221,12 +224,12 @@ export default function PublicProductsPage({ branding }) {
     setSearchParams(next);
   };
 
-  const addToCart = async (product) => {
+  const addToCart = useCallback(async (product, successMessage = `${product.name} added to cart.`) => {
     setError('');
     setCartMessage('');
     if (!product.inStock) {
       setError(`${product.name} is currently out of stock.`);
-      return;
+      return false;
     }
     try {
       if (customerSession?.token) {
@@ -242,17 +245,64 @@ export default function PublicProductsPage({ branding }) {
           const items = addGuestCartItem(product.id, 1);
           setCartCount(items.reduce((total, item) => total + Number(item.quantity || 0), 0));
           setCartMessage(`${product.name} added to guest cart. Customer session expired, so please log in again at checkout.`);
-          return;
+          return true;
         }
       } else {
         const items = addGuestCartItem(product.id, 1);
         setCartCount(items.reduce((total, item) => total + Number(item.quantity || 0), 0));
       }
-      setCartMessage(`${product.name} added to cart.`);
+      setCartMessage(successMessage);
+      return true;
     } catch (err) {
       setError(err.response?.data?.message || 'Unable to add product to cart.');
+      return false;
     }
-  };
+  }, [customerSession?.token]);
+
+  useEffect(() => {
+    const productId = searchParams.get('autoAdd') || searchParams.get('productId');
+    if (!productId || !products.length) {
+      return undefined;
+    }
+
+    const redirectTarget = (searchParams.get('redirect') || '').trim().toLowerCase();
+    const couponCode = searchParams.get('coupon') || '';
+    const handledKey = [productId, redirectTarget, couponCode, customerSession?.token ? 'auth' : 'guest'].join(':');
+    if (autoAddHandledRef.current === handledKey) {
+      return undefined;
+    }
+    autoAddHandledRef.current = handledKey;
+
+    if (couponCode) {
+      storeCheckoutCouponCode(couponCode);
+    }
+
+    const product = products.find((item) => String(item.id) === String(productId));
+    if (!product) {
+      setError('The campaign product link is no longer available.');
+      return undefined;
+    }
+
+    let cancelled = false;
+    addToCart(product, `${product.name} added to cart from campaign link.`).then((added) => {
+      if (cancelled || !added) {
+        return;
+      }
+
+      if (redirectTarget === 'checkout') {
+        navigate(customerSession?.token ? '/checkout' : '/customer-login?redirect=/checkout');
+        return;
+      }
+
+      if (redirectTarget === 'cart') {
+        navigate('/cart');
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [addToCart, customerSession?.token, navigate, products, searchParams]);
 
   return (
     <main className={pageClassName}>

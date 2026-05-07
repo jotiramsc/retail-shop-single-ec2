@@ -100,3 +100,51 @@ app:
     page-id: ${FB_PAGE_ID:}
     instagram-business-account-id: ${IG_BUSINESS_ACCOUNT_ID:}
     graph-version: ${META_GRAPH_VERSION:v23.0}
+  google-maps:
+    api-key: ${GOOGLE_MAPS_API_KEY:}
+
+marketing:
+  ai:
+    enabled: ${MARKETING_AI_ENABLED:true}
+    api-key: ${MARKETING_OPENAI_API_KEY:}
+    model: ${MARKETING_OPENAI_MODEL:gpt-4.1-mini}
+    image-provider: ${MARKETING_IMAGE_PROVIDER:OPENAI}
+    image-model: ${MARKETING_OPENAI_IMAGE_MODEL:gpt-image-1.5}
+    image-size: ${MARKETING_OPENAI_IMAGE_SIZE:1024x1024}
+    image-quality: ${MARKETING_OPENAI_IMAGE_QUALITY:medium}
+  leonardo:
+    api-key: ${MARKETING_LEONARDO_API_KEY:}
+    model-id: ${MARKETING_LEONARDO_MODEL_ID:de7d3faf-762f-48e0-b3b7-9d0ac3a3fcf3}
+    style-uuid: ${MARKETING_LEONARDO_STYLE_UUID:111dc692-d470-4eec-b791-3475abac4c46}
+    alchemy: ${MARKETING_LEONARDO_ALCHEMY:true}
+    enhance-prompt: ${MARKETING_LEONARDO_ENHANCE_PROMPT:false}
+    public-images: ${MARKETING_LEONARDO_PUBLIC_IMAGES:true}
+    width: ${MARKETING_LEONARDO_WIDTH:1024}
+    height: ${MARKETING_LEONARDO_HEIGHT:1024}
+    contrast: ${MARKETING_LEONARDO_CONTRAST:3.5}
+    poll-attempts: ${MARKETING_LEONARDO_POLL_ATTEMPTS:16}
+    poll-delay-ms: ${MARKETING_LEONARDO_POLL_DELAY_MS:1500}
+  meta:
+    access-token: ${MARKETING_META_ACCESS_TOKEN:${META_ACCESS_TOKEN:}}
+    instagram-business-account-id: ${MARKETING_INSTAGRAM_BUSINESS_ACCOUNT_ID:${IG_BUSINESS_ACCOUNT_ID:}}
+    facebook-page-id: ${MARKETING_FACEBOOK_PAGE_ID:${FB_PAGE_ID:}}
+    graph-version: ${MARKETING_META_GRAPH_VERSION:${META_GRAPH_VERSION:v23.0}}
+  whatsapp:
+    provider: ${MARKETING_WHATSAPP_PROVIDER:GUPSHUP}
+  twilio:
+    account-sid: ${MARKETING_TWILIO_ACCOUNT_SID:${TWILIO_ACCOUNT_SID:}}
+    auth-token: ${MARKETING_TWILIO_AUTH_TOKEN:${TWILIO_AUTH_TOKEN:}}
+    whatsapp-from: ${MARKETING_TWILIO_WHATSAPP_FROM:${TWILIO_WHATSAPP_FROM:}}
+    offer-content-sid: ${MARKETING_TWILIO_OFFER_CONTENT_SID:${TWILIO_WHATSAPP_OFFER_CONTENT_SID:}}
+  gupshup:
+    api-key: ${MARKETING_GUPSHUP_API_KEY:${GUPSHUP_API_KEY:}}
+    app-name: ${MARKETING_GUPSHUP_APP_NAME:${GUPSHUP_APP_NAME:}}
+    source-number: ${MARKETING_GUPSHUP_SOURCE_NUMBER:${GUPSHUP_SOURCE_NUMBER:}}
+    template-id: ${MARKETING_GUPSHUP_TEMPLATE_ID:${GUPSHUP_OTP_TEMPLATE_ID:}}
+
+omnichannel:
+  website-base-url: ${OMNICHANNEL_WEBSITE_BASE_URL:https://kpskrishnai.com}
+  webhook-verify-token: ${OMNICHANNEL_WEBHOOK_VERIFY_TOKEN:}
+  webhook-secret: ${OMNICHANNEL_WEBHOOK_SECRET:}
+  default-coupon-code: ${OMNICHANNEL_DEFAULT_COUPON_CODE:}
+  max-product-cards: ${OMNICHANNEL_MAX_PRODUCT_CARDS:6}

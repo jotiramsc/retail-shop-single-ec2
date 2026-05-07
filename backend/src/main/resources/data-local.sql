@@ -6,7 +6,7 @@ values
 insert into products (id, name, category, sku, cost_price, selling_price, quantity, low_stock_threshold, expiry_date, created_at)
 values
     ('a1111111-1111-1111-1111-111111111111', 'Rose Matte Lipstick', 'COSMETICS', 'COS-LIP-001', 180.00, 299.00, 25, 8, '2027-12-31', now()),
-    ('a2222222-2222-2222-2222-222222222222', 'Gold Tone Earrings', 'JEWELLERY', 'JEW-EAR-001', 450.00, 899.00, 14, 5, null, now()),
+    ('a2222222-2222-2222-2222-222222222222', 'Pearl Tone Earrings', 'JEWELLERY', 'JEW-EAR-001', 450.00, 899.00, 14, 5, null, now()),
     ('a3333333-3333-3333-3333-333333333333', 'Hydra Glow Serum', 'COSMETICS', 'COS-SER-001', 320.00, 599.00, 4, 6, '2027-10-30', now()),
     ('a4444444-4444-4444-4444-444444444444', 'Velvet Kajal Pencil', 'COSMETICS', 'COS-KAJ-001', 70.00, 149.00, 40, 10, '2028-03-31', now()),
     ('a5555555-5555-5555-5555-555555555555', 'Radiance Compact Powder', 'COSMETICS', 'COS-COM-001', 190.00, 349.00, 22, 7, '2027-11-30', now()),
@@ -35,7 +35,7 @@ values
     ('ad333333-3333-3333-3333-333333333333', 'Minimal Hoop Earrings', 'JEWELLERY', 'JEW-HOO-001', 260.00, 599.00, 18, 5, 'https://picsum.photos/seed/minimal-hoop-earrings/600/600', null, now()),
     ('ad444444-4444-4444-4444-444444444444', 'Emerald Stone Ring', 'JEWELLERY', 'JEW-EMR-001', 340.00, 749.00, 14, 5, 'https://picsum.photos/seed/emerald-stone-ring/600/600', null, now()),
     ('ad555555-5555-5555-5555-555555555555', 'Temple Design Necklace', 'JEWELLERY', 'JEW-TEM-001', 980.00, 2099.00, 6, 2, 'https://picsum.photos/seed/temple-design-necklace/600/600', null, now()),
-    ('ad666666-6666-6666-6666-666666666666', 'Rose Gold Pendant Chain', 'JEWELLERY', 'JEW-ROS-001', 410.00, 899.00, 11, 4, 'https://picsum.photos/seed/rose-gold-pendant-chain/600/600', null, now()),
+    ('ad666666-6666-6666-6666-666666666666', 'Rose Pearl Pendant Chain', 'JEWELLERY', 'JEW-ROS-001', 410.00, 899.00, 11, 4, 'https://picsum.photos/seed/rose-pearl-pendant-chain/600/600', null, now()),
     ('ad777777-7777-7777-7777-777777777777', 'Pearl Drop Earrings', 'JEWELLERY', 'JEW-PRL-001', 300.00, 699.00, 13, 4, 'https://picsum.photos/seed/pearl-drop-earrings/600/600', null, now()),
     ('ad888888-8888-8888-8888-888888888888', 'Statement Cuff Bracelet', 'JEWELLERY', 'JEW-CUF-001', 520.00, 1099.00, 9, 3, 'https://picsum.photos/seed/statement-cuff-bracelet/600/600', null, now()),
     ('ad999999-9999-9999-9999-999999999999', 'Crystal Nose Pin', 'JEWELLERY', 'JEW-NOS-001', 90.00, 249.00, 25, 8, 'https://picsum.photos/seed/crystal-nose-pin/600/600', null, now()),
@@ -68,7 +68,85 @@ values
     ('f1111111-1111-1111-1111-111111111111', 'CUSTOMERS'),
     ('f1111111-1111-1111-1111-111111111111', 'OFFERS'),
     ('f1111111-1111-1111-1111-111111111111', 'CAMPAIGNS'),
+    ('f1111111-1111-1111-1111-111111111111', 'MARKETING_AUTOMATION'),
     ('f1111111-1111-1111-1111-111111111111', 'REPORTS'),
     ('f1111111-1111-1111-1111-111111111111', 'RECEIPT_SETTINGS'),
     ('f1111111-1111-1111-1111-111111111111', 'USER_MANAGEMENT'),
-    ('f2222222-2222-2222-2222-222222222222', 'BILLING');
+    ('f2222222-2222-2222-2222-222222222222', 'BILLING')
+on conflict do nothing;
+
+insert into campaigns (
+    id, name, campaign_name, type, campaign_type, content, offer_product, offer_title,
+    link_url, channels, target_platforms, discount_type, discount_value, start_date, end_date,
+    language, tone, status, draft, created_by, created_at, updated_at
+)
+values (
+    'f3000000-0000-0000-0000-000000000001',
+    'Akshaya Tritiya Jewellery Glow',
+    'Akshaya Tritiya Jewellery Glow',
+    'WHATSAPP',
+    'FESTIVAL',
+    '',
+    'Necklace and Bangles Collection',
+    'Akshaya Tritiya Celebration',
+    'https://kpskrishnai.com',
+    'INSTAGRAM,FACEBOOK,WHATSAPP',
+    'INSTAGRAM,FACEBOOK,WHATSAPP',
+    'PERCENTAGE',
+    20.00,
+    current_date,
+    current_date + 15,
+    'MARATHI',
+    'FESTIVE',
+    'PENDING_APPROVAL',
+    false,
+    'admin',
+    now(),
+    now()
+) on conflict (id) do nothing;
+
+insert into campaign_contents (
+    id, campaign_id, platform, caption_text, hashtags, call_to_action, image_prompt, image_url,
+    status, created_at, updated_at
+)
+values
+    (
+        'f3000000-0000-0000-0000-000000000011',
+        'f3000000-0000-0000-0000-000000000001',
+        'INSTAGRAM',
+        'Akshaya Tritiya साठी नेकलेस आणि बांगड्यांच्या निवडक डिझाइन्सवर खास उत्सवी सवलत.',
+        '#AkshayaTritiya #JewelleryCollection #Necklace #Bangles #FestiveShopping #KrishnaiStyle #ShopLocal',
+        'Tap to explore the collection',
+        'Premium Indian jewellery creative for Akshaya Tritiya with necklace, bangles, earrings and elegant product styling.',
+        'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMjAwIiBoZWlnaHQ9IjEyMDAiPjxyZWN0IHdpZHRoPSIxMjAwIiBoZWlnaHQ9IjEyMDAiIGZpbGw9IiMyMjE4MTMiLz48L3N2Zz4=',
+        'PENDING_APPROVAL',
+        now(),
+        now()
+    ),
+    (
+        'f3000000-0000-0000-0000-000000000012',
+        'f3000000-0000-0000-0000-000000000001',
+        'FACEBOOK',
+        'या अक्षय तृतीयेच्या निमित्ताने खास ज्वेलरी डिझाइन्सवर सणासुदीची ऑफर. नेकलेस, बांगड्या आणि भेटीसाठी सुंदर निवड आजच पाहा.',
+        '#AkshayaTritiya #FestiveJewellery #Necklace #Bangles #CelebrateInStyle #ShopLocal',
+        'Visit the shop or website today',
+        'Warm festive Facebook creative for women-focused jewellery promotion with necklaces, bangles, earrings and family gifting mood.',
+        'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMjAwIiBoZWlnaHQ9IjEyMDAiPjxyZWN0IHdpZHRoPSIxMjAwIiBoZWlnaHQ9IjEyMDAiIGZpbGw9IiMyMjE4MTMiLz48L3N2Zz4=',
+        'PENDING_APPROVAL',
+        now(),
+        now()
+    ),
+    (
+        'f3000000-0000-0000-0000-000000000013',
+        'f3000000-0000-0000-0000-000000000001',
+        'WHATSAPP',
+        'Elegant jewellery designs just for you',
+        '',
+        'Shop now',
+        'Short WhatsApp body-line for an Akshaya Tritiya jewellery offer template.',
+        'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMjAwIiBoZWlnaHQ9IjEyMDAiPjxyZWN0IHdpZHRoPSIxMjAwIiBoZWlnaHQ9IjEyMDAiIGZpbGw9IiMyMjE4MTMiLz48L3N2Zz4=',
+        'PENDING_APPROVAL',
+        now(),
+        now()
+    )
+on conflict (id) do nothing;

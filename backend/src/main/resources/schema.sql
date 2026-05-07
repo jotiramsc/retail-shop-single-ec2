@@ -290,6 +290,162 @@ alter table campaigns add column if not exists link_url text;
 alter table campaigns add column if not exists channels varchar(255);
 alter table campaigns add column if not exists draft boolean not null default false;
 alter table campaigns add column if not exists created_by varchar(255);
+alter table campaigns add column if not exists campaign_name varchar(255);
+alter table campaigns add column if not exists campaign_type varchar(50);
+alter table campaigns add column if not exists category_id uuid;
+alter table campaigns add column if not exists product_id uuid;
+alter table campaigns add column if not exists offer_title varchar(255);
+alter table campaigns add column if not exists discount_type varchar(50);
+alter table campaigns add column if not exists discount_value numeric(12, 2);
+alter table campaigns add column if not exists start_date date;
+alter table campaigns add column if not exists end_date date;
+alter table campaigns add column if not exists target_platforms varchar(500);
+alter table campaigns add column if not exists language varchar(50);
+alter table campaigns add column if not exists tone varchar(50);
+alter table campaigns add column if not exists status varchar(50);
+alter table campaigns add column if not exists updated_at timestamp;
+
+update campaigns set campaign_name = name where campaign_name is null or trim(campaign_name) = '';
+update campaigns set campaign_type = coalesce(campaign_type, 'CUSTOM');
+update campaigns set discount_type = coalesce(discount_type, 'NONE');
+update campaigns set language = coalesce(language, 'ENGLISH');
+update campaigns set tone = coalesce(tone, 'PREMIUM');
+update campaigns set status = coalesce(status, case when draft then 'DRAFT' else 'PENDING_APPROVAL' end);
+update campaigns set target_platforms = coalesce(target_platforms, channels);
+update campaigns set updated_at = coalesce(updated_at, created_at, now());
+
+create index if not exists idx_campaigns_status_created_at on campaigns(status, created_at desc);
+create index if not exists idx_campaigns_campaign_type_created_at on campaigns(campaign_type, created_at desc);
+
+create table if not exists campaign_contents (
+    id uuid primary key,
+    campaign_id uuid not null references campaigns(id) on delete cascade,
+    platform varchar(50) not null,
+    caption_text text,
+    hashtags varchar(2000),
+    call_to_action varchar(500),
+    image_prompt text,
+    image_url text,
+    status varchar(50) not null,
+    rejection_reason text,
+    scheduled_at timestamp,
+    published_at timestamp,
+    external_post_id varchar(255),
+    created_at timestamp not null,
+    updated_at timestamp not null
+);
+
+create index if not exists idx_campaign_contents_campaign_created_at on campaign_contents(campaign_id, created_at asc);
+create index if not exists idx_campaign_contents_status_scheduled_at on campaign_contents(status, scheduled_at asc);
+
+create table if not exists approval_history (
+    id uuid primary key,
+    campaign_content_id uuid not null references campaign_contents(id) on delete cascade,
+    action varchar(50) not null,
+    comment text,
+    action_by varchar(255) not null,
+    action_at timestamp not null
+);
+
+create index if not exists idx_approval_history_content_action_at on approval_history(campaign_content_id, action_at desc);
+
+create table if not exists publish_logs (
+    id uuid primary key,
+    campaign_content_id uuid not null references campaign_contents(id) on delete cascade,
+    platform varchar(50) not null,
+    request_payload text,
+    response_payload text,
+    status varchar(100) not null,
+    error_message text,
+    created_at timestamp not null
+);
+
+create index if not exists idx_publish_logs_content_created_at on publish_logs(campaign_content_id, created_at desc);
+
+create table if not exists campaign_analytics (
+    id uuid primary key,
+    campaign_content_id uuid not null references campaign_contents(id) on delete cascade,
+    platform varchar(50) not null,
+    impressions bigint not null default 0,
+    likes bigint not null default 0,
+    comments bigint not null default 0,
+    shares bigint not null default 0,
+    clicks bigint not null default 0,
+    conversions bigint not null default 0,
+    fetched_at timestamp not null
+);
+
+create index if not exists idx_campaign_analytics_platform_fetched_at on campaign_analytics(platform, fetched_at desc);
+create index if not exists idx_campaign_analytics_content_fetched_at on campaign_analytics(campaign_content_id, fetched_at desc);
+
+create table if not exists omnichannel_leads (
+    id uuid primary key,
+    channel varchar(50) not null,
+    external_user_id varchar(255),
+    customer_name varchar(255),
+    mobile varchar(30),
+    source_campaign varchar(255),
+    product_interest varchar(500),
+    latest_message varchar(2000),
+    status varchar(50) not null,
+    created_at timestamp not null,
+    updated_at timestamp not null
+);
+
+create index if not exists idx_omnichannel_leads_channel_external on omnichannel_leads(channel, external_user_id);
+create index if not exists idx_omnichannel_leads_updated_at on omnichannel_leads(updated_at desc);
+create index if not exists idx_omnichannel_leads_status on omnichannel_leads(status);
+
+create table if not exists omnichannel_conversations (
+    id uuid primary key,
+    lead_id uuid not null references omnichannel_leads(id) on delete cascade,
+    channel varchar(50) not null,
+    external_thread_id varchar(255),
+    status varchar(50) not null,
+    created_at timestamp not null,
+    updated_at timestamp not null
+);
+
+create index if not exists idx_omnichannel_conversations_lead on omnichannel_conversations(lead_id, updated_at desc);
+create index if not exists idx_omnichannel_conversations_thread on omnichannel_conversations(channel, external_thread_id);
+
+create table if not exists omnichannel_conversation_messages (
+    id uuid primary key,
+    conversation_id uuid not null references omnichannel_conversations(id) on delete cascade,
+    direction varchar(20) not null,
+    message_type varchar(50) not null,
+    message_text varchar(4000),
+    raw_payload varchar(12000),
+    created_at timestamp not null
+);
+
+create index if not exists idx_omnichannel_messages_conversation_created on omnichannel_conversation_messages(conversation_id, created_at desc);
+
+create table if not exists social_webhook_events (
+    id uuid primary key,
+    provider varchar(50) not null,
+    event_type varchar(100),
+    external_event_id varchar(255),
+    signature_valid boolean,
+    raw_payload varchar(12000) not null,
+    received_at timestamp not null
+);
+
+create index if not exists idx_social_webhook_events_provider_received on social_webhook_events(provider, received_at desc);
+create index if not exists idx_social_webhook_events_external_event on social_webhook_events(external_event_id);
+
+create table if not exists ai_recommendation_logs (
+    id uuid primary key,
+    lead_id uuid,
+    channel varchar(50) not null,
+    search_query varchar(1000),
+    filters varchar(2000),
+    recommended_product_ids varchar(2000),
+    created_at timestamp not null
+);
+
+create index if not exists idx_ai_recommendation_logs_lead_created on ai_recommendation_logs(lead_id, created_at desc);
+create index if not exists idx_ai_recommendation_logs_channel_created on ai_recommendation_logs(channel, created_at desc);
 
 create table if not exists campaign_logs (
     id uuid primary key,

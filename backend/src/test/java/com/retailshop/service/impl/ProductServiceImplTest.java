@@ -89,7 +89,7 @@ class ProductServiceImplTest {
 
         Product lowStock = new Product();
         lowStock.setId(UUID.randomUUID());
-        lowStock.setName("Gold Bangle");
+        lowStock.setName("Pearl Bangle");
         lowStock.setCategory("JEWELLERY");
         lowStock.setSku("JEW-GB-001");
         lowStock.setCostPrice(BigDecimal.valueOf(60));

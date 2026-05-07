@@ -76,11 +76,36 @@ export const retailService = {
   updateOffer: (id, payload) => api.put(`/offers/${id}`, payload).then((res) => res.data),
   deleteOffer: (id) => api.delete(`/offers/${id}`).then((res) => res.data),
   getOfferSuggestions: () => api.get('/offers/suggested').then((res) => res.data),
-  createCampaign: (payload) => api.post('/campaign', payload).then((res) => res.data),
-  sendCampaign: (payload) => api.post('/campaign/send', payload).then((res) => res.data),
-  publishCampaign: (campaignId) => api.post(`/campaign/${campaignId}/publish`).then((res) => res.data),
-  retryCampaignLog: (campaignLogId) => api.post(`/campaign/history/${campaignLogId}/retry`).then((res) => res.data),
-  getCampaignHistory: (params) => api.get(`/campaign/history?${buildPageParams(params)}`).then((res) => res.data),
+  getMarketingCampaigns: ({ status, platform, type, fromDate, toDate, page = 0, size = 10 } = {}) => {
+    const params = new URLSearchParams();
+    params.set('page', page);
+    params.set('size', size);
+    if (status) params.set('status', status);
+    if (platform) params.set('platform', platform);
+    if (type) params.set('type', type);
+    if (fromDate) params.set('fromDate', fromDate);
+    if (toDate) params.set('toDate', toDate);
+    return api.get(`/marketing/campaigns?${params.toString()}`).then((res) => res.data);
+  },
+  getMarketingSuggestions: ({ daysAhead = 20 } = {}) => api.get(`/marketing/suggestions?daysAhead=${encodeURIComponent(daysAhead)}`).then((res) => res.data),
+  getMarketingCampaign: (campaignId) => api.get(`/marketing/campaigns/${campaignId}`).then((res) => res.data),
+  createMarketingCampaign: (payload) => api.post('/marketing/campaigns', payload).then((res) => res.data),
+  generateMarketingCampaign: (campaignId) => api.post(`/marketing/campaigns/${campaignId}/generate`).then((res) => res.data),
+  deleteMarketingCampaign: (campaignId) => api.delete(`/marketing/campaigns/${campaignId}`).then((res) => res.data),
+  updateMarketingContent: (contentId, payload) => api.put(`/marketing/content/${contentId}`, payload).then((res) => res.data),
+  approveMarketingContent: (contentId, payload = {}) => api.post(`/marketing/content/${contentId}/approve`, payload).then((res) => res.data),
+  rejectMarketingContent: (contentId, payload) => api.post(`/marketing/content/${contentId}/reject`, payload).then((res) => res.data),
+  scheduleMarketingContent: (contentId, payload) => api.post(`/marketing/content/${contentId}/schedule`, payload).then((res) => res.data),
+  publishMarketingContentNow: (contentId) => api.post(`/marketing/content/${contentId}/publish-now`).then((res) => res.data),
+  getMarketingApprovalQueue: () => api.get('/marketing/approval-queue').then((res) => res.data),
+  getMarketingAnalytics: ({ campaignId, platform, fromDate, toDate } = {}) => {
+    const params = new URLSearchParams();
+    if (campaignId) params.set('campaignId', campaignId);
+    if (platform) params.set('platform', platform);
+    if (fromDate) params.set('fromDate', fromDate);
+    if (toDate) params.set('toDate', toDate);
+    return api.get(`/marketing/analytics?${params.toString()}`).then((res) => res.data);
+  },
   getDailyReport: ({ fromDate, toDate, salesPersonName }) => {
     const params = new URLSearchParams();
     if (fromDate) params.set('fromDate', fromDate);

@@ -53,7 +53,7 @@ public class LocalDataSeeder {
     private List<Product> sampleProducts() {
         return List.of(
                 product("a1111111-1111-1111-1111-111111111111", "Rose Matte Lipstick", ProductCategory.COSMETICS, "COS-LIP-001", "180.00", "299.00", 25, 8, "2027-12-31", null),
-                product("a2222222-2222-2222-2222-222222222222", "Gold Tone Earrings", ProductCategory.JEWELLERY, "JEW-EAR-001", "450.00", "899.00", 14, 5, null, null),
+                product("a2222222-2222-2222-2222-222222222222", "Pearl Tone Earrings", ProductCategory.JEWELLERY, "JEW-EAR-001", "450.00", "899.00", 14, 5, null, null),
                 product("a3333333-3333-3333-3333-333333333333", "Hydra Glow Serum", ProductCategory.COSMETICS, "COS-SER-001", "320.00", "599.00", 4, 6, "2027-10-30", null),
                 product("a4444444-4444-4444-4444-444444444444", "Velvet Kajal Pencil", ProductCategory.COSMETICS, "COS-KAJ-001", "70.00", "149.00", 40, 10, "2028-03-31", null),
                 product("a5555555-5555-5555-5555-555555555555", "Radiance Compact Powder", ProductCategory.COSMETICS, "COS-COM-001", "190.00", "349.00", 22, 7, "2027-11-30", null),
@@ -79,7 +79,7 @@ public class LocalDataSeeder {
                 product("ad333333-3333-3333-3333-333333333333", "Minimal Hoop Earrings", ProductCategory.JEWELLERY, "JEW-HOO-001", "260.00", "599.00", 18, 5, null, "https://picsum.photos/seed/minimal-hoop-earrings/600/600"),
                 product("ad444444-4444-4444-4444-444444444444", "Emerald Stone Ring", ProductCategory.JEWELLERY, "JEW-EMR-001", "340.00", "749.00", 14, 5, null, "https://picsum.photos/seed/emerald-stone-ring/600/600"),
                 product("ad555555-5555-5555-5555-555555555555", "Temple Design Necklace", ProductCategory.JEWELLERY, "JEW-TEM-001", "980.00", "2099.00", 6, 2, null, "https://picsum.photos/seed/temple-design-necklace/600/600"),
-                product("ad666666-6666-6666-6666-666666666666", "Rose Gold Pendant Chain", ProductCategory.JEWELLERY, "JEW-ROS-001", "410.00", "899.00", 11, 4, null, "https://picsum.photos/seed/rose-gold-pendant-chain/600/600"),
+                product("ad666666-6666-6666-6666-666666666666", "Rose Pearl Pendant Chain", ProductCategory.JEWELLERY, "JEW-ROS-001", "410.00", "899.00", 11, 4, null, "https://picsum.photos/seed/rose-pearl-pendant-chain/600/600"),
                 product("ad777777-7777-7777-7777-777777777777", "Pearl Drop Earrings", ProductCategory.JEWELLERY, "JEW-PRL-001", "300.00", "699.00", 13, 4, null, "https://picsum.photos/seed/pearl-drop-earrings/600/600"),
                 product("ad888888-8888-8888-8888-888888888888", "Statement Cuff Bracelet", ProductCategory.JEWELLERY, "JEW-CUF-001", "520.00", "1099.00", 9, 3, null, "https://picsum.photos/seed/statement-cuff-bracelet/600/600"),
                 product("ad999999-9999-9999-9999-999999999999", "Crystal Nose Pin", ProductCategory.JEWELLERY, "JEW-NOS-001", "90.00", "249.00", 25, 8, null, "https://picsum.photos/seed/crystal-nose-pin/600/600"),

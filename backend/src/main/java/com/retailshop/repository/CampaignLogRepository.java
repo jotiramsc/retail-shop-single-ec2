@@ -19,4 +19,6 @@ public interface CampaignLogRepository extends JpaRepository<CampaignLog, UUID> 
 
     @EntityGraph(attributePaths = {"campaign", "customer"})
     List<CampaignLog> findByCampaignIdOrderByCreatedAtDesc(UUID campaignId);
+
+    void deleteByCampaignId(UUID campaignId);
 }

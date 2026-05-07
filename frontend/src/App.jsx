@@ -30,7 +30,7 @@ const navItems = [
   { to: '/app/products', label: 'Inventory', permission: 'PRODUCTS' },
   { to: '/app/customers', label: 'Customers', permission: 'CUSTOMERS' },
   { to: '/app/offers', label: 'Offers', permission: 'OFFERS' },
-  { to: '/app/campaigns', label: 'Marketing', permission: 'CAMPAIGNS' },
+  { to: '/app/campaigns', label: 'Marketing Automation', permission: 'MARKETING_AUTOMATION' },
   { to: '/app/reports', label: 'Reports', permission: 'REPORTS' },
   { to: '/app/salesperson-sales', label: 'Salesperson Sales', permission: 'SALESPERSON_SALES' },
   { to: '/app/site-interactions', label: 'Site Interaction', permission: 'SITE_INTERACTIONS' },
@@ -40,7 +40,7 @@ const navItems = [
 
 function ProtectedApp({ auth, onLogout, branding }) {
   const permissions = Array.isArray(auth.permissions) ? auth.permissions : [];
-  const canAccess = (permission) => auth.role === 'ADMIN' || permissions.includes(permission);
+  const canAccess = (permission) => auth.role === 'ADMIN' || auth.role === 'OWNER' || permissions.includes(permission);
   const firstAllowedRoute = navItems.find((item) => canAccess(item.permission))?.to || '/login';
   const visibleNavItems = navItems.filter((item) => canAccess(item.permission));
 
@@ -95,7 +95,7 @@ function ProtectedApp({ auth, onLogout, branding }) {
           <Route path="products" element={canAccess('PRODUCTS') ? <ProductsPage /> : <Navigate to={firstAllowedRoute} replace />} />
           <Route path="customers" element={canAccess('CUSTOMERS') ? <CustomersPage /> : <Navigate to={firstAllowedRoute} replace />} />
           <Route path="offers" element={canAccess('OFFERS') ? <OffersPage /> : <Navigate to={firstAllowedRoute} replace />} />
-          <Route path="campaigns" element={canAccess('CAMPAIGNS') ? <CampaignsPage /> : <Navigate to={firstAllowedRoute} replace />} />
+          <Route path="campaigns" element={canAccess('MARKETING_AUTOMATION') ? <CampaignsPage /> : <Navigate to={firstAllowedRoute} replace />} />
           <Route path="reports" element={canAccess('REPORTS') ? <ReportsPage /> : <Navigate to={firstAllowedRoute} replace />} />
           <Route path="salesperson-sales" element={canAccess('SALESPERSON_SALES') ? <SalespersonSalesPage auth={auth} /> : <Navigate to={firstAllowedRoute} replace />} />
           <Route path="site-interactions" element={canAccess('SITE_INTERACTIONS') ? <SiteInteractionsPage /> : <Navigate to={firstAllowedRoute} replace />} />

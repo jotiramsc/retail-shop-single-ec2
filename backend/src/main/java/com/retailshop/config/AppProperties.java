@@ -33,6 +33,7 @@ public class AppProperties {
     private Twilio twilio = new Twilio();
     private Gupshup gupshup = new Gupshup();
     private Meta meta = new Meta();
+    private GoogleMaps googleMaps = new GoogleMaps();
 
     @Getter
     @Setter
@@ -140,5 +141,11 @@ public class AppProperties {
         private String pageId = "";
         private String instagramBusinessAccountId = "";
         private String graphVersion = "v23.0";
+    }
+
+    @Getter
+    @Setter
+    public static class GoogleMaps {
+        private String apiKey = "";
     }
 }

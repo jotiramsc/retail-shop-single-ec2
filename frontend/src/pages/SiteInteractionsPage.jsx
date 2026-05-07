@@ -254,7 +254,7 @@ export default function SiteInteractionsPage() {
       </div>
 
       <div className="two-column site-interaction-grid">
-        <Panel title="Visit location map" subtitle="Interactive hotspots grouped by nearby visit coordinates. Higher-traffic places are larger and darker.">
+        <Panel title="Maharashtra visit map" subtitle="OpenStreetMap view of Maharashtra visit hotspots only, with larger markers for higher-traffic areas.">
           <Suspense fallback={<div className="site-map-empty"><strong>Loading map...</strong><span>Preparing hotspot locations for this reporting window.</span></div>}>
             <SiteVisitMapSection points={report?.mapPoints || []} />
           </Suspense>

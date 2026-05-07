@@ -3,238 +3,1149 @@ import DataTable from '../components/DataTable';
 import PageHeader from '../components/PageHeader';
 import Panel from '../components/Panel';
 import { retailService } from '../services/retailService';
-import { formatDate } from '../utils/format';
+import { currency, formatDate } from '../utils/format';
+import { getStoredAuthSession } from '../utils/auth';
 import { getApiErrorMessage } from '../utils/validation';
 
-const CHANNELS = ['WHATSAPP', 'INSTAGRAM', 'FACEBOOK'];
+const TABS = [
+  { value: 'campaigns', label: 'Campaigns' },
+  { value: 'create', label: 'Create Campaign' },
+  { value: 'approval', label: 'Approval Queue' },
+  { value: 'schedule', label: 'Schedule View' },
+  { value: 'analytics', label: 'Analytics' }
+];
 
-const blankCampaign = {
-  title: '',
-  offerProduct: '',
-  content: '',
-  mediaUrl: '',
-  hashtags: '',
-  linkUrl: '',
-  channels: ['WHATSAPP']
+const CAMPAIGN_TYPES = ['FESTIVAL', 'OFFER', 'NEW_ARRIVAL', 'SEASONAL', 'CUSTOM'];
+const PLATFORMS = ['INSTAGRAM', 'FACEBOOK', 'WHATSAPP'];
+const LANGUAGES = ['MARATHI', 'ENGLISH', 'HINGLISH'];
+const TONES = ['LUXURY', 'FESTIVE', 'EMOTIONAL', 'PREMIUM', 'SIMPLE'];
+const STATUSES = ['DRAFT', 'GENERATED', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'SCHEDULED', 'PUBLISHED', 'FAILED'];
+
+const blankFilters = {
+  status: '',
+  platform: '',
+  type: '',
+  fromDate: '',
+  toDate: ''
 };
 
+const blankForm = {
+  campaignName: '',
+  campaignType: 'FESTIVAL',
+  categoryId: '',
+  productId: '',
+  offerTitle: '',
+  landingUrl: 'https://kpskrishnai.com',
+  discountType: 'NONE',
+  discountValue: '',
+  startDate: '',
+  endDate: '',
+  targetPlatforms: ['INSTAGRAM', 'FACEBOOK', 'WHATSAPP'],
+  language: 'MARATHI',
+  tone: 'FESTIVE'
+};
+
+const SUGGESTION_KIND_LABELS = {
+  UPCOMING: 'Next 20 days',
+  SEASONAL: 'Seasonal',
+  EVERGREEN: 'Ready anytime'
+};
+
+function toDatetimeLocal(value) {
+  if (!value) {
+    return '';
+  }
+  const date = new Date(value);
+  const pad = (segment) => String(segment).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function formatLocalDateLabel(value) {
+  if (!value) {
+    return '';
+  }
+  const date = new Date(`${value}T00:00:00`);
+  return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function normalizeCampaignPayload(form) {
+  return {
+    campaignName: form.campaignName.trim(),
+    campaignType: form.campaignType,
+    categoryId: form.categoryId || null,
+    productId: form.productId || null,
+    offerTitle: form.offerTitle?.trim() || null,
+    landingUrl: form.landingUrl?.trim() || null,
+    discountType: form.discountType,
+    discountValue: form.discountType === 'NONE' || form.discountValue === '' ? null : Number(form.discountValue),
+    startDate: form.startDate || null,
+    endDate: form.endDate || null,
+    targetPlatforms: form.targetPlatforms,
+    language: form.language,
+    tone: form.tone
+  };
+}
+
+function statusTone(status) {
+  if (!status) return '';
+  switch (status) {
+    case 'APPROVED':
+    case 'PUBLISHED':
+      return 'is-good';
+    case 'PENDING_APPROVAL':
+    case 'SCHEDULED':
+      return 'is-warm';
+    case 'FAILED':
+    case 'REJECTED':
+      return 'is-bad';
+    default:
+      return '';
+  }
+}
+
+function buildOfferPreviewLabel(campaign) {
+  if (!campaign) {
+    return '';
+  }
+  if (campaign.discountType === 'PERCENTAGE' && campaign.discountValue != null && campaign.discountValue !== '') {
+    return `${campaign.discountValue}% off`;
+  }
+  if (campaign.discountType === 'FLAT' && campaign.discountValue != null && campaign.discountValue !== '') {
+    return `Flat ${currency(campaign.discountValue)} off`;
+  }
+  return campaign.offerTitle || '';
+}
+
+function escapeSvgText(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function previewLine(value, fallback = '') {
+  return String(value || fallback || '').replace(/\s+/g, ' ').trim();
+}
+
+function buildMarketingPreviewDataUrl(campaign, content, draft) {
+  const contactLine = campaign?.landingUrl || 'kpskrishnai.com';
+  const title = previewLine(campaign?.campaignName || campaign?.offerTitle || content?.platform, 'Marketing Draft');
+  const caption = previewLine(draft?.captionText || content?.captionText || campaign?.offerTitle || title, title);
+  const subtitle = previewLine(draft?.callToAction || content?.callToAction || content?.platform, 'Preview');
+  const offer = buildOfferPreviewLabel(campaign) || campaign?.offerTitle || 'Campaign creative';
+  const platform = content?.platform || 'SOCIAL';
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1200" viewBox="0 0 1200 1200">
+      <defs>
+        <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#1d1714"/>
+          <stop offset="100%" stop-color="#7d5420"/>
+        </linearGradient>
+        <radialGradient id="glow" cx="72%" cy="24%" r="46%">
+          <stop offset="0%" stop-color="#f7d9a4" stop-opacity="0.96"/>
+          <stop offset="100%" stop-color="#f7d9a4" stop-opacity="0"/>
+        </radialGradient>
+      </defs>
+      <rect width="1200" height="1200" fill="url(#bg)"/>
+      <circle cx="890" cy="250" r="290" fill="url(#glow)"/>
+      <rect x="84" y="84" width="360" height="86" rx="28" fill="#193832" fill-opacity="0.82" stroke="#f7d9a4" stroke-opacity="0.42"/>
+      <text x="116" y="138" fill="#f7d9a4" font-family="Arial, Helvetica, sans-serif" font-size="28" letter-spacing="3">${escapeSvgText(platform)}</text>
+      <text x="92" y="372" fill="#ffffff" font-family="Georgia, serif" font-size="96" font-weight="700">${escapeSvgText(title.slice(0, 34))}</text>
+      <text x="92" y="470" fill="#f6d8a9" font-family="Arial, Helvetica, sans-serif" font-size="42">${escapeSvgText(subtitle.slice(0, 42))}</text>
+      <rect x="92" y="604" width="460" height="88" rx="28" fill="#f7d9a4" fill-opacity="0.16" stroke="#f7d9a4" stroke-opacity="0.55"/>
+      <text x="126" y="662" fill="#fff6e8" font-family="Arial, Helvetica, sans-serif" font-size="34" font-weight="700">${escapeSvgText(offer.slice(0, 42))}</text>
+      <rect x="72" y="770" width="1056" height="262" rx="38" fill="#201713" fill-opacity="0.76" stroke="#f7d9a4" stroke-opacity="0.35"/>
+      <text x="110" y="850" fill="#fff8ec" font-family="Arial, Helvetica, sans-serif" font-size="44" font-weight="800">${escapeSvgText(caption.slice(0, 46))}</text>
+      <text x="110" y="914" fill="#fff8ec" font-family="Arial, Helvetica, sans-serif" font-size="36" font-weight="700">${escapeSvgText(caption.slice(46, 96))}</text>
+      <text x="110" y="1114" fill="#f7d9a4" font-family="Arial, Helvetica, sans-serif" font-size="28" letter-spacing="3">${escapeSvgText(contactLine.slice(0, 48))}</text>
+    </svg>
+  `;
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
+
+function buildSuggestionPreviewDataUrl(suggestion) {
+  return buildMarketingPreviewDataUrl(
+    {
+      campaignName: suggestion.campaignName || suggestion.occasionName || 'Suggested campaign',
+      offerTitle: suggestion.offerTitle || suggestion.windowLabel || 'Festival-ready offer',
+      discountType: suggestion.discountType || 'NONE',
+      discountValue: suggestion.discountValue ?? ''
+    },
+    {
+      platform: suggestion.targetPlatforms?.[0] || 'INSTAGRAM'
+    },
+    {
+      captionText: suggestion.occasionName || suggestion.campaignName || 'Suggested campaign',
+      callToAction: suggestion.windowLabel || 'Edit and generate'
+    }
+  );
+}
+
 export default function CampaignsPage() {
-  const [historyPage, setHistoryPage] = useState({ items: [], page: 0, totalPages: 0, totalItems: 0, hasNext: false, hasPrevious: false });
-  const [form, setForm] = useState(blankCampaign);
+  const auth = getStoredAuthSession() || {};
+  const canApprove = auth.role === 'ADMIN' || auth.role === 'OWNER';
+  const [activeTab, setActiveTab] = useState('campaigns');
+  const [filters, setFilters] = useState(blankFilters);
+  const [campaignsPage, setCampaignsPage] = useState({ items: [], page: 0, totalPages: 0, totalItems: 0, hasNext: false, hasPrevious: false });
+  const [scheduledPage, setScheduledPage] = useState({ items: [], page: 0, totalPages: 0, totalItems: 0, hasNext: false, hasPrevious: false });
+  const [selectedCampaign, setSelectedCampaign] = useState(null);
+  const [contentDrafts, setContentDrafts] = useState({});
+  const [suggestions, setSuggestions] = useState([]);
+  const [approvalQueue, setApprovalQueue] = useState([]);
+  const [analytics, setAnalytics] = useState(null);
+  const [categories, setCategories] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [form, setForm] = useState(blankForm);
+  const [analyticsFilters, setAnalyticsFilters] = useState({ campaignId: '', platform: '', fromDate: '', toDate: '' });
+  const [uploadingImageByContent, setUploadingImageByContent] = useState({});
+  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [uploadingMedia, setUploadingMedia] = useState(false);
 
-  const loadHistory = async (page = 0) => {
-    setHistoryPage(await retailService.getCampaignHistory({ page, size: 10 }));
+  const currentCategory = useMemo(
+    () => categories.find((entry) => entry.id === form.categoryId),
+    [categories, form.categoryId]
+  );
+
+  const productOptions = useMemo(() => {
+    if (!form.categoryId || !currentCategory?.code) {
+      return products;
+    }
+    return products.filter((product) => product.category === currentCategory.code);
+  }, [products, form.categoryId, currentCategory]);
+
+  const loadCampaigns = async (page = 0, overrides = filters) => {
+    const response = await retailService.getMarketingCampaigns({ ...overrides, page, size: 12 });
+    setCampaignsPage(response);
+    return response;
+  };
+
+  const loadScheduled = async (page = 0) => {
+    const response = await retailService.getMarketingCampaigns({ status: 'SCHEDULED', page, size: 12 });
+    setScheduledPage(response);
+  };
+
+  const loadCampaignDetails = async (campaignId) => {
+    const response = await retailService.getMarketingCampaign(campaignId);
+    setSelectedCampaign(response);
+    setContentDrafts(
+      Object.fromEntries(
+        (response.contents || []).map((content) => [
+          content.id,
+          {
+            captionText: content.captionText || '',
+            hashtags: content.hashtags || '',
+            callToAction: content.callToAction || '',
+            imagePrompt: content.imagePrompt || '',
+            imageUrl: content.imageUrl || '',
+            scheduledAt: toDatetimeLocal(content.scheduledAt)
+          }
+        ])
+      )
+    );
+    return response;
+  };
+
+  const loadApprovalQueue = async () => {
+    setApprovalQueue(await retailService.getMarketingApprovalQueue());
+  };
+
+  const loadSuggestions = async () => {
+    const response = await retailService.getMarketingSuggestions({ daysAhead: 20 });
+    setSuggestions(response || []);
+    return response;
+  };
+
+  const loadAnalytics = async (overrides = analyticsFilters) => {
+    const response = await retailService.getMarketingAnalytics({
+      campaignId: overrides.campaignId || undefined,
+      platform: overrides.platform || undefined,
+      fromDate: overrides.fromDate || undefined,
+      toDate: overrides.toDate || undefined
+    });
+    setAnalytics(response);
+    return response;
   };
 
   useEffect(() => {
-    loadHistory();
+    Promise.all([
+      loadCampaigns(),
+      loadScheduled(),
+      loadSuggestions(),
+      loadApprovalQueue(),
+      loadAnalytics(),
+      retailService.getProductCategoryOptions(),
+      retailService.getProducts({ page: 0, size: 100 })
+    ])
+      .then(([, , , , , categoryOptions, productPage]) => {
+        setCategories(categoryOptions || []);
+        setProducts(productPage.items || []);
+      })
+      .catch((requestError) => {
+        setError(getApiErrorMessage(requestError, 'Unable to load marketing automation data.'));
+      });
   }, []);
 
-  const previewCaption = useMemo(() => {
-    return [form.content, form.hashtags, form.linkUrl].filter(Boolean).join('\n\n');
-  }, [form.content, form.hashtags, form.linkUrl]);
-
-  const updateForm = (key, value) => {
-    setForm((current) => ({ ...current, [key]: value }));
-  };
-
-  const toggleChannel = (channel) => {
-    setForm((current) => {
-      const nextChannels = current.channels.includes(channel)
-        ? current.channels.filter((entry) => entry !== channel)
-        : [...current.channels, channel];
-      return {
-        ...current,
-        channels: nextChannels.length ? nextChannels : [channel]
-      };
-    });
-  };
-
-  const submit = async (publishNow) => {
-    setSubmitting(true);
+  const resetNotices = () => {
     setError('');
     setSuccess('');
+  };
+
+  const handleFilterChange = async (key, value) => {
+    const nextFilters = { ...filters, [key]: value };
+    setFilters(nextFilters);
+    resetNotices();
     try {
-      await retailService.createCampaign({
-        ...form,
-        publishNow
-      });
-      setForm(blankCampaign);
-      setSuccess(publishNow ? 'Campaign published.' : 'Campaign saved as draft.');
-      loadHistory();
+      await loadCampaigns(0, nextFilters);
     } catch (requestError) {
-      setError(getApiErrorMessage(requestError, 'Unable to save campaign.'));
+      setError(getApiErrorMessage(requestError, 'Unable to refresh campaign list.'));
+    }
+  };
+
+  const handleCreateCampaign = async (generateAfterCreate = false) => {
+    if (!form.targetPlatforms.length) {
+      setError('Select at least one social platform before creating a campaign.');
+      return;
+    }
+    setSubmitting(true);
+    resetNotices();
+    try {
+      const created = await retailService.createMarketingCampaign(normalizeCampaignPayload(form));
+      let response = created;
+      if (generateAfterCreate) {
+        response = await retailService.generateMarketingCampaign(created.id);
+        setSuccess('Campaign created and AI drafts generated for approval.');
+      } else {
+        setSuccess('Campaign draft created.');
+      }
+      setForm(blankForm);
+      await loadCampaigns(0);
+      await loadScheduled(0);
+      await loadApprovalQueue();
+      if (response?.id) {
+        await loadCampaignDetails(response.id);
+        setActiveTab('campaigns');
+      }
+    } catch (requestError) {
+      setError(getApiErrorMessage(requestError, 'Unable to create campaign.'));
     } finally {
       setSubmitting(false);
     }
   };
 
-  const uploadMedia = async (event) => {
-    const file = event.target.files?.[0];
+  const handleGenerate = async (campaignId) => {
+    setLoading(true);
+    resetNotices();
+    try {
+      await retailService.generateMarketingCampaign(campaignId);
+      setSuccess('AI drafts generated and sent to approval queue.');
+      await loadCampaigns(campaignsPage.page || 0);
+      await loadApprovalQueue();
+      await loadCampaignDetails(campaignId);
+    } catch (requestError) {
+      setError(getApiErrorMessage(requestError, 'Unable to generate AI drafts.'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteCampaign = async (campaignId, campaignName) => {
+    if (!window.confirm(`Delete campaign "${campaignName || 'this campaign'}"? This will remove its drafts, approvals, schedules, and logs.`)) {
+      return;
+    }
+    setLoading(true);
+    resetNotices();
+    try {
+      await retailService.deleteMarketingCampaign(campaignId);
+      setSuccess('Campaign deleted.');
+      if (selectedCampaign?.id === campaignId) {
+        setSelectedCampaign(null);
+        setContentDrafts({});
+      }
+      await loadCampaigns(0);
+      await loadScheduled(0);
+      await loadApprovalQueue();
+      await loadAnalytics();
+    } catch (requestError) {
+      setError(getApiErrorMessage(requestError, 'Unable to delete campaign.'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateDraft = (contentId, key, value) => {
+    setContentDrafts((current) => ({
+      ...current,
+      [contentId]: {
+        ...current[contentId],
+        [key]: value
+      }
+    }));
+  };
+
+  const buildContentUpdatePayload = (contentId) => {
+    const draft = contentDrafts[contentId] || {};
+    return {
+      ...draft,
+      scheduledAt: draft.scheduledAt || null
+    };
+  };
+
+  const saveContentDraft = async (contentId) => {
+    resetNotices();
+    try {
+      await retailService.updateMarketingContent(contentId, buildContentUpdatePayload(contentId));
+      setSuccess('Draft updated.');
+      if (selectedCampaign?.id) {
+        await loadCampaignDetails(selectedCampaign.id);
+      }
+      await loadApprovalQueue();
+      await loadCampaigns(campaignsPage.page || 0);
+    } catch (requestError) {
+      setError(getApiErrorMessage(requestError, 'Unable to update content draft.'));
+    }
+  };
+
+  const handleCustomImageUpload = async (contentId, file) => {
     if (!file) {
       return;
     }
-    setUploadingMedia(true);
-    setError('');
+    resetNotices();
+    setUploadingImageByContent((current) => ({ ...current, [contentId]: true }));
     try {
-      const response = await retailService.uploadImage({ file, category: 'campaigns' });
-      updateForm('mediaUrl', response?.url || response?.cloudfrontUrl || response?.imageUrl || '');
+      const existingDraft = contentDrafts[contentId] || {};
+      const response = await retailService.uploadImage({ file, category: 'marketing-campaigns' });
+      const uploadedUrl = response?.cloudfrontUrl || '';
+      if (!uploadedUrl) {
+        throw new Error('Image upload did not return a usable URL.');
+      }
+      setContentDrafts((current) => ({
+        ...current,
+        [contentId]: {
+          ...(current[contentId] || {}),
+          imageUrl: uploadedUrl
+        }
+      }));
+      await retailService.updateMarketingContent(contentId, {
+        ...existingDraft,
+        scheduledAt: existingDraft.scheduledAt || null,
+        imageUrl: uploadedUrl
+      });
+      setSuccess('Custom campaign image uploaded and saved.');
+      if (selectedCampaign?.id) {
+        await loadCampaignDetails(selectedCampaign.id);
+      }
+      await loadApprovalQueue();
+      await loadCampaigns(campaignsPage.page || 0);
     } catch (requestError) {
-      setError(getApiErrorMessage(requestError, 'Unable to upload campaign media.'));
+      setError(getApiErrorMessage(requestError, 'Unable to upload custom campaign image.'));
     } finally {
-      setUploadingMedia(false);
-      event.target.value = '';
+      setUploadingImageByContent((current) => ({ ...current, [contentId]: false }));
     }
   };
 
-  const publishDraft = async (campaignId) => {
-    setError('');
-    setSuccess('');
+  const approveContent = async (contentId) => {
+    resetNotices();
     try {
-      await retailService.publishCampaign(campaignId);
-      setSuccess('Draft published.');
-      loadHistory(historyPage.page || 0);
+      await retailService.approveMarketingContent(contentId, {});
+      setSuccess('Content approved.');
+      if (selectedCampaign?.id) {
+        await loadCampaignDetails(selectedCampaign.id);
+      }
+      await loadApprovalQueue();
+      await loadCampaigns(campaignsPage.page || 0);
+      await loadScheduled(0);
     } catch (requestError) {
-      setError(getApiErrorMessage(requestError, 'Unable to publish draft.'));
+      setError(getApiErrorMessage(requestError, 'Unable to approve content.'));
     }
   };
 
-  const retryLog = async (campaignLogId) => {
-    setError('');
-    setSuccess('');
-    try {
-      await retailService.retryCampaignLog(campaignLogId);
-      setSuccess('Publish retried.');
-      loadHistory(historyPage.page || 0);
-    } catch (requestError) {
-      setError(getApiErrorMessage(requestError, 'Unable to retry publish.'));
+  const rejectContent = async (contentId) => {
+    const reason = window.prompt('Reason for rejection');
+    if (!reason) {
+      return;
     }
+    resetNotices();
+    try {
+      await retailService.rejectMarketingContent(contentId, { reason });
+      setSuccess('Content rejected.');
+      if (selectedCampaign?.id) {
+        await loadCampaignDetails(selectedCampaign.id);
+      }
+      await loadApprovalQueue();
+      await loadCampaigns(campaignsPage.page || 0);
+    } catch (requestError) {
+      setError(getApiErrorMessage(requestError, 'Unable to reject content.'));
+    }
+  };
+
+  const scheduleContent = async (contentId) => {
+    const scheduledAt = contentDrafts[contentId]?.scheduledAt;
+    if (!scheduledAt) {
+      setError('Choose a future schedule time before scheduling this content.');
+      return;
+    }
+    resetNotices();
+    try {
+      await retailService.scheduleMarketingContent(contentId, { scheduledAt });
+      setSuccess('Content scheduled.');
+      if (selectedCampaign?.id) {
+        await loadCampaignDetails(selectedCampaign.id);
+      }
+      await loadCampaigns(campaignsPage.page || 0);
+      await loadScheduled(0);
+    } catch (requestError) {
+      setError(getApiErrorMessage(requestError, 'Unable to schedule content.'));
+    }
+  };
+
+  const publishContentNow = async (contentId) => {
+    if (!window.confirm('Publish this approved content right now?')) {
+      return;
+    }
+    resetNotices();
+    try {
+      await retailService.publishMarketingContentNow(contentId);
+      setSuccess('Content published.');
+      if (selectedCampaign?.id) {
+        await loadCampaignDetails(selectedCampaign.id);
+      }
+      await loadCampaigns(campaignsPage.page || 0);
+      await loadScheduled(0);
+      await loadAnalytics();
+    } catch (requestError) {
+      setError(getApiErrorMessage(requestError, 'Unable to publish content.'));
+    }
+  };
+
+  const selectedCampaignPlatforms = useMemo(
+    () => (selectedCampaign?.targetPlatforms || []).join(', '),
+    [selectedCampaign]
+  );
+
+  const groupedSuggestions = useMemo(() => ({
+    UPCOMING: suggestions.filter((entry) => entry.kind === 'UPCOMING'),
+    SEASONAL: suggestions.filter((entry) => entry.kind === 'SEASONAL'),
+    EVERGREEN: suggestions.filter((entry) => entry.kind === 'EVERGREEN')
+  }), [suggestions]);
+
+  const createPreviewUrl = useMemo(() => buildMarketingPreviewDataUrl(
+    {
+      campaignName: form.campaignName || 'Campaign preview',
+      offerTitle: form.offerTitle || '',
+      discountType: form.discountType,
+      discountValue: form.discountValue === '' ? null : form.discountValue
+    },
+    {
+      platform: form.targetPlatforms[0] || 'INSTAGRAM'
+    },
+    {
+      captionText: form.campaignName || 'Campaign preview',
+      callToAction: form.offerTitle || 'Edit offer details'
+    }
+  ), [form]);
+
+  const analyticsPlatformRows = analytics?.byPlatform || [];
+  const analyticsCampaignRows = analytics?.byCampaign || [];
+
+  const useSuggestion = (suggestion) => {
+    setForm({
+      ...blankForm,
+      campaignName: suggestion.campaignName || suggestion.occasionName || '',
+      campaignType: suggestion.campaignType || 'FESTIVAL',
+      offerTitle: suggestion.offerTitle || '',
+      landingUrl: suggestion.landingUrl || blankForm.landingUrl,
+      discountType: suggestion.discountType || 'NONE',
+      discountValue: suggestion.discountType && suggestion.discountType !== 'NONE' && suggestion.discountValue != null
+        ? String(suggestion.discountValue)
+        : '',
+      startDate: suggestion.startDate || '',
+      endDate: suggestion.endDate || '',
+      targetPlatforms: suggestion.targetPlatforms?.length ? suggestion.targetPlatforms : blankForm.targetPlatforms,
+      language: suggestion.language || 'MARATHI',
+      tone: suggestion.tone || 'FESTIVE'
+    });
+    setActiveTab('create');
+    setSuccess(`${suggestion.occasionName || suggestion.campaignName} suggestion loaded into the campaign form. You can edit it before generating drafts.`);
+    setError('');
+  };
+
+  const renderContentCard = (content) => {
+    const draft = contentDrafts[content.id] || {};
+    const offerPreviewLabel = buildOfferPreviewLabel(selectedCampaign);
+    const previewUrl = draft.imageUrl || content.imageUrl || buildMarketingPreviewDataUrl(selectedCampaign, content, draft);
+    return (
+      <article key={content.id} className="marketing-content-card">
+        <div className="marketing-content-card-head">
+          <div>
+            <div className="marketing-preview-channels">
+              <span className={`marketing-status-badge ${statusTone(content.status)}`}>{content.platform}</span>
+              <span className={`marketing-status-badge ${statusTone(content.status)}`}>{content.status}</span>
+            </div>
+            <h4>{content.platform} draft</h4>
+          </div>
+          <small>{formatDate(content.updatedAt || content.createdAt)}</small>
+        </div>
+        <div className="marketing-content-card-grid">
+          <div className="marketing-content-preview">
+            <div className="marketing-creative-frame">
+              {offerPreviewLabel ? <span className="marketing-preview-offer-chip">{offerPreviewLabel}</span> : null}
+              <img src={previewUrl} alt={`${content.platform} creative`} />
+            </div>
+            <div className="marketing-preview-upload-actions">
+              <label className={`ghost-btn compact-btn marketing-upload-btn ${uploadingImageByContent[content.id] ? 'is-disabled' : ''}`}>
+                {uploadingImageByContent[content.id] ? 'Uploading image...' : 'Upload custom image'}
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  hidden
+                  disabled={Boolean(uploadingImageByContent[content.id])}
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    event.target.value = '';
+                    if (file) {
+                      handleCustomImageUpload(content.id, file);
+                    }
+                  }}
+                />
+              </label>
+            </div>
+          </div>
+          <div className="marketing-content-fields">
+            <label>
+              Caption / message
+              <textarea
+                rows="5"
+                value={draft.captionText ?? content.captionText ?? ''}
+                onChange={(event) => updateDraft(content.id, 'captionText', event.target.value)}
+              />
+            </label>
+            <label>
+              Hashtags
+              <textarea
+                rows="2"
+                value={draft.hashtags ?? content.hashtags ?? ''}
+                onChange={(event) => updateDraft(content.id, 'hashtags', event.target.value)}
+              />
+            </label>
+            <label>
+              CTA
+              <input
+                value={draft.callToAction ?? content.callToAction ?? ''}
+                onChange={(event) => updateDraft(content.id, 'callToAction', event.target.value)}
+              />
+            </label>
+            <label>
+              Image prompt
+              <textarea
+                rows="3"
+                value={draft.imagePrompt ?? content.imagePrompt ?? ''}
+                onChange={(event) => updateDraft(content.id, 'imagePrompt', event.target.value)}
+              />
+            </label>
+            <label>
+              Image URL / preview URL
+              <input
+                value={draft.imageUrl ?? content.imageUrl ?? ''}
+                onChange={(event) => updateDraft(content.id, 'imageUrl', event.target.value)}
+              />
+            </label>
+            <label>
+              Schedule time
+              <input
+                type="datetime-local"
+                value={draft.scheduledAt ?? ''}
+                onChange={(event) => updateDraft(content.id, 'scheduledAt', event.target.value)}
+              />
+            </label>
+          </div>
+        </div>
+        {content.rejectionReason ? <p className="error-text">Rejected: {content.rejectionReason}</p> : null}
+        <div className="marketing-content-actions">
+          <button type="button" className="ghost-btn compact-btn" onClick={() => saveContentDraft(content.id)}>
+            Save edits
+          </button>
+          {canApprove ? (
+            <>
+              <button type="button" className="primary-btn compact-btn" onClick={() => approveContent(content.id)}>
+                Approve
+              </button>
+              <button type="button" className="ghost-btn compact-btn" onClick={() => rejectContent(content.id)}>
+                Reject
+              </button>
+              <button type="button" className="ghost-btn compact-btn" onClick={() => scheduleContent(content.id)}>
+                Schedule
+              </button>
+              <button type="button" className="ghost-btn compact-btn" onClick={() => publishContentNow(content.id)}>
+                Publish now
+              </button>
+            </>
+          ) : null}
+        </div>
+        {content.approvalHistory?.length ? (
+          <div className="marketing-history-list">
+            {content.approvalHistory.map((entry) => (
+              <div key={entry.id} className="marketing-history-row">
+                <span className={`marketing-status-badge ${statusTone(entry.action)}`}>{entry.action}</span>
+                <strong>{entry.actionBy}</strong>
+                <small>{formatDate(entry.actionAt)}</small>
+                {entry.comment ? <p>{entry.comment}</p> : null}
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </article>
+    );
   };
 
   return (
-    <div className="page marketing-admin-page">
+    <div className="page marketing-automation-page">
       <PageHeader
-        eyebrow="Marketing"
-        title="Marketing Admin"
-        description="Compose campaigns once, preview them, and publish or retry across WhatsApp, Instagram, and Facebook."
+        eyebrow="Marketing Automation"
+        title="AI drafts, approvals, scheduling, and publishing"
+        description="Create campaigns for Instagram, Facebook, and WhatsApp, review AI-generated content, route it through owner approval, and publish only when it is ready."
       />
 
-      <div className="marketing-admin-grid">
-        <Panel title="Campaign composer" subtitle="Choose channels, media, and publish mode from one place.">
-          <form className="form-grid marketing-admin-form" onSubmit={(event) => event.preventDefault()}>
-            <input placeholder="Campaign title" value={form.title} onChange={(event) => updateForm('title', event.target.value)} />
-            <input placeholder="Offer or product" value={form.offerProduct} onChange={(event) => updateForm('offerProduct', event.target.value)} />
-            <textarea placeholder="Caption or message" rows="6" value={form.content} onChange={(event) => updateForm('content', event.target.value)} required />
-            <input placeholder="#hashtags" value={form.hashtags} onChange={(event) => updateForm('hashtags', event.target.value)} />
-            <input placeholder="Destination link" value={form.linkUrl} onChange={(event) => updateForm('linkUrl', event.target.value)} />
-            <input placeholder="Media URL" value={form.mediaUrl} onChange={(event) => updateForm('mediaUrl', event.target.value)} />
-
-            <label className="marketing-upload-field">
-              <span>Upload media</span>
-              <input type="file" accept="image/*" onChange={uploadMedia} />
-              <strong>{uploadingMedia ? 'Uploading...' : 'Choose image'}</strong>
-            </label>
-
-            <div className="marketing-channel-pills">
-              {CHANNELS.map((channel) => (
-                <button
-                  key={channel}
-                  type="button"
-                  className={`ghost-btn compact-btn ${form.channels.includes(channel) ? 'marketing-channel-pill-active' : ''}`}
-                  onClick={() => toggleChannel(channel)}
-                >
-                  {channel}
-                </button>
-              ))}
-            </div>
-
-            {error ? <p className="error-text">{error}</p> : null}
-            {success ? <p className="success-text">{success}</p> : null}
-
-            <div className="checkout-actions">
-              <button className="ghost-btn compact-btn" type="button" disabled={submitting} onClick={() => submit(false)}>
-                {submitting ? 'Saving...' : 'Save draft'}
-              </button>
-              <button className="primary-btn compact-btn" type="button" disabled={submitting} onClick={() => submit(true)}>
-                {submitting ? 'Publishing...' : 'Publish now'}
-              </button>
-            </div>
-          </form>
-        </Panel>
-
-        <Panel title="Preview" subtitle="Quick visual check before the campaign goes live.">
-          <div className="marketing-preview-card">
-            {form.mediaUrl ? (
-              <img src={form.mediaUrl} alt={form.title || 'Campaign preview'} />
-            ) : (
-              <div className="marketing-preview-placeholder">Media preview</div>
-            )}
-            <div className="marketing-preview-copy">
-              <div className="marketing-preview-channels">
-                {form.channels.map((channel) => (
-                  <span key={channel} className="customer-offer-status">{channel}</span>
-                ))}
-              </div>
-              <h3>{form.title || 'Untitled campaign'}</h3>
-              {form.offerProduct ? <strong>{form.offerProduct}</strong> : null}
-              <p>{previewCaption || 'Caption, hashtags, and links will show here.'}</p>
-            </div>
-          </div>
-        </Panel>
+      <div className="marketing-tab-row">
+        {TABS.map((tab) => (
+          <button
+            key={tab.value}
+            type="button"
+            className={`ghost-btn compact-btn ${activeTab === tab.value ? 'marketing-tab-active' : ''}`}
+            onClick={() => setActiveTab(tab.value)}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
-      <Panel title="Publish history" subtitle="Track draft, published, and failed channel activity with retry controls.">
-        <DataTable
-          columns={[
-            { key: 'campaignName', label: 'Campaign' },
-            { key: 'channel', label: 'Channel' },
-            { key: 'status', label: 'Status' },
-            {
-              key: 'publishedBy',
-              label: 'Published By',
-              render: (row) => row.publishedBy || 'Draft'
-            },
-            {
-              key: 'publishedAt',
-              label: 'Published',
-              render: (row) => row.publishedAt ? formatDate(row.publishedAt) : 'Not yet'
-            },
-            {
-              key: 'errorMessage',
-              label: 'Error',
-              render: (row) => row.errorMessage || '—'
-            },
-            {
-              key: 'actions',
-              label: 'Actions',
-              render: (row) => {
-                if (row.status === 'FAILED') {
-                  return (
-                    <button type="button" className="ghost-btn compact-btn" onClick={() => retryLog(row.id)}>
-                      Retry
-                    </button>
-                  );
+      {error ? <p className="error-text">{error}</p> : null}
+      {success ? <p className="success-text">{success}</p> : null}
+
+      {activeTab === 'campaigns' ? (
+        <div className="marketing-automation-stack">
+          <Panel title="Campaign list" subtitle="Filter campaigns by status, platform, type, or date and open any campaign for review.">
+            <div className="marketing-filter-grid">
+              <select value={filters.status} onChange={(event) => handleFilterChange('status', event.target.value)}>
+                <option value="">All statuses</option>
+                {STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
+              </select>
+              <select value={filters.platform} onChange={(event) => handleFilterChange('platform', event.target.value)}>
+                <option value="">All platforms</option>
+                {PLATFORMS.map((platform) => <option key={platform} value={platform}>{platform}</option>)}
+              </select>
+              <select value={filters.type} onChange={(event) => handleFilterChange('type', event.target.value)}>
+                <option value="">All campaign types</option>
+                {CAMPAIGN_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
+              </select>
+              <input type="date" value={filters.fromDate} onChange={(event) => handleFilterChange('fromDate', event.target.value)} />
+              <input type="date" value={filters.toDate} onChange={(event) => handleFilterChange('toDate', event.target.value)} />
+            </div>
+            <DataTable
+              columns={[
+                { key: 'campaignName', label: 'Campaign' },
+                { key: 'campaignType', label: 'Type' },
+                {
+                  key: 'targetPlatforms',
+                  label: 'Platforms',
+                  render: (row) => (row.targetPlatforms || []).join(', ')
+                },
+                {
+                  key: 'status',
+                  label: 'Status',
+                  render: (row) => <span className={`marketing-status-badge ${statusTone(row.status)}`}>{row.status}</span>
+                },
+                {
+                  key: 'counts',
+                  label: 'Workflow',
+                  render: (row) => `${row.pendingApprovalCount} pending · ${row.approvedCount} approved · ${row.publishedCount} published`
+                },
+                {
+                  key: 'createdAt',
+                  label: 'Created',
+                  render: (row) => formatDate(row.createdAt)
+                },
+                {
+                  key: 'actions',
+                  label: 'Actions',
+                  render: (row) => (
+                    <div className="marketing-inline-actions">
+                      <button type="button" className="ghost-btn compact-btn" onClick={() => loadCampaignDetails(row.id)}>
+                        View
+                      </button>
+                      <button type="button" className="ghost-btn compact-btn" disabled={loading} onClick={() => handleGenerate(row.id)}>
+                        Generate
+                      </button>
+                      {canApprove ? (
+                        <button type="button" className="ghost-btn compact-btn is-danger" disabled={loading} onClick={() => handleDeleteCampaign(row.id, row.campaignName)}>
+                          Delete
+                        </button>
+                      ) : null}
+                    </div>
+                  )
                 }
-                if (row.status === 'DRAFT') {
-                  return (
-                    <button type="button" className="ghost-btn compact-btn" onClick={() => publishDraft(row.campaignId)}>
-                      Publish
+              ]}
+              rows={campaignsPage.items || []}
+              pagination={campaignsPage}
+              onPageChange={loadCampaigns}
+            />
+          </Panel>
+
+          {selectedCampaign ? (
+            <Panel
+              title={selectedCampaign.campaignName}
+              subtitle={`${selectedCampaign.campaignType} · ${selectedCampaignPlatforms || 'No platforms selected'} · ${selectedCampaign.status}`}
+            >
+              <div className="marketing-selected-campaign-meta">
+                <div><span>Offer</span><strong>{selectedCampaign.offerTitle || '—'}</strong></div>
+                <div><span>Landing URL</span><strong>{selectedCampaign.landingUrl || '—'}</strong></div>
+                <div><span>Language</span><strong>{selectedCampaign.language}</strong></div>
+                <div><span>Tone</span><strong>{selectedCampaign.tone}</strong></div>
+              </div>
+              {canApprove ? (
+                <div className="marketing-selected-actions">
+                  <button type="button" className="ghost-btn compact-btn is-danger" disabled={loading} onClick={() => handleDeleteCampaign(selectedCampaign.id, selectedCampaign.campaignName)}>
+                    Delete campaign
+                  </button>
+                </div>
+              ) : null}
+              <div className="marketing-content-list">
+                {(selectedCampaign.contents || []).map(renderContentCard)}
+              </div>
+            </Panel>
+          ) : null}
+        </div>
+      ) : null}
+
+      {activeTab === 'create' ? (
+        <div className="marketing-automation-stack">
+          <Panel
+            title="Suggested campaigns for the next 20 days"
+            subtitle="Ready-made Marathi campaign ideas for upcoming dates, seasonal retail moments, and evergreen occasions. Pick one to prefill the campaign form, then edit and generate."
+          >
+            <div className="marketing-suggestion-groups">
+              {Object.entries(groupedSuggestions).map(([kind, items]) => (
+                items.length ? (
+                  <section key={kind} className="marketing-suggestion-group">
+                    <div className="marketing-suggestion-group-head">
+                      <h4>{SUGGESTION_KIND_LABELS[kind] || kind}</h4>
+                      <small>{kind === 'UPCOMING' ? 'Festival-ready ideas based on the next 20 days' : kind === 'SEASONAL' ? 'Good to run while the occasion window is active' : 'Business-led campaigns you can run any time'}</small>
+                    </div>
+                    <div className="marketing-suggestion-grid">
+                      {items.map((suggestion) => (
+                        <article key={suggestion.key} className="marketing-suggestion-card">
+                          <div className="marketing-suggestion-preview">
+                            <img src={buildSuggestionPreviewDataUrl(suggestion)} alt={`${suggestion.occasionName} preview`} />
+                          </div>
+                          <div className="marketing-preview-channels">
+                            <span className="marketing-status-badge is-warm">{SUGGESTION_KIND_LABELS[suggestion.kind] || suggestion.kind}</span>
+                            {suggestion.highlightDate ? (
+                              <span className="marketing-status-badge">{formatLocalDateLabel(suggestion.highlightDate)}</span>
+                            ) : null}
+                          </div>
+                          <h4>{suggestion.occasionName}</h4>
+                          <p>{suggestion.rationale}</p>
+                          <div className="marketing-suggestion-meta">
+                            <div><span>Offer</span><strong>{suggestion.offerTitle || '—'}</strong></div>
+                            <div><span>Window</span><strong>{suggestion.windowLabel || '—'}</strong></div>
+                            <div><span>Tone</span><strong>{suggestion.tone}</strong></div>
+                            <div><span>Platforms</span><strong>{(suggestion.targetPlatforms || []).join(', ')}</strong></div>
+                          </div>
+                          <button type="button" className="primary-btn compact-btn" onClick={() => useSuggestion(suggestion)}>
+                            Use suggestion
+                          </button>
+                        </article>
+                      ))}
+                    </div>
+                  </section>
+                ) : null
+              ))}
+            </div>
+          </Panel>
+
+          <Panel title="Create campaign" subtitle="Build the campaign details first, then save it as a draft or save and generate AI content.">
+            <form className="marketing-create-grid" onSubmit={(event) => event.preventDefault()}>
+              <label>
+                Campaign name
+                <input value={form.campaignName} onChange={(event) => setForm((current) => ({ ...current, campaignName: event.target.value }))} />
+              </label>
+              <label>
+                Campaign type
+                <select value={form.campaignType} onChange={(event) => setForm((current) => ({ ...current, campaignType: event.target.value }))}>
+                  {CAMPAIGN_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
+                </select>
+              </label>
+              <label>
+                Category
+                <select value={form.categoryId} onChange={(event) => setForm((current) => ({ ...current, categoryId: event.target.value, productId: '' }))}>
+                  <option value="">All categories</option>
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.id}>{category.displayName}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Product
+                <select value={form.productId} onChange={(event) => setForm((current) => ({ ...current, productId: event.target.value }))}>
+                  <option value="">No specific product</option>
+                  {productOptions.map((product) => (
+                    <option key={product.id} value={product.id}>{product.name}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Offer title
+                <input value={form.offerTitle} onChange={(event) => setForm((current) => ({ ...current, offerTitle: event.target.value }))} />
+              </label>
+              <label>
+                Landing URL
+                <input value={form.landingUrl} onChange={(event) => setForm((current) => ({ ...current, landingUrl: event.target.value }))} />
+              </label>
+              <label>
+                Discount type
+                <select value={form.discountType} onChange={(event) => setForm((current) => ({ ...current, discountType: event.target.value }))}>
+                  <option value="NONE">NONE</option>
+                  <option value="PERCENTAGE">PERCENTAGE</option>
+                  <option value="FLAT">FLAT</option>
+                </select>
+              </label>
+              <label>
+                Discount value
+                <input type="number" min="0" step="0.01" value={form.discountValue} onChange={(event) => setForm((current) => ({ ...current, discountValue: event.target.value }))} />
+              </label>
+              <label>
+                Start date
+                <input type="date" value={form.startDate} onChange={(event) => setForm((current) => ({ ...current, startDate: event.target.value }))} />
+              </label>
+              <label>
+                End date
+                <input type="date" value={form.endDate} onChange={(event) => setForm((current) => ({ ...current, endDate: event.target.value }))} />
+              </label>
+              <label>
+                Language
+                <select value={form.language} onChange={(event) => setForm((current) => ({ ...current, language: event.target.value }))}>
+                  {LANGUAGES.map((language) => <option key={language} value={language}>{language}</option>)}
+                </select>
+              </label>
+              <label>
+                Tone
+                <select value={form.tone} onChange={(event) => setForm((current) => ({ ...current, tone: event.target.value }))}>
+                  {TONES.map((tone) => <option key={tone} value={tone}>{tone}</option>)}
+                </select>
+              </label>
+              <fieldset className="marketing-platform-selectors">
+                <legend>Platforms</legend>
+                <div className="marketing-platform-checkboxes">
+                  {PLATFORMS.map((platform) => (
+                    <label
+                      key={platform}
+                      className={`marketing-platform-option ${form.targetPlatforms.includes(platform) ? 'is-selected' : ''}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={form.targetPlatforms.includes(platform)}
+                        onChange={() => {
+                          setForm((current) => {
+                            const next = current.targetPlatforms.includes(platform)
+                              ? current.targetPlatforms.filter((entry) => entry !== platform)
+                              : [...current.targetPlatforms, platform];
+                            return {
+                              ...current,
+                              targetPlatforms: next
+                            };
+                          });
+                        }}
+                      />
+                      <span>{platform}</span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+              <div className="marketing-form-preview-card">
+                <div className="marketing-form-preview-media">
+                  <img src={createPreviewUrl} alt="Campaign preview" />
+                </div>
+                <div className="marketing-form-preview-copy">
+                  <span>Preview</span>
+                  <strong>{form.campaignName || 'Your campaign creative will appear here'}</strong>
+                  <p>
+                    {form.offerTitle || 'Add an offer title, platforms, and discount to see a richer campaign mockup before generation.'}
+                  </p>
+                </div>
+              </div>
+              <div className="marketing-form-actions">
+                <button type="button" className="ghost-btn compact-btn" disabled={submitting} onClick={() => handleCreateCampaign(false)}>
+                  {submitting ? 'Saving...' : 'Save campaign'}
+                </button>
+                <button type="button" className="primary-btn compact-btn" disabled={submitting} onClick={() => handleCreateCampaign(true)}>
+                  {submitting ? 'Generating...' : 'Save & generate AI drafts'}
+                </button>
+              </div>
+            </form>
+          </Panel>
+        </div>
+      ) : null}
+
+      {activeTab === 'approval' ? (
+        <div className="marketing-automation-stack">
+          <Panel title="Approval queue" subtitle="Owner and admin users can review, edit, approve, or reject pending content here.">
+            <div className="marketing-content-list">
+              {approvalQueue.length === 0 ? (
+                <p className="page-description">Nothing is waiting for approval right now.</p>
+              ) : (
+                approvalQueue.map((entry) => (
+                  <article key={entry.contentId} className="marketing-content-card">
+                    <div className="marketing-content-card-head">
+                      <div>
+                        <div className="marketing-preview-channels">
+                          <span className="marketing-status-badge is-warm">{entry.platform}</span>
+                          <span className="marketing-status-badge is-warm">PENDING APPROVAL</span>
+                        </div>
+                        <h4>{entry.campaignName}</h4>
+                      </div>
+                      <div className="marketing-inline-actions">
+                        <button type="button" className="ghost-btn compact-btn" onClick={() => loadCampaignDetails(entry.campaignId).then(() => setActiveTab('campaigns'))}>
+                          Open campaign
+                        </button>
+                        {canApprove ? (
+                          <>
+                            <button type="button" className="primary-btn compact-btn" onClick={() => approveContent(entry.contentId)}>
+                              Approve
+                            </button>
+                            <button type="button" className="ghost-btn compact-btn" onClick={() => rejectContent(entry.contentId)}>
+                              Reject
+                            </button>
+                          </>
+                        ) : null}
+                      </div>
+                    </div>
+                    <div className="marketing-content-card-grid">
+                      <div className="marketing-content-preview">
+                        <img src={entry.imageUrl || buildMarketingPreviewDataUrl({ campaignName: entry.campaignName, offerTitle: entry.offerTitle, discountType: entry.discountType, discountValue: entry.discountValue }, entry, null)} alt={entry.campaignName} />
+                      </div>
+                      <div className="marketing-content-fields">
+                        <p><strong>Caption:</strong> {entry.captionText || '—'}</p>
+                        <p><strong>Hashtags:</strong> {entry.hashtags || '—'}</p>
+                        <p><strong>CTA:</strong> {entry.callToAction || '—'}</p>
+                        <p><strong>Image prompt:</strong> {entry.imagePrompt || '—'}</p>
+                        <p><strong>Created by:</strong> {entry.createdBy || '—'}</p>
+                      </div>
+                    </div>
+                  </article>
+                ))
+              )}
+            </div>
+          </Panel>
+        </div>
+      ) : null}
+
+      {activeTab === 'schedule' ? (
+        <div className="marketing-automation-stack">
+          <Panel title="Scheduled publishing" subtitle="These campaign items are approved and waiting for their scheduled publish time.">
+            <DataTable
+              columns={[
+                { key: 'campaignName', label: 'Campaign' },
+                { key: 'campaignType', label: 'Type' },
+                {
+                  key: 'platforms',
+                  label: 'Platforms',
+                  render: (row) => (row.targetPlatforms || []).join(', ')
+                },
+                {
+                  key: 'nextScheduledAt',
+                  label: 'Next scheduled time',
+                  render: (row) => row.nextScheduledAt ? formatDate(row.nextScheduledAt) : '—'
+                },
+                {
+                  key: 'status',
+                  label: 'Status',
+                  render: (row) => <span className={`marketing-status-badge ${statusTone(row.status)}`}>{row.status}</span>
+                },
+                {
+                  key: 'actions',
+                  label: 'Actions',
+                  render: (row) => (
+                    <button type="button" className="ghost-btn compact-btn" onClick={() => loadCampaignDetails(row.id).then(() => setActiveTab('campaigns'))}>
+                      View
                     </button>
-                  );
+                  )
                 }
-                return '—';
-              }
-            }
-          ]}
-          rows={historyPage.items || []}
-          pagination={historyPage}
-          onPageChange={loadHistory}
-        />
-      </Panel>
+              ]}
+              rows={scheduledPage.items || []}
+              pagination={scheduledPage}
+              onPageChange={loadScheduled}
+            />
+          </Panel>
+        </div>
+      ) : null}
+
+      {activeTab === 'analytics' ? (
+        <div className="marketing-automation-stack">
+          <Panel title="Analytics dashboard" subtitle="Review campaign reach and engagement across platforms for the selected date range.">
+            <div className="marketing-filter-grid">
+              <select value={analyticsFilters.campaignId} onChange={(event) => setAnalyticsFilters((current) => ({ ...current, campaignId: event.target.value }))}>
+                <option value="">All campaigns</option>
+                {(campaignsPage.items || []).map((campaign) => (
+                  <option key={campaign.id} value={campaign.id}>{campaign.campaignName}</option>
+                ))}
+              </select>
+              <select value={analyticsFilters.platform} onChange={(event) => setAnalyticsFilters((current) => ({ ...current, platform: event.target.value }))}>
+                <option value="">All platforms</option>
+                {PLATFORMS.map((platform) => <option key={platform} value={platform}>{platform}</option>)}
+              </select>
+              <input type="date" value={analyticsFilters.fromDate} onChange={(event) => setAnalyticsFilters((current) => ({ ...current, fromDate: event.target.value }))} />
+              <input type="date" value={analyticsFilters.toDate} onChange={(event) => setAnalyticsFilters((current) => ({ ...current, toDate: event.target.value }))} />
+              <button type="button" className="primary-btn compact-btn" onClick={() => loadAnalytics()}>Refresh analytics</button>
+            </div>
+
+            <div className="metric-grid">
+              <article className="metric-card"><span>Impressions</span><strong>{analytics?.impressions ?? 0}</strong></article>
+              <article className="metric-card"><span>Likes</span><strong>{analytics?.likes ?? 0}</strong></article>
+              <article className="metric-card tone-accent"><span>Clicks</span><strong>{analytics?.clicks ?? 0}</strong></article>
+              <article className="metric-card"><span>Comments</span><strong>{analytics?.comments ?? 0}</strong></article>
+              <article className="metric-card"><span>Shares</span><strong>{analytics?.shares ?? 0}</strong></article>
+              <article className="metric-card"><span>Conversions</span><strong>{analytics?.conversions ?? 0}</strong></article>
+            </div>
+
+            <div className="marketing-analytics-grid">
+              <div>
+                <h4>By platform</h4>
+                <DataTable
+                  columns={[
+                    { key: 'platform', label: 'Platform' },
+                    { key: 'impressions', label: 'Impressions' },
+                    { key: 'likes', label: 'Likes' },
+                    { key: 'comments', label: 'Comments' },
+                    { key: 'shares', label: 'Shares' },
+                    { key: 'clicks', label: 'Clicks' },
+                    { key: 'conversions', label: 'Conversions' }
+                  ]}
+                  rows={analyticsPlatformRows}
+                />
+              </div>
+              <div>
+                <h4>Published content rows</h4>
+                <DataTable
+                  columns={[
+                    { key: 'campaignName', label: 'Campaign' },
+                    { key: 'platform', label: 'Platform' },
+                    { key: 'impressions', label: 'Impressions' },
+                    { key: 'likes', label: 'Likes' },
+                    { key: 'clicks', label: 'Clicks' },
+                    {
+                      key: 'fetchedAt',
+                      label: 'Fetched',
+                      render: (row) => formatDate(row.fetchedAt)
+                    }
+                  ]}
+                  rows={analyticsCampaignRows}
+                />
+              </div>
+            </div>
+          </Panel>
+        </div>
+      ) : null}
     </div>
   );
 }

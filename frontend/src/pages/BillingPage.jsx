@@ -44,8 +44,17 @@ export default function BillingPage() {
   const [previewInvoice, setPreviewInvoice] = useState(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [popupMessage, setPopupMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submittingAndPrinting, setSubmittingAndPrinting] = useState(false);
+
+  useEffect(() => {
+    if (!popupMessage) {
+      return undefined;
+    }
+    const timeoutId = window.setTimeout(() => setPopupMessage(''), 3200);
+    return () => window.clearTimeout(timeoutId);
+  }, [popupMessage]);
 
   useEffect(() => {
     Promise.all([
@@ -188,14 +197,23 @@ export default function BillingPage() {
 
   const getEditableStock = (product) => Number(product.quantity || 0) + getOriginalInvoiceQuantity(product.id);
 
+  const showStockPopup = (message) => {
+    setPopupMessage(message);
+    setError(message);
+  };
+
   const addToCart = (product, source = 'catalog') => {
     const editableStock = getEditableStock(product);
     const originalQuantity = getOriginalInvoiceQuantity(product.id);
+    if (editableStock <= 0) {
+      showStockPopup(`${product.name} is out of stock and cannot be added to this bill.`);
+      return;
+    }
     setCart((current) => {
       const existing = current.find((item) => item.productId === product.id);
       if (existing) {
         if (existing.quantity >= existing.stock) {
-          setError(`Only ${existing.stock} units available for ${product.name}${editingInvoiceId ? ' while editing this invoice' : ''}.`);
+          showStockPopup(`Only ${existing.stock} units available for ${product.name}${editingInvoiceId ? ' while editing this invoice' : ''}.`);
           return current;
         }
         return current.map((item) =>
@@ -229,17 +247,20 @@ export default function BillingPage() {
 
   const updateQuantity = (productId, quantity) => {
     const parsedQuantity = Number(quantity);
-    setCart((current) =>
-      current
-        .map((item) => {
-          if (item.productId !== productId) {
-            return item;
-          }
-          const nextQuantity = Math.max(1, Math.min(item.stock, parsedQuantity || 0));
-          return { ...item, quantity: nextQuantity };
-        })
-        .filter((item) => item.quantity > 0)
-    );
+    setCart((current) => current.map((item) => {
+      if (item.productId !== productId) {
+        return item;
+      }
+      if (item.stock <= 0) {
+        showStockPopup(`${item.name} is out of stock. Remove it from the bill or restock it first.`);
+        return item;
+      }
+      if (parsedQuantity > item.stock) {
+        showStockPopup(`Only ${item.stock} units available for ${item.name}.`);
+      }
+      const nextQuantity = Math.max(1, Math.min(item.stock, parsedQuantity || 0));
+      return { ...item, quantity: nextQuantity };
+    }));
   };
 
   const subtotal = cart.reduce((sum, item) => sum + Number(item.price) * item.quantity, 0);
@@ -524,6 +545,12 @@ export default function BillingPage() {
 
   return (
     <div className="page billing-page">
+      {popupMessage ? (
+        <div className="floating-popup-alert" role="alert" aria-live="assertive">
+          <strong>Stock issue</strong>
+          <span>{popupMessage}</span>
+        </div>
+      ) : null}
       <div className="two-column">
         <div className="inventory-stack">
         <Panel title="Product picker" subtitle="Search products or use quick picks.">
@@ -550,11 +577,16 @@ export default function BillingPage() {
                     key={product.id}
                     type="button"
                     className="autocomplete-item"
+                    disabled={getEditableStock(product) === 0}
                     onClick={() => addToCart(product, 'search')}
                   >
                     <strong>{product.name}</strong>
                     <span>{product.sku} • {product.category} • {currency(product.sellingPrice)}</span>
-                    {isLowStockProduct(product) ? <span className="inline-alert">Low stock: {product.quantity} left</span> : null}
+                    {getEditableStock(product) === 0 ? (
+                      <span className="inline-alert">Out of stock • Restock to bill</span>
+                    ) : isLowStockProduct(product) ? (
+                      <span className="inline-alert">Low stock: {product.quantity} left</span>
+                    ) : null}
                   </button>
                 ))}
               </div>
@@ -698,138 +730,141 @@ export default function BillingPage() {
         </Panel>
         </div>
 
-        <Panel title="Checkout" subtitle="Customer, payment, and discount details.">
+        <Panel title="Checkout" subtitle="Keep billing controls, cart, and final actions in one fast view.">
           <div className="billing-summary-grid">
             <MetricCard label="Cart Items" value={cart.length} />
             <MetricCard label="Subtotal" value={currency(subtotal)} tone="accent" />
             <MetricCard label="Products Ready" value={products.length} />
           </div>
-          <form className="form-grid" onSubmit={handleSubmit}>
-            <div className="search-box-wrap">
-              <label className="input-label" htmlFor="billing-sales-person">Sales person</label>
-              <select
-                id="billing-sales-person"
-                value={form.salesPersonUserId}
-                onChange={(e) => setForm({ ...form, salesPersonUserId: e.target.value })}
-                required
-              >
-                <option value="">Choose sales person</option>
-                {salesPeople.map((salesPerson) => (
-                  <option key={salesPerson.id} value={salesPerson.id}>
-                    {salesPerson.displayName}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="search-box-wrap">
-              <label className="input-label" htmlFor="billing-customer-name">Customer name</label>
-              <input
-                id="billing-customer-name"
-                placeholder="Type customer name to autofill existing customer"
-                value={form.customerName}
-                onChange={(e) => setForm({ ...form, customerName: e.target.value })}
-                onFocus={() => setCustomerSearchFocused(true)}
-                onBlur={() => window.setTimeout(() => setCustomerSearchFocused(false), 120)}
-                autoComplete="off"
-                required
-              />
-              {customerSearchFocused && customerSuggestions.length ? (
-                <div className="autocomplete-menu">
-                  {customerSuggestions.map((customer) => (
-                    <button
-                      key={customer.id}
-                      type="button"
-                      className="autocomplete-item"
-                      onClick={() => selectCustomer(customer)}
-                    >
-                      <strong>{customer.name}</strong>
-                      <span>Mobile: {customer.mobile}</span>
-                    </button>
+          <form className="form-grid billing-checkout-form" onSubmit={handleSubmit}>
+            <div className="billing-checkout-compact-grid">
+              <div className="search-box-wrap billing-field">
+                <label className="input-label" htmlFor="billing-sales-person">Sales person</label>
+                <select
+                  id="billing-sales-person"
+                  value={form.salesPersonUserId}
+                  onChange={(e) => setForm({ ...form, salesPersonUserId: e.target.value })}
+                  required
+                >
+                  <option value="">Choose sales person</option>
+                  {salesPeople.map((salesPerson) => (
+                    <option key={salesPerson.id} value={salesPerson.id}>
+                      {salesPerson.displayName}
+                    </option>
                   ))}
-                </div>
-              ) : null}
-            </div>
-            <label className="input-label" htmlFor="billing-customer-mobile">Customer mobile number</label>
-            <input
-              id="billing-customer-mobile"
-              placeholder="Customer mobile"
-              value={form.customerMobile}
-              onChange={(e) => setForm({ ...form, customerMobile: e.target.value })}
-              inputMode="numeric"
-              autoComplete="off"
-              required
-            />
-            {customerSnapshot ? (
-              <div className="customer-card">
-                <strong>Existing customer found</strong>
-                <span>Name: {customerSnapshot.name}</span>
-                <span>Total visits: {customerSnapshot.totalInvoices}</span>
-                <span>Total spent: {currency(customerSnapshot.totalSpent)}</span>
-                <span>Last purchase: {customerSnapshot.lastPurchaseAt ? formatDate(customerSnapshot.lastPurchaseAt) : 'N/A'}</span>
+                </select>
               </div>
-            ) : null}
-            <label className="input-label" htmlFor="billing-payment-mode">Payment method</label>
-            <select
-              id="billing-payment-mode"
-              value={form.paymentMode}
-              onChange={(e) => setForm({ ...form, paymentMode: e.target.value })}
-            >
-              <option value="CASH">Cash</option>
-              <option value="CARD">Card</option>
-              <option value="UPI">UPI</option>
-            </select>
-            <label className="input-label">Coupon selection</label>
-            <select
-              value={form.couponCode}
-              onChange={(e) => setForm((current) => ({
-                ...current,
-                couponCode: e.target.value,
-                manualDiscount: e.target.value ? 0 : current.manualDiscount
-              }))}
-              disabled={!cart.length}
-            >
-              <option value="">No coupon</option>
-              {validCouponOffers.map((offer) => (
-                <option key={offer.id} value={offer.couponCode}>
-                  {offer.couponCode} · {offer.name}
-                </option>
-              ))}
-            </select>
-            <label className="input-label">Custom discount type</label>
-            <div className="discount-mode-toggle" role="group" aria-label="Custom discount type">
-              <button
-                type="button"
-                className={form.manualDiscountType === 'FIXED' ? 'toggle-active' : ''}
-                onClick={() => setForm({ ...form, manualDiscountType: 'FIXED' })}
-                disabled={couponSelected}
-              >
-                Fixed
-              </button>
-              <button
-                type="button"
-                className={form.manualDiscountType === 'PERCENT' ? 'toggle-active' : ''}
-                onClick={() => setForm({ ...form, manualDiscountType: 'PERCENT' })}
-                disabled={couponSelected}
-              >
-                Percent
-              </button>
+              <div className="search-box-wrap billing-field">
+                <label className="input-label" htmlFor="billing-payment-mode">Payment method</label>
+                <select
+                  id="billing-payment-mode"
+                  value={form.paymentMode}
+                  onChange={(e) => setForm({ ...form, paymentMode: e.target.value })}
+                >
+                  <option value="CASH">Cash</option>
+                  <option value="CARD">Card</option>
+                  <option value="UPI">UPI</option>
+                </select>
+              </div>
+              <div className="search-box-wrap billing-field billing-field-wide">
+                <label className="input-label" htmlFor="billing-customer-name">Customer name</label>
+                <input
+                  id="billing-customer-name"
+                  placeholder="Type customer name to autofill existing customer"
+                  value={form.customerName}
+                  onChange={(e) => setForm({ ...form, customerName: e.target.value })}
+                  onFocus={() => setCustomerSearchFocused(true)}
+                  onBlur={() => window.setTimeout(() => setCustomerSearchFocused(false), 120)}
+                  autoComplete="off"
+                  required
+                />
+                {customerSearchFocused && customerSuggestions.length ? (
+                  <div className="autocomplete-menu">
+                    {customerSuggestions.map((customer) => (
+                      <button
+                        key={customer.id}
+                        type="button"
+                        className="autocomplete-item"
+                        onClick={() => selectCustomer(customer)}
+                      >
+                        <strong>{customer.name}</strong>
+                        <span>Mobile: {customer.mobile}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+              <div className="billing-field">
+                <label className="input-label" htmlFor="billing-customer-mobile">Customer mobile number</label>
+                <input
+                  id="billing-customer-mobile"
+                  placeholder="Customer mobile"
+                  value={form.customerMobile}
+                  onChange={(e) => setForm({ ...form, customerMobile: e.target.value })}
+                  inputMode="numeric"
+                  autoComplete="off"
+                  required
+                />
+              </div>
+              <div className="billing-field">
+                <label className="input-label">Coupon selection</label>
+                <select
+                  value={form.couponCode}
+                  onChange={(e) => setForm((current) => ({
+                    ...current,
+                    couponCode: e.target.value,
+                    manualDiscount: e.target.value ? 0 : current.manualDiscount
+                  }))}
+                  disabled={!cart.length}
+                >
+                  <option value="">No coupon</option>
+                  {validCouponOffers.map((offer) => (
+                    <option key={offer.id} value={offer.couponCode}>
+                      {offer.couponCode} · {offer.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="billing-field">
+                <label className="input-label">Custom discount type</label>
+                <div className="discount-mode-toggle" role="group" aria-label="Custom discount type">
+                  <button
+                    type="button"
+                    className={form.manualDiscountType === 'FIXED' ? 'toggle-active' : ''}
+                    onClick={() => setForm({ ...form, manualDiscountType: 'FIXED' })}
+                    disabled={couponSelected}
+                  >
+                    Fixed
+                  </button>
+                  <button
+                    type="button"
+                    className={form.manualDiscountType === 'PERCENT' ? 'toggle-active' : ''}
+                    onClick={() => setForm({ ...form, manualDiscountType: 'PERCENT' })}
+                    disabled={couponSelected}
+                  >
+                    Percent
+                  </button>
+                </div>
+              </div>
+              <div className="billing-field">
+                <label className="input-label" htmlFor="billing-custom-discount">
+                  {form.manualDiscountType === 'PERCENT' ? 'Discount %' : 'Discount amount'}
+                </label>
+                <input
+                  id="billing-custom-discount"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  max={form.manualDiscountType === 'PERCENT' ? '100' : undefined}
+                  placeholder={form.manualDiscountType === 'PERCENT' ? 'Custom bill discount (%)' : 'Custom bill discount'}
+                  value={form.manualDiscount}
+                  onChange={(e) => setForm({ ...form, manualDiscount: e.target.value })}
+                  disabled={couponSelected}
+                />
+              </div>
             </div>
-            <label className="input-label" htmlFor="billing-custom-discount">
-              {form.manualDiscountType === 'PERCENT' ? 'Custom discount percentage' : 'Custom discount amount'}
-            </label>
-            <input
-              id="billing-custom-discount"
-              type="number"
-              min="0"
-              step="0.01"
-              max={form.manualDiscountType === 'PERCENT' ? '100' : undefined}
-              placeholder={form.manualDiscountType === 'PERCENT' ? 'Custom bill discount (%)' : 'Custom bill discount'}
-              value={form.manualDiscount}
-              onChange={(e) => setForm({ ...form, manualDiscount: e.target.value })}
-              disabled={couponSelected}
-            />
             {cart.length ? (
-              <div className="discount-preview">
+              <div className="discount-preview billing-field-wide">
                 <strong>Bill summary before save</strong>
                 <span>Total bill: <strong>{currency(previewTotalAmount)}</strong></span>
                 <span>{couponSelected ? `Coupon (${form.couponCode})` : 'Offer discount'}: <strong>{currency(autoOrCouponDiscount || offerDiscount)}</strong></span>
@@ -841,80 +876,93 @@ export default function BillingPage() {
               </div>
             ) : null}
 
-            <DataTable
-              columns={[
-                {
-                  key: 'name',
-                  label: 'Product',
-                  render: (row) => (
-                    <div className="cart-product-cell">
-                      <strong>{row.name}</strong>
-                      {isLowStockCartItem(row) ? (
-                        <small className="stock-alert-text">
-                          Low stock. On shelf: {row.currentStock}, after bill: {remainingStockAfterEdit(row)}, alert at {row.lowStockThreshold}
-                        </small>
-                      ) : (
-                        <small>
-                          {editingInvoiceId && row.originalQuantity > 0
-                            ? `Available in edit: ${row.stock} (${row.currentStock} on shelf + ${row.originalQuantity} already billed)`
-                            : `In stock: ${row.currentStock}`}
-                        </small>
-                      )}
-                    </div>
-                  )
-                },
-                { key: 'price', label: 'Price', render: (row) => currency(row.price) },
-                {
-                  key: 'quantity',
-                  label: 'Qty',
-                  render: (row) => (
-                    <input
-                      className="quantity-input"
-                      type="number"
-                      min="1"
-                      max={row.stock}
-                      value={row.quantity}
-                      onChange={(e) => updateQuantity(row.productId, e.target.value)}
-                    />
-                  )
-                },
-                {
-                  key: 'offerDiscount',
-                  label: 'Offer Discount',
-                  render: (row) => {
-                    const previewRow = previewInvoice?.items?.find((item) => item.productId === row.productId);
-                    return currency(previewRow?.discount || 0);
+            {customerSnapshot ? (
+              <div className="customer-card billing-field-wide">
+                <strong>Existing customer found</strong>
+                <span>Name: {customerSnapshot.name}</span>
+                <span>Total visits: {customerSnapshot.totalInvoices}</span>
+                <span>Total spent: {currency(customerSnapshot.totalSpent)}</span>
+                <span>Last purchase: {customerSnapshot.lastPurchaseAt ? formatDate(customerSnapshot.lastPurchaseAt) : 'N/A'}</span>
+              </div>
+            ) : null}
+
+            <div className="billing-cart-panel">
+              <DataTable
+                columns={[
+                  {
+                    key: 'name',
+                    label: 'Product',
+                    render: (row) => (
+                      <div className="cart-product-cell">
+                        <strong>{row.name}</strong>
+                        {isLowStockCartItem(row) ? (
+                          <small className="stock-alert-text">
+                            Low stock. On shelf: {row.currentStock}, after bill: {remainingStockAfterEdit(row)}, alert at {row.lowStockThreshold}
+                          </small>
+                        ) : (
+                          <small>
+                            {editingInvoiceId && row.originalQuantity > 0
+                              ? `Available in edit: ${row.stock} (${row.currentStock} on shelf + ${row.originalQuantity} already billed)`
+                              : `In stock: ${row.currentStock}`}
+                          </small>
+                        )}
+                      </div>
+                    )
+                  },
+                  { key: 'price', label: 'Price', render: (row) => currency(row.price) },
+                  {
+                    key: 'quantity',
+                    label: 'Qty',
+                    render: (row) => (
+                      <input
+                        className="quantity-input"
+                        type="number"
+                        min="1"
+                        max={Math.max(1, row.stock)}
+                        value={row.quantity}
+                        disabled={row.stock <= 0}
+                        onChange={(e) => updateQuantity(row.productId, e.target.value)}
+                      />
+                    )
+                  },
+                  {
+                    key: 'offerDiscount',
+                    label: 'Offer Discount',
+                    render: (row) => {
+                      const previewRow = previewInvoice?.items?.find((item) => item.productId === row.productId);
+                      return currency(previewRow?.discount || 0);
+                    }
+                  },
+                  {
+                    key: 'lineTotal',
+                    label: 'Net Line',
+                    render: (row) => {
+                      const previewRow = previewInvoice?.items?.find((item) => item.productId === row.productId);
+                      return currency(previewRow?.lineTotal ?? row.price * row.quantity);
+                    }
+                  },
+                  {
+                    key: 'remove',
+                    label: '',
+                    render: (row) => (
+                      <button
+                        className="ghost-btn"
+                        type="button"
+                        onClick={() => setCart((current) => current.filter((item) => item.productId !== row.productId))}
+                      >
+                        Remove
+                      </button>
+                    )
                   }
-                },
-                {
-                  key: 'lineTotal',
-                  label: 'Net Line',
-                  render: (row) => {
-                    const previewRow = previewInvoice?.items?.find((item) => item.productId === row.productId);
-                    return currency(previewRow?.lineTotal ?? row.price * row.quantity);
-                  }
-                },
-                {
-                  key: 'remove',
-                  label: '',
-                  render: (row) => (
-                    <button
-                      className="ghost-btn"
-                      type="button"
-                      onClick={() => setCart((current) => current.filter((item) => item.productId !== row.productId))}
-                    >
-                      Remove
-                    </button>
-                  )
-                }
-              ]}
-              rows={cart}
-              emptyMessage="Add products to start a bill."
-            />
+                ]}
+                rows={cart}
+                emptyMessage="Add products to start a bill."
+              />
+            </div>
 
             {error ? <p className="error-text">{error}</p> : null}
             {success ? <p className="success-text">{success}</p> : null}
-            <div className="checkout-actions">
+            <div className="checkout-actions billing-checkout-actions">
               <button className="primary-btn" type="submit" disabled={!cart.length || submitting || submittingAndPrinting}>
                 {submitting ? 'Saving...' : editingInvoiceId ? 'Update Invoice' : 'Generate Bill'}
               </button>

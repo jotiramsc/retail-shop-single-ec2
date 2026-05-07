@@ -10,7 +10,7 @@ const permissionOptions = [
   { value: 'PRODUCTS', label: 'Inventory' },
   { value: 'CUSTOMERS', label: 'Customers' },
   { value: 'OFFERS', label: 'Offers' },
-  { value: 'CAMPAIGNS', label: 'Marketing' },
+  { value: 'MARKETING_AUTOMATION', label: 'Marketing Automation' },
   { value: 'REPORTS', label: 'Reports' },
   { value: 'SITE_INTERACTIONS', label: 'Site Interaction' },
   { value: 'SALESPERSON_SALES', label: 'Salesperson Sales' },
@@ -149,6 +149,7 @@ export default function UsersPage() {
             />
             <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
               <option value="STAFF">Staff</option>
+              <option value="OWNER">Owner</option>
               <option value="ADMIN">Admin</option>
             </select>
 

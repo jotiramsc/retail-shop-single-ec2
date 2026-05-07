@@ -107,10 +107,17 @@ public class StaffUserServiceImpl implements StaffUserService {
 
     @Override
     public Set<AppPermission> getEffectivePermissions(StaffUser user) {
-        if (user.getRole() == StaffRole.ADMIN) {
+        if (user.getRole() == StaffRole.ADMIN || user.getRole() == StaffRole.OWNER) {
             return new LinkedHashSet<>(Arrays.asList(AppPermission.values()));
         }
-        return new LinkedHashSet<>(user.getPermissions());
+        LinkedHashSet<AppPermission> permissions = new LinkedHashSet<>(user.getPermissions());
+        if (permissions.contains(AppPermission.CAMPAIGNS)) {
+            permissions.add(AppPermission.MARKETING_AUTOMATION);
+        }
+        if (permissions.contains(AppPermission.MARKETING_AUTOMATION)) {
+            permissions.add(AppPermission.CAMPAIGNS);
+        }
+        return permissions;
     }
 
     private void validateRequest(StaffUserRequest request, boolean creating) {
@@ -156,6 +163,8 @@ public class StaffUserServiceImpl implements StaffUserService {
     }
 
     private boolean isFallbackSalesPersonCandidate(StaffUser user) {
-        return user.getRole() == StaffRole.ADMIN || getEffectivePermissions(user).contains(AppPermission.BILLING);
+        return user.getRole() == StaffRole.ADMIN
+                || user.getRole() == StaffRole.OWNER
+                || getEffectivePermissions(user).contains(AppPermission.BILLING);
     }
 }

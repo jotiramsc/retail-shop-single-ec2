@@ -5,7 +5,7 @@ Production-oriented retail shop application for a ladies cosmetics and jewellery
 - Spring Boot backend
 - React frontend
 - PostgreSQL database
-- Offer automation and mock marketing flows
+- Offer automation and AI-assisted marketing automation flows
 - Docker-based local runtime
 - single-EC2 deployment option with one app image and local PostgreSQL on EBS
 
@@ -26,7 +26,7 @@ The original request mentioned MySQL, but this implementation uses PostgreSQL be
 - Offer automation for smart suggestions
 - WhatsApp OTP and customer messaging over Twilio
 - Instagram and Facebook publishing over Meta Graph API
-- Campaign draft, publish, retry, and history tracking
+- Marketing Automation with AI draft generation, approval queue, scheduling, publishing logs, and analytics
 
 ## Tech Stack
 
@@ -73,6 +73,7 @@ Runbook:
 - [Single EC2 deployment](docs/single-ec2-deployment.md)
 - [GitHub deploy for Single EC2](docs/github-single-ec2-deploy.md)
 - [Security hardening plan](docs/security-hardening-plan.md)
+- [Marketing Automation setup](docs/marketing-automation-setup.md)
 
 ## Run With Docker
 
@@ -144,6 +145,26 @@ export META_ACCESS_TOKEN=
 export FB_PAGE_ID=
 export IG_BUSINESS_ACCOUNT_ID=
 export META_GRAPH_VERSION=v23.0
+export MARKETING_AI_ENABLED=true
+export MARKETING_OPENAI_API_KEY=
+export MARKETING_OPENAI_MODEL=gpt-4.1-mini
+export MARKETING_IMAGE_PROVIDER=LEONARDO
+export MARKETING_LEONARDO_API_KEY=
+export MARKETING_LEONARDO_MODEL_ID=de7d3faf-762f-48e0-b3b7-9d0ac3a3fcf3
+export MARKETING_LEONARDO_STYLE_UUID=111dc692-d470-4eec-b791-3475abac4c46
+export MARKETING_META_ACCESS_TOKEN=
+export MARKETING_INSTAGRAM_BUSINESS_ACCOUNT_ID=
+export MARKETING_FACEBOOK_PAGE_ID=
+export MARKETING_META_GRAPH_VERSION=v23.0
+export MARKETING_WHATSAPP_PROVIDER=GUPSHUP
+export MARKETING_GUPSHUP_API_KEY=
+export MARKETING_GUPSHUP_APP_NAME=
+export MARKETING_GUPSHUP_SOURCE_NUMBER=
+export MARKETING_GUPSHUP_TEMPLATE_ID=
+export MARKETING_TWILIO_ACCOUNT_SID=
+export MARKETING_TWILIO_AUTH_TOKEN=
+export MARKETING_TWILIO_WHATSAPP_FROM=
+export MARKETING_TWILIO_OFFER_CONTENT_SID=
 export CHECKOUT_TAX_PERCENT=0
 export CHECKOUT_DELIVERY_CHARGE=0
 export CHECKOUT_FREE_DELIVERY_MIN_ORDER=0
@@ -189,11 +210,17 @@ cp .env.example .env
 - `GET /api/offers/suggested`
 
 ### Campaigns
-- `POST /api/campaign`
-- `POST /api/campaign/send`
-- `POST /api/campaign/{campaignId}/publish`
-- `POST /api/campaign/history/{campaignLogId}/retry`
-- `GET /api/campaign/history`
+- `POST /api/marketing/campaigns`
+- `POST /api/marketing/campaigns/{campaignId}/generate`
+- `GET /api/marketing/campaigns`
+- `GET /api/marketing/campaigns/{campaignId}`
+- `PUT /api/marketing/content/{contentId}`
+- `POST /api/marketing/content/{contentId}/approve`
+- `POST /api/marketing/content/{contentId}/reject`
+- `POST /api/marketing/content/{contentId}/schedule`
+- `POST /api/marketing/content/{contentId}/publish-now`
+- `GET /api/marketing/approval-queue`
+- `GET /api/marketing/analytics`
 
 ### Reports
 - `GET /api/reports/daily`
@@ -220,6 +247,8 @@ Sample SKUs:
 - Only one best offer is applied per line item
 - Only one coupon can be active at a time and an explicit coupon replaces automatic offer pricing
 - Customer OTP uses hashed storage, a 30-second resend cooldown, and max-attempt validation
+- AI-generated marketing content never publishes without owner/admin approval
+- Only approved marketing content can be scheduled or published
 - Offers must be active and date-valid
 - Percent-based offers cannot exceed 100%
 - Offer targeting is explicit: product or category, never both
@@ -235,6 +264,7 @@ Sample SKUs:
 - The root `Dockerfile` packages the frontend into Spring Boot for a single-container app deploy
 - Twilio WhatsApp delivery requires either a registered sender or the joined Twilio sandbox
 - Meta publishing requires Page and Instagram Business credentials with publish permissions
+- Gupshup marketing publishing needs API key, app name, source number, and an approved WhatsApp template id
 - `schema.sql` and `data.sql` bootstrap the database predictably
 
 ## Next Production Upgrades

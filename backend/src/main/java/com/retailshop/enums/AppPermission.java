@@ -6,6 +6,7 @@ public enum AppPermission {
     CUSTOMERS,
     OFFERS,
     CAMPAIGNS,
+    MARKETING_AUTOMATION,
     REPORTS,
     SITE_INTERACTIONS,
     SALESPERSON_SALES,
