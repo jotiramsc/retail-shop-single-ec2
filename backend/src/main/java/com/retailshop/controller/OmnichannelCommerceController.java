@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.math.BigDecimal;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/omnichannel")
@@ -39,6 +40,7 @@ public class OmnichannelCommerceController {
 
     @GetMapping("/products/search")
     public OmnichannelProductSearchResponse searchProductsGet(@RequestParam(required = false) String q,
+                                                              @RequestParam(required = false) UUID leadId,
                                                               @RequestParam(required = false) String category,
                                                               @RequestParam(required = false) String occasion,
                                                               @RequestParam(required = false) BigDecimal minPrice,
@@ -48,6 +50,7 @@ public class OmnichannelCommerceController {
                                                               @RequestParam(required = false) String coupon,
                                                               @RequestParam(required = false) Integer limit) {
         OmnichannelProductSearchRequest request = new OmnichannelProductSearchRequest();
+        request.setLeadId(leadId);
         request.setQuery(q);
         request.setCategory(category);
         request.setOccasion(occasion);

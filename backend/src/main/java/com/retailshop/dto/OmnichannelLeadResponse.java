@@ -10,6 +10,7 @@ import java.util.UUID;
 @Builder
 public class OmnichannelLeadResponse {
     private UUID id;
+    private UUID leadId;
     private String channel;
     private String externalUserId;
     private String customerName;

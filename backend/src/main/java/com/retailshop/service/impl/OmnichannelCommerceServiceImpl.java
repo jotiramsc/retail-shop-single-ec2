@@ -33,6 +33,7 @@ import javax.crypto.spec.SecretKeySpec;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -56,7 +57,20 @@ public class OmnichannelCommerceServiceImpl implements OmnichannelCommerceServic
     @Transactional
     public OmnichannelLeadResponse captureLead(OmnichannelLeadRequest request) {
         String channel = normalizeChannel(request.getChannel());
-        String externalUserId = trimToNull(request.getExternalUserId());
+        String externalUserId = trimToNull(firstNonBlank(
+                request.getExternalUserId(),
+                request.getExternalId(),
+                request.getCustomerHandleOrPhone()
+        ));
+        String messageText = firstNonBlank(request.getMessageText(), request.getQuery());
+        String sourceCampaign = firstNonBlank(request.getSourceCampaign(), request.getCampaignName());
+        String productInterest = firstNonBlank(request.getProductInterest(), buildProductInterest(request));
+        String mobile = firstNonBlank(
+                normalizeMobile(request.getMobile()),
+                normalizeMobile(request.getCustomerHandleOrPhone()),
+                normalizeMobile(externalUserId)
+        );
+        String externalThreadId = firstNonBlank(request.getExternalThreadId(), request.getSourceMessageId(), externalUserId);
         OmnichannelLead lead = externalUserId == null
                 ? new OmnichannelLead()
                 : leadRepository.findFirstByChannelAndExternalUserIdOrderByUpdatedAtDesc(channel, externalUserId)
@@ -65,10 +79,10 @@ public class OmnichannelCommerceServiceImpl implements OmnichannelCommerceServic
         lead.setChannel(channel);
         lead.setExternalUserId(externalUserId);
         lead.setCustomerName(firstNonBlank(request.getCustomerName(), lead.getCustomerName()));
-        lead.setMobile(firstNonBlank(normalizeMobile(request.getMobile()), lead.getMobile()));
-        lead.setSourceCampaign(firstNonBlank(request.getSourceCampaign(), lead.getSourceCampaign()));
-        lead.setProductInterest(firstNonBlank(request.getProductInterest(), lead.getProductInterest()));
-        lead.setLatestMessage(firstNonBlank(request.getMessageText(), lead.getLatestMessage()));
+        lead.setMobile(firstNonBlank(mobile, lead.getMobile()));
+        lead.setSourceCampaign(firstNonBlank(sourceCampaign, lead.getSourceCampaign()));
+        lead.setProductInterest(firstNonBlank(productInterest, lead.getProductInterest()));
+        lead.setLatestMessage(firstNonBlank(messageText, lead.getLatestMessage()));
         lead.setStatus("NEW");
         OmnichannelLead savedLead = leadRepository.save(lead);
 
@@ -77,19 +91,19 @@ public class OmnichannelCommerceServiceImpl implements OmnichannelCommerceServic
                     OmnichannelConversation created = new OmnichannelConversation();
                     created.setLead(savedLead);
                     created.setChannel(channel);
-                    created.setExternalThreadId(firstNonBlank(request.getExternalThreadId(), externalUserId));
+                    created.setExternalThreadId(externalThreadId);
                     return created;
                 });
-        conversation.setExternalThreadId(firstNonBlank(request.getExternalThreadId(), conversation.getExternalThreadId(), externalUserId));
+        conversation.setExternalThreadId(firstNonBlank(externalThreadId, conversation.getExternalThreadId(), externalUserId));
         conversation.setStatus("OPEN");
         OmnichannelConversation savedConversation = conversationRepository.save(conversation);
 
-        if (hasText(request.getMessageText()) || hasText(request.getRawPayload())) {
+        if (hasText(messageText) || hasText(request.getRawPayload())) {
             OmnichannelConversationMessage message = new OmnichannelConversationMessage();
             message.setConversation(savedConversation);
             message.setDirection("INBOUND");
             message.setMessageType("TEXT");
-            message.setMessageText(trimToNull(request.getMessageText()));
+            message.setMessageText(trimToNull(messageText));
             message.setRawPayload(truncate(trimToNull(request.getRawPayload()), 12000));
             messageRepository.save(message);
         }
@@ -324,6 +338,7 @@ public class OmnichannelCommerceServiceImpl implements OmnichannelCommerceServic
     private OmnichannelLeadResponse mapLead(OmnichannelLead lead) {
         return OmnichannelLeadResponse.builder()
                 .id(lead.getId())
+                .leadId(lead.getId())
                 .channel(lead.getChannel())
                 .externalUserId(lead.getExternalUserId())
                 .customerName(lead.getCustomerName())
@@ -335,6 +350,20 @@ public class OmnichannelCommerceServiceImpl implements OmnichannelCommerceServic
                 .createdAt(lead.getCreatedAt())
                 .updatedAt(lead.getUpdatedAt())
                 .build();
+    }
+
+    private String buildProductInterest(OmnichannelLeadRequest request) {
+        List<String> parts = new ArrayList<>();
+        if (hasText(request.getOccasion())) {
+            parts.add("occasion=" + request.getOccasion().trim());
+        }
+        if (hasText(request.getBudget())) {
+            parts.add("budget=" + request.getBudget().trim());
+        }
+        if (hasText(request.getLanguage())) {
+            parts.add("language=" + request.getLanguage().trim());
+        }
+        return parts.isEmpty() ? null : String.join("; ", parts);
     }
 
     private int resolveLimit(Integer requestedLimit) {

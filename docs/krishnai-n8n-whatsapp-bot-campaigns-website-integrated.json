@@ -1,0 +1,951 @@
+{
+  "name": "Krishnai - WhatsApp Bot & Website Campaigns (With Approval)",
+  "nodes": [
+    {
+      "id": "WhatsAppWebhook",
+      "name": "WhatsApp Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        200,
+        -100
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "krishnai/whatsapp-inbound",
+        "responseMode": "onReceived",
+        "responseData": "default",
+        "options": {}
+      },
+      "webhookId": "YOUR_WEBHOOK_ID_WHATSAPP"
+    },
+    {
+      "id": "ManualCampaignWebhook",
+      "name": "Manual Campaign Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        200,
+        150
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "krishnai/manual-campaign",
+        "responseMode": "onReceived",
+        "responseData": "default",
+        "options": {}
+      },
+      "webhookId": "YOUR_WEBHOOK_ID_MANUAL"
+    },
+    {
+      "id": "MergeTriggers",
+      "name": "Merge Triggers",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 1,
+      "position": [
+        420,
+        20
+      ],
+      "parameters": {
+        "mode": "passThrough"
+      }
+    },
+    {
+      "id": "NormalizeInput",
+      "name": "Normalize Input",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        640,
+        20
+      ],
+      "parameters": {
+        "functionCode": "const req = $json;\nconst body = req.body || req;\nconst headers = req.headers || {};\nconst path = headers['x-n8n-webhook-path'] || headers['X-N8n-Webhook-Path'] || req.path || '';\nconst cloudValue = body.entry?.[0]?.changes?.[0]?.value || {};\nconst msg = body.messages?.[0] || cloudValue.messages?.[0] || body.message || {};\nconst contact = body.contacts?.[0] || cloudValue.contacts?.[0] || {};\nlet channel = path.includes('manual-campaign') || body.channel === 'manual_campaign' ? 'manual_campaign' : 'whatsapp';\nlet query = '';\nlet customerName = 'Customer';\nlet customerHandleOrPhone = '';\nlet sourceMessageId = '';\nlet language = 'auto';\nlet campaignName = null;\nlet budget = null;\nlet occasion = null;\nlet couponActive = false;\nlet targetPlatforms = ['WHATSAPP', 'INSTAGRAM', 'FACEBOOK'];\nlet tone = 'PREMIUM';\nif (channel === 'whatsapp') {\n  query = msg.text?.body || msg.interactive?.button_reply?.title || msg.button?.text || body.text || '';\n  customerHandleOrPhone = msg.from || body.from || body.mobile || body.customerHandleOrPhone || '';\n  sourceMessageId = msg.id || body.messageId || body.sourceMessageId || '';\n  customerName = contact.profile?.name || body.customerName || 'Customer';\n}\nif (channel === 'manual_campaign') {\n  query = body.goal || body.query || body.offerTitle || '';\n  campaignName = body.campaignName || body.name || 'Manual Campaign';\n  language = (body.language || 'hinglish').toLowerCase();\n  budget = body.budget || null;\n  occasion = body.occasion || null;\n  couponActive = Boolean(body.couponActive);\n  tone = (body.tone || 'PREMIUM').toUpperCase();\n  targetPlatforms = Array.isArray(body.targetPlatforms) && body.targetPlatforms.length ? body.targetPlatforms.map((entry) => String(entry).toUpperCase()) : targetPlatforms;\n}\nreturn [{ channel, customerName, customerHandleOrPhone, sourceMessageId, query, budget, occasion, language, campaignName, couponActive, targetPlatforms, tone, websiteBaseUrl: 'https://kpskrishnai.com', raw: body }];"
+      }
+    },
+    {
+      "id": "CreateLeadBackend",
+      "name": "Create Lead (Website Backend)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        860,
+        20
+      ],
+      "parameters": {
+        "url": "https://kpskrishnai.com/api/omnichannel/leads",
+        "method": "POST",
+        "authentication": "none",
+        "jsonParameters": true,
+        "bodyParametersJson": "={{JSON.stringify({ channel: $json.channel, externalUserId: $json.customerHandleOrPhone, externalThreadId: $json.sourceMessageId, customerName: $json.customerName, mobile: $json.customerHandleOrPhone, sourceCampaign: $json.campaignName, productInterest: [$json.occasion, $json.budget].filter(Boolean).join(\" | \"), messageText: $json.query, rawPayload: JSON.stringify($json.raw) })}}"
+      }
+    },
+    {
+      "id": "StoreLeadInTable",
+      "name": "Store Lead in Data Table",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        1080,
+        20
+      ],
+      "parameters": {
+        "resource": "rows",
+        "operation": "create",
+        "tableId": "YOUR_TABLE_ID_LEADS",
+        "columns": "leadId,channel,sourceMessageId,customerName,customerHandleOrPhone,query,budget,occasion,language,campaignName,lastStatus,createdAt",
+        "values": "={{$json.leadId || $json.id || $json.body?.leadId || $json.body?.id || \"\"}},{{$node[\"Normalize Input\"].json.channel}},{{$node[\"Normalize Input\"].json.sourceMessageId}},{{$node[\"Normalize Input\"].json.customerName}},{{$node[\"Normalize Input\"].json.customerHandleOrPhone}},{{$node[\"Normalize Input\"].json.query}},{{$node[\"Normalize Input\"].json.budget}},{{$node[\"Normalize Input\"].json.occasion}},{{$node[\"Normalize Input\"].json.language}},{{$node[\"Normalize Input\"].json.campaignName}},new,={{new Date().toISOString()}}"
+      },
+      "credentials": {
+        "n8nApi": "YOUR_N8N_DATATABLE_CREDS"
+      }
+    },
+    {
+      "id": "ClassifyIntent",
+      "name": "OpenAI - Classify Intent",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [
+        1300,
+        20
+      ],
+      "parameters": {
+        "resource": "chat",
+        "operation": "chat",
+        "model": "gpt-4.1-mini",
+        "messages": {
+          "values": [
+            {
+              "type": "system",
+              "text": "You are the Krishnai Pearl Shoppee conversational AI. Classify customer intent and extract info. Possible intents: product_search, price_inquiry, offer_inquiry, order_support, human_handoff, campaign_creation. campaign_creation is only for internal manual campaign webhook messages. Output ONLY valid JSON with keys: intent, confidence, language, query, budget, occasion, needClarification, clarificationQuestion. Use en, hi, or hinglish for language. Keep confidence below 0.6 when unsure."
+            },
+            {
+              "type": "user",
+              "text": "=Channel: {{$node[\"Normalize Input\"].json.channel}}\nCustomer name: {{$node[\"Normalize Input\"].json.customerName}}\nMessage: {{$node[\"Normalize Input\"].json.query}}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "openAiApi": "YOUR_OPENAI_API_CREDENTIAL"
+      }
+    },
+    {
+      "id": "ParseIntentJson",
+      "name": "Parse Intent JSON",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1520,
+        20
+      ],
+      "parameters": {
+        "functionCode": "const content = $json.choices?.[0]?.message?.content || $json.message?.content || $json.text || '{}';\ntry {\n  const fence = String.fromCharCode(96, 96, 96);\n  const cleaned = content.replace(fence + 'json', '').replace(fence, '').trim();\n  return [JSON.parse(cleaned)];\n} catch (e) {\n  return [{ intent: 'human_handoff', confidence: 0, language: 'en', query: $node['Normalize Input'].json.query, budget: null, occasion: null, needClarification: true, clarificationQuestion: 'Can you please tell me a bit more about what you are looking for?' }];\n}"
+      }
+    },
+    {
+      "id": "InitWorkflowState",
+      "name": "Init WorkflowState",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1740,
+        20
+      ],
+      "parameters": {
+        "functionCode": "const leadBackend = $node['Create Lead (Website Backend)'].json;\nconst normalized = $node['Normalize Input'].json;\nconst intent = $json;\nconst stateId = 'state_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);\nconst leadId = leadBackend.leadId || leadBackend.id || leadBackend.body?.leadId || leadBackend.body?.id || '';\nreturn [{ stateId, leadId, channel: normalized.channel, currentIntent: normalized.channel === 'manual_campaign' ? 'campaign_creation' : intent.intent, openAiIntentConfidence: Number(intent.confidence || 0), productSearchParams: null, productSearchResults: null, language: intent.language || normalized.language || 'auto', latestCustomerMessage: normalized.query, ownerApprovalStatus: null, isCouponActive: normalized.couponActive, couponCode: normalized.couponActive ? 'WELCOME10' : '', approvalId: null, needClarification: Boolean(intent.needClarification), clarificationQuestion: intent.clarificationQuestion || '' }];"
+      }
+    },
+    {
+      "id": "StoreWorkflowState",
+      "name": "Store WorkflowState",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        1960,
+        20
+      ],
+      "parameters": {
+        "resource": "rows",
+        "operation": "create",
+        "tableId": "YOUR_TABLE_ID_WORKFLOWSTATE",
+        "columns": "stateId,leadId,channel,currentIntent,openAiIntentConfidence,language,latestCustomerMessage,ownerApprovalStatus,isCouponActive,couponCode,approvalId,needClarification,clarificationQuestion",
+        "values": "={{$json.stateId}},{{$json.leadId}},{{$json.channel}},{{$json.currentIntent}},{{$json.openAiIntentConfidence}},{{$json.language}},{{$json.latestCustomerMessage}},{{$json.ownerApprovalStatus}},{{$json.isCouponActive}},{{$json.couponCode}},{{$json.approvalId}},{{$json.needClarification}},{{$json.clarificationQuestion}}"
+      },
+      "credentials": {
+        "n8nApi": "YOUR_N8N_DATATABLE_CREDS"
+      }
+    },
+    {
+      "id": "RouteByIntent",
+      "name": "Route by Intent",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [
+        2180,
+        20
+      ],
+      "parameters": {
+        "property": "={{$json.currentIntent}}",
+        "rules": {
+          "rules": [
+            {
+              "operation": "equal",
+              "value": "campaign_creation"
+            },
+            {
+              "operation": "equal",
+              "value": "product_search"
+            },
+            {
+              "operation": "equal",
+              "value": "price_inquiry"
+            },
+            {
+              "operation": "equal",
+              "value": "offer_inquiry"
+            },
+            {
+              "operation": "equal",
+              "value": "order_support"
+            },
+            {
+              "operation": "equal",
+              "value": "human_handoff"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "CheckConfidence",
+      "name": "Check Confidence",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        2400,
+        -120
+      ],
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{$json.openAiIntentConfidence}}",
+              "operation": "smaller",
+              "value2": 0.6
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "ClarificationMessage",
+      "name": "Clarification Message",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [
+        2620,
+        -260
+      ],
+      "parameters": {
+        "resource": "chat",
+        "operation": "chat",
+        "model": "gpt-4.1-mini",
+        "messages": {
+          "values": [
+            {
+              "type": "system",
+              "text": "You are Krishnai Pearl Shoppee assistant. Ask exactly one short clarifying question and politely offer human help. Use the customer language. Keep under two short sentences."
+            },
+            {
+              "type": "user",
+              "text": "=Language: {{$json.language}}\nCustomer message: {{$json.latestCustomerMessage}}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "openAiApi": "YOUR_OPENAI_API_CREDENTIAL"
+      }
+    },
+    {
+      "id": "SendClarificationWhatsApp",
+      "name": "Send Clarification (WhatsApp)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        2840,
+        -260
+      ],
+      "parameters": {
+        "url": "https://graph.facebook.com/v19.0/YOUR_WHATSAPP_PHONE_NUMBER_ID/messages",
+        "method": "POST",
+        "authentication": "none",
+        "jsonParameters": true,
+        "headers": {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer YOUR_WHATSAPP_BEARER_TOKEN"
+        },
+        "bodyParametersJson": "={{JSON.stringify({ messaging_product: \"whatsapp\", to: $node[\"Normalize Input\"].json.customerHandleOrPhone, type: \"text\", text: { body: ($json.choices?.[0]?.message?.content || $json.message?.content || $json.text || \"Can you please share a little more detail?\") } })}}"
+      }
+    },
+    {
+      "id": "UpdateLeadClarificationStatus",
+      "name": "Update Lead Clarification Status",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        3060,
+        -260
+      ],
+      "parameters": {
+        "resource": "rows",
+        "operation": "update",
+        "tableId": "YOUR_TABLE_ID_LEADS",
+        "updateKey": "leadId",
+        "columns": "lastStatus",
+        "values": "clarification_asked"
+      },
+      "credentials": {
+        "n8nApi": "YOUR_N8N_DATATABLE_CREDS"
+      }
+    },
+    {
+      "id": "BuildSearchParams",
+      "name": "Build Product Search Params",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        2400,
+        20
+      ],
+      "parameters": {
+        "functionCode": "const state = $json;\nconst normalized = $node['Normalize Input'].json;\nconst query = state.latestCustomerMessage || normalized.query || '';\nconst budget = normalized.budget || state.budget || null;\nlet minPrice = '';\nlet maxPrice = '';\nif (budget) { const b = Number(budget) || 0; minPrice = String(Math.max(0, Math.round(b * 0.5))); maxPrice = String(Math.round(b * 1.2)); }\nreturn [{ ...state, search: { leadId: state.leadId, q: query, category: '', occasion: normalized.occasion || '', minPrice, maxPrice, source: 'whatsapp', campaignName: normalized.campaignName || 'ai-commerce', couponCode: normalized.couponActive ? 'WELCOME10' : '', limit: 6 } }];"
+      }
+    },
+    {
+      "id": "ProductSearchRequest",
+      "name": "Product Search Request",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        2620,
+        20
+      ],
+      "parameters": {
+        "authentication": "none",
+        "method": "GET",
+        "url": "={{`https://kpskrishnai.com/api/omnichannel/products/search?leadId=${encodeURIComponent($json.search.leadId || \"\")}&q=${encodeURIComponent($json.search.q)}&category=${encodeURIComponent($json.search.category)}&occasion=${encodeURIComponent($json.search.occasion)}&minPrice=${encodeURIComponent($json.search.minPrice)}&maxPrice=${encodeURIComponent($json.search.maxPrice)}&source=${encodeURIComponent($json.search.source)}&campaign=${encodeURIComponent($json.search.campaignName)}&coupon=${encodeURIComponent($json.search.couponCode)}&limit=${encodeURIComponent($json.search.limit)}`}}",
+        "options": {}
+      }
+    },
+    {
+      "id": "CheckEmptyResults",
+      "name": "Check Empty Results",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        2840,
+        20
+      ],
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{(($json.body?.products || $json.products || []).length)}}",
+              "operation": "smaller",
+              "value2": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "ClarifyNoProducts",
+      "name": "Clarify If No Products",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [
+        3060,
+        -60
+      ],
+      "parameters": {
+        "resource": "chat",
+        "operation": "chat",
+        "model": "gpt-4.1-mini",
+        "messages": {
+          "values": [
+            {
+              "type": "system",
+              "text": "No matching products were found. Ask one short clarifying question and offer human support. Keep it premium and polite."
+            },
+            {
+              "type": "user",
+              "text": "=Language: {{$node[\"Init WorkflowState\"].json.language}}\nCustomer message: {{$node[\"Init WorkflowState\"].json.latestCustomerMessage}}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "openAiApi": "YOUR_OPENAI_API_CREDENTIAL"
+      }
+    },
+    {
+      "id": "SendNoProductClarificationWhatsApp",
+      "name": "Send No-Product Clarification (WhatsApp)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        3280,
+        -60
+      ],
+      "parameters": {
+        "url": "https://graph.facebook.com/v19.0/YOUR_WHATSAPP_PHONE_NUMBER_ID/messages",
+        "method": "POST",
+        "authentication": "none",
+        "jsonParameters": true,
+        "headers": {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer YOUR_WHATSAPP_BEARER_TOKEN"
+        },
+        "bodyParametersJson": "={{JSON.stringify({ messaging_product: \"whatsapp\", to: $node[\"Normalize Input\"].json.customerHandleOrPhone, type: \"text\", text: { body: ($json.choices?.[0]?.message?.content || $json.message?.content || $json.text || \"Please share your budget or occasion and I will suggest closer options.\") } })}}"
+      }
+    },
+    {
+      "id": "TrimProducts",
+      "name": "Trim Products to 6",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        3060,
+        120
+      ],
+      "parameters": {
+        "functionCode": "const response = $json.body || $json;\nconst products = Array.isArray(response) ? response : (response.products || []);\nconst mapped = products.slice(0, 6).map((p) => ({ name: p.name, price: p.price, shortBenefit: p.shortBenefit, imageUrl: p.imageUrl, productUrl: p.productUrl, buyNowUrl: p.buyNowUrl, checkoutUrl: p.checkoutUrl }));\nreturn [{ introMessage: response.introMessage || '', products: mapped }];"
+      }
+    },
+    {
+      "id": "GenerateProductReply",
+      "name": "Generate Product Reply",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [
+        3280,
+        120
+      ],
+      "parameters": {
+        "resource": "chat",
+        "operation": "chat",
+        "model": "gpt-4.1-mini",
+        "messages": {
+          "values": [
+            {
+              "type": "system",
+              "text": "You are the Krishnai Pearl Shoppee WhatsApp assistant. Convert interest into website purchase. Use short premium English/Hindi/Hinglish. Start with one friendly recommendation line, list products with name, price and benefit, include provided Buy Now or Direct Checkout URLs, do not invent URLs, keep under 1200 characters, do not mention coupon codes."
+            },
+            {
+              "type": "user",
+              "text": "={{JSON.stringify({ language: $node[\"Init WorkflowState\"].json.language, intent: $node[\"Init WorkflowState\"].json.currentIntent, products: $json.products })}}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "openAiApi": "YOUR_OPENAI_API_CREDENTIAL"
+      }
+    },
+    {
+      "id": "CreateApprovalCustomerReply",
+      "name": "Create Approval (Customer Reply)",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        3500,
+        120
+      ],
+      "parameters": {
+        "functionCode": "const approvalId = 'apr_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);\nconst previewText = $json.choices?.[0]?.message?.content || $json.message?.content || $json.text || '';\nconst products = $node['Trim Products to 6'].json.products || [];\nreturn [{ approvalId, type: 'customer_reply', customerHandleOrPhone: $node['Normalize Input'].json.customerHandleOrPhone, previewText, imageUrls: products.map((p) => p.imageUrl).filter(Boolean), targetPlatforms: ['WHATSAPP'], coupon: null }];"
+      }
+    },
+    {
+      "id": "StoreApprovalCustomerReply",
+      "name": "Store Approval (Customer Reply)",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        3720,
+        120
+      ],
+      "parameters": {
+        "resource": "rows",
+        "operation": "create",
+        "tableId": "YOUR_TABLE_ID_APPROVALS",
+        "columns": "approvalId,leadId,type,customerHandleOrPhone,previewText,imageUrls,targetPlatforms,coupon,status,createdAt",
+        "values": "={{$json.approvalId}},{{$node[\"Init WorkflowState\"].json.leadId}},customer_reply,{{$json.customerHandleOrPhone}},{{$json.previewText}},{{$json.imageUrls}},{{$json.targetPlatforms}},{{$json.coupon}},pending,={{new Date().toISOString()}}"
+      },
+      "credentials": {
+        "n8nApi": "YOUR_N8N_DATATABLE_CREDS"
+      }
+    },
+    {
+      "id": "SendApprovalToOwnerCustomer",
+      "name": "Send Approval to Owner (Customer Reply)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        3940,
+        120
+      ],
+      "parameters": {
+        "url": "https://graph.facebook.com/v19.0/YOUR_WHATSAPP_PHONE_NUMBER_ID/messages",
+        "method": "POST",
+        "authentication": "none",
+        "jsonParameters": true,
+        "headers": {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer YOUR_WHATSAPP_BEARER_TOKEN"
+        },
+        "bodyParametersJson": "={{JSON.stringify({ messaging_product: \"whatsapp\", to: \"YOUR_OWNER_WHATSAPP_NUMBER\", type: \"interactive\", interactive: { type: \"button\", body: { text: `New customer reply ready for approval.\nLead: ${$node[\"Init WorkflowState\"].json.leadId}\nApproval: ${$json.approvalId}\n\nPreview:\n${$json.previewText}` }, action: { buttons: [{ type: \"reply\", reply: { id: `APPROVE_${$json.approvalId}`, title: \"Approve\" } }, { type: \"reply\", reply: { id: `EDIT_${$json.approvalId}`, title: \"Edit\" } }, { type: \"reply\", reply: { id: `REJECT_${$json.approvalId}`, title: \"Reject\" } }] } } })}}"
+      }
+    },
+    {
+      "id": "BuildWebsiteCampaignPayload",
+      "name": "Build Website Campaign Payload",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        2400,
+        220
+      ],
+      "parameters": {
+        "functionCode": "const normalized = $node['Normalize Input'].json;\nconst languageMap = { en: 'ENGLISH', english: 'ENGLISH', hi: 'HINGLISH', hindi: 'HINGLISH', hinglish: 'HINGLISH', mr: 'MARATHI', marathi: 'MARATHI' };\nconst language = languageMap[String(normalized.language || '').toLowerCase()] || 'HINGLISH';\nconst platforms = (normalized.targetPlatforms || ['WHATSAPP', 'INSTAGRAM', 'FACEBOOK']).map((entry) => String(entry).toUpperCase());\nconst campaignSlug = encodeURIComponent((normalized.campaignName || 'n8n-campaign').toLowerCase().replace(/[^a-z0-9]+/g, '-'));\nconst landingUrl = normalized.websiteBaseUrl + '/products?utm_source=n8n&utm_medium=manual_campaign&utm_campaign=' + campaignSlug;\nreturn [{ ...$json, websiteCampaign: { campaignName: normalized.campaignName || 'Manual Campaign', campaignType: 'CUSTOM', offerTitle: normalized.query || normalized.campaignName || 'New campaign', landingUrl, discountType: 'NONE', discountValue: null, targetPlatforms: platforms, language, tone: normalized.tone || 'PREMIUM' } }];"
+      }
+    },
+    {
+      "id": "CreateWebsiteCampaign",
+      "name": "Create Campaign in Website",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        2620,
+        220
+      ],
+      "parameters": {
+        "url": "https://kpskrishnai.com/api/marketing/campaigns",
+        "method": "POST",
+        "authentication": "none",
+        "jsonParameters": true,
+        "headers": {
+          "Content-Type": "application/json",
+          "Authorization": "Basic YOUR_BASE64_ADMIN_COLON_PASSWORD"
+        },
+        "bodyParametersJson": "={{JSON.stringify($json.websiteCampaign)}}"
+      }
+    },
+    {
+      "id": "StartWebsiteCampaignGeneration",
+      "name": "Start Website AI Draft Generation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        2840,
+        220
+      ],
+      "parameters": {
+        "url": "={{`https://kpskrishnai.com/api/marketing/campaigns/${$json.id || $json.body?.id}/generate-async`}}",
+        "method": "POST",
+        "authentication": "none",
+        "jsonParameters": true,
+        "headers": {
+          "Content-Type": "application/json",
+          "Authorization": "Basic YOUR_BASE64_ADMIN_COLON_PASSWORD"
+        },
+        "bodyParametersJson": "{}"
+      }
+    },
+    {
+      "id": "StoreCampaignReference",
+      "name": "Store Campaign Reference",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        3060,
+        220
+      ],
+      "parameters": {
+        "resource": "rows",
+        "operation": "create",
+        "tableId": "YOUR_TABLE_ID_CAMPAIGNS",
+        "columns": "websiteCampaignId,campaignName,status,reviewUrl,createdAt",
+        "values": "={{$json.id || $json.body?.id}},{{$json.campaignName || $json.body?.campaignName}},{{$json.status || $json.body?.status}},https://kpskrishnai.com/app/campaigns,={{new Date().toISOString()}}"
+      },
+      "credentials": {
+        "n8nApi": "YOUR_N8N_DATATABLE_CREDS"
+      }
+    },
+    {
+      "id": "SendCampaignReviewLinkToOwner",
+      "name": "Send Campaign Review Link to Owner",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        3280,
+        220
+      ],
+      "parameters": {
+        "url": "https://graph.facebook.com/v19.0/YOUR_WHATSAPP_PHONE_NUMBER_ID/messages",
+        "method": "POST",
+        "authentication": "none",
+        "jsonParameters": true,
+        "headers": {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer YOUR_WHATSAPP_BEARER_TOKEN"
+        },
+        "bodyParametersJson": "={{JSON.stringify({ messaging_product: \"whatsapp\", to: \"YOUR_OWNER_WHATSAPP_NUMBER\", type: \"text\", text: { body: `Campaign created in website and AI generation started.\nCampaign: ${$node[\"Normalize Input\"].json.campaignName}\nOpen approval queue: https://kpskrishnai.com/app/campaigns` } })}}"
+      }
+    }
+  ],
+  "connections": {
+    "WhatsApp Webhook": {
+      "main": [
+        [
+          {
+            "node": "Merge Triggers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Campaign Webhook": {
+      "main": [
+        [
+          {
+            "node": "Merge Triggers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Triggers": {
+      "main": [
+        [
+          {
+            "node": "Normalize Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Input": {
+      "main": [
+        [
+          {
+            "node": "Create Lead (Website Backend)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Lead (Website Backend)": {
+      "main": [
+        [
+          {
+            "node": "Store Lead in Data Table",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Lead in Data Table": {
+      "main": [
+        [
+          {
+            "node": "OpenAI - Classify Intent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI - Classify Intent": {
+      "main": [
+        [
+          {
+            "node": "Parse Intent JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Intent JSON": {
+      "main": [
+        [
+          {
+            "node": "Init WorkflowState",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Init WorkflowState": {
+      "main": [
+        [
+          {
+            "node": "Store WorkflowState",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store WorkflowState": {
+      "main": [
+        [
+          {
+            "node": "Route by Intent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Intent": {
+      "main": [
+        [
+          {
+            "node": "Build Website Campaign Payload",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Check Confidence",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Check Confidence",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Check Confidence",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Check Confidence",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Check Confidence",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Confidence": {
+      "main": [
+        [
+          {
+            "node": "Clarification Message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Product Search Params",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clarification Message": {
+      "main": [
+        [
+          {
+            "node": "Send Clarification (WhatsApp)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Clarification (WhatsApp)": {
+      "main": [
+        [
+          {
+            "node": "Update Lead Clarification Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Product Search Params": {
+      "main": [
+        [
+          {
+            "node": "Product Search Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Product Search Request": {
+      "main": [
+        [
+          {
+            "node": "Check Empty Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Empty Results": {
+      "main": [
+        [
+          {
+            "node": "Clarify If No Products",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Trim Products to 6",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clarify If No Products": {
+      "main": [
+        [
+          {
+            "node": "Send No-Product Clarification (WhatsApp)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trim Products to 6": {
+      "main": [
+        [
+          {
+            "node": "Generate Product Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Product Reply": {
+      "main": [
+        [
+          {
+            "node": "Create Approval (Customer Reply)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Approval (Customer Reply)": {
+      "main": [
+        [
+          {
+            "node": "Store Approval (Customer Reply)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Approval (Customer Reply)": {
+      "main": [
+        [
+          {
+            "node": "Send Approval to Owner (Customer Reply)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Website Campaign Payload": {
+      "main": [
+        [
+          {
+            "node": "Create Campaign in Website",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Campaign in Website": {
+      "main": [
+        [
+          {
+            "node": "Start Website AI Draft Generation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start Website AI Draft Generation": {
+      "main": [
+        [
+          {
+            "node": "Store Campaign Reference",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Campaign Reference": {
+      "main": [
+        [
+          {
+            "node": "Send Campaign Review Link to Owner",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {},
+  "versionId": "2-website-integrated",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

@@ -17,4 +17,14 @@ public class OmnichannelLeadRequest {
     private String productInterest;
     private String messageText;
     private String rawPayload;
+
+    // n8n/webhook-friendly aliases. The service normalizes these into the canonical fields above.
+    private String externalId;
+    private String customerHandleOrPhone;
+    private String sourceMessageId;
+    private String query;
+    private String budget;
+    private String occasion;
+    private String language;
+    private String campaignName;
 }
