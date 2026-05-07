@@ -136,7 +136,7 @@ WhatsApp:
 - For app-managed campaign publishing, keep `MARKETING_GUPSHUP_*` configured.
 
 n8n:
-- Store credentials in n8n for OpenAI, Kling, WhatsApp provider, Meta, and the website backend.
+- Store credentials in n8n for OpenAI, WhatsApp provider, Meta, and the website backend.
 - Backend base URL for HTTP nodes: `https://kpskrishnai.com/api`
 - Product search: `GET /omnichannel/products/search`
 - Lead capture: `POST /omnichannel/leads`
@@ -158,7 +158,6 @@ Stack and APIs:
 - Lead capture API: POST /omnichannel/leads
 - AI text: OpenAI
 - AI image: OpenAI image generation
-- AI video: Kling
 - Approval: WhatsApp approval before publishing/sending
 - Storage: n8n Data Table for workflow state, approvals, campaign history, and generated asset URLs
 
@@ -169,9 +168,9 @@ Workflow:
 4. Use OpenAI to classify intent into product search, price inquiry, offer inquiry, order support, or human handoff.
 5. For product search, call GET https://kpskrishnai.com/api/omnichannel/products/search and request up to 6 products.
 6. Generate a short Hinglish/English WhatsApp reply with product cards using returned name, price, shortBenefit, imageUrl, buyNowUrl, and checkoutUrl.
-7. For campaign creation, generate Instagram caption, Facebook post, WhatsApp offer copy, image prompt, and optional Kling video prompt.
-8. Generate OpenAI image asset and Kling video asset only for campaign creation, not every customer reply.
-9. Send approval message to owner WhatsApp with preview text, image/video URLs, target platforms, coupon, and buttons: Approve, Edit, Reject.
+7. For campaign creation, generate Instagram caption, Facebook post, WhatsApp offer copy, and image prompt.
+8. Generate OpenAI image asset only for campaign creation, not every customer reply.
+9. Send approval message to owner WhatsApp with preview text, image URL, target platforms, coupon, and buttons: Approve, Edit, Reject.
 10. If approved, send WhatsApp content to selected customers and publish/schedule Instagram/Facebook content using configured Meta nodes.
 11. If rejected, store rejection reason and do not publish.
 12. Log every lead, approval decision, sent message, post id, click URL, and failure in n8n Data Table.

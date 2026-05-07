@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import DataTable from '../components/DataTable';
 import PageHeader from '../components/PageHeader';
 import Panel from '../components/Panel';
@@ -19,7 +19,7 @@ const CAMPAIGN_TYPES = ['FESTIVAL', 'OFFER', 'NEW_ARRIVAL', 'SEASONAL', 'CUSTOM'
 const PLATFORMS = ['INSTAGRAM', 'FACEBOOK', 'WHATSAPP'];
 const LANGUAGES = ['MARATHI', 'ENGLISH', 'HINGLISH'];
 const TONES = ['LUXURY', 'FESTIVE', 'EMOTIONAL', 'PREMIUM', 'SIMPLE'];
-const STATUSES = ['DRAFT', 'GENERATED', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'SCHEDULED', 'PUBLISHED', 'FAILED'];
+const STATUSES = ['DRAFT', 'GENERATING', 'GENERATED', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'SCHEDULED', 'PUBLISHED', 'FAILED'];
 
 const blankFilters = {
   status: '',
@@ -92,6 +92,8 @@ function statusTone(status) {
     case 'APPROVED':
     case 'PUBLISHED':
       return 'is-good';
+    case 'GENERATING':
+    case 'GENERATED':
     case 'PENDING_APPROVAL':
     case 'SCHEDULED':
       return 'is-warm';
@@ -202,6 +204,7 @@ export default function CampaignsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const generationRefreshTimers = useRef({});
 
   const currentCategory = useMemo(
     () => categories.find((entry) => entry.id === form.categoryId),
@@ -268,6 +271,39 @@ export default function CampaignsPage() {
     return response;
   };
 
+  const scheduleGenerationRefresh = (campaignId, attempt = 0) => {
+    if (!campaignId || attempt > 18) {
+      return;
+    }
+    if (generationRefreshTimers.current[campaignId]) {
+      window.clearTimeout(generationRefreshTimers.current[campaignId]);
+    }
+    const delay = attempt === 0 ? 8000 : 10000;
+    generationRefreshTimers.current[campaignId] = window.setTimeout(async () => {
+      try {
+        const details = await loadCampaignDetails(campaignId);
+        await loadCampaigns(0);
+        await loadApprovalQueue();
+        if (details.status === 'GENERATING') {
+          scheduleGenerationRefresh(campaignId, attempt + 1);
+          return;
+        }
+        delete generationRefreshTimers.current[campaignId];
+        if (details.status === 'PENDING_APPROVAL') {
+          setSuccess('AI drafts are ready in the approval queue.');
+        } else if (details.status === 'FAILED') {
+          setError('AI draft generation failed. Check OpenAI/image configuration and try again.');
+        }
+      } catch {
+        scheduleGenerationRefresh(campaignId, attempt + 1);
+      }
+    }, delay);
+  };
+
+  useEffect(() => () => {
+    Object.values(generationRefreshTimers.current).forEach((timerId) => window.clearTimeout(timerId));
+  }, []);
+
   useEffect(() => {
     Promise.all([
       loadCampaigns(),
@@ -314,8 +350,9 @@ export default function CampaignsPage() {
       const created = await retailService.createMarketingCampaign(normalizeCampaignPayload(form));
       let response = created;
       if (generateAfterCreate) {
-        response = await retailService.generateMarketingCampaign(created.id);
-        setSuccess('Campaign created and AI drafts generated for approval.');
+        response = await retailService.generateMarketingCampaignAsync(created.id);
+        setSuccess('Campaign saved. AI draft generation has started and may take 1-2 minutes while images are created.');
+        scheduleGenerationRefresh(created.id);
       } else {
         setSuccess('Campaign draft created.');
       }
@@ -338,13 +375,14 @@ export default function CampaignsPage() {
     setLoading(true);
     resetNotices();
     try {
-      await retailService.generateMarketingCampaign(campaignId);
-      setSuccess('AI drafts generated and sent to approval queue.');
+      await retailService.generateMarketingCampaignAsync(campaignId);
+      setSuccess('AI draft generation has started. This page will refresh when drafts are ready for approval.');
       await loadCampaigns(campaignsPage.page || 0);
       await loadApprovalQueue();
       await loadCampaignDetails(campaignId);
+      scheduleGenerationRefresh(campaignId);
     } catch (requestError) {
-      setError(getApiErrorMessage(requestError, 'Unable to generate AI drafts.'));
+      setError(getApiErrorMessage(requestError, 'Unable to start AI draft generation.'));
     } finally {
       setLoading(false);
     }
@@ -774,8 +812,8 @@ export default function CampaignsPage() {
                       <button type="button" className="ghost-btn compact-btn" onClick={() => loadCampaignDetails(row.id)}>
                         View
                       </button>
-                      <button type="button" className="ghost-btn compact-btn" disabled={loading} onClick={() => handleGenerate(row.id)}>
-                        Generate
+                      <button type="button" className="ghost-btn compact-btn" disabled={loading || row.status === 'GENERATING'} onClick={() => handleGenerate(row.id)}>
+                        {row.status === 'GENERATING' ? 'Generating...' : 'Generate'}
                       </button>
                       {canApprove ? (
                         <button type="button" className="ghost-btn compact-btn is-danger" disabled={loading} onClick={() => handleDeleteCampaign(row.id, row.campaignName)}>
@@ -811,6 +849,9 @@ export default function CampaignsPage() {
                 </div>
               ) : null}
               <div className="marketing-content-list">
+                {selectedCampaign.status === 'GENERATING' ? (
+                  <p className="page-description">AI drafts are being generated in the background. Images can take a little longer, and this panel will refresh automatically.</p>
+                ) : null}
                 {(selectedCampaign.contents || []).map(renderContentCard)}
               </div>
             </Panel>
@@ -979,7 +1020,7 @@ export default function CampaignsPage() {
                   {submitting ? 'Saving...' : 'Save campaign'}
                 </button>
                 <button type="button" className="primary-btn compact-btn" disabled={submitting} onClick={() => handleCreateCampaign(true)}>
-                  {submitting ? 'Generating...' : 'Save & generate AI drafts'}
+                  {submitting ? 'Starting...' : 'Save & generate AI drafts'}
                 </button>
               </div>
             </form>

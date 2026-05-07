@@ -24,7 +24,11 @@ import java.util.UUID;
 public interface MarketingAutomationService {
     MarketingCampaignResponse createCampaign(MarketingCampaignRequest request, String actor);
 
+    MarketingCampaignResponse startCampaignGeneration(UUID campaignId);
+
     MarketingCampaignResponse generateCampaign(UUID campaignId, String actor);
+
+    void markCampaignGenerationFailed(UUID campaignId);
 
     PaginatedResponse<MarketingCampaignListItemResponse> getCampaigns(
             MarketingWorkflowStatus status,

@@ -99,7 +99,7 @@ export default function ReceiptSettingsPage() {
   useEffect(() => {
     retailService.getReceiptSettings()
       .then(setForm)
-      .catch((requestError) => setError(getApiErrorMessage(requestError, 'Unable to load receipt settings.')));
+      .catch((requestError) => setError(getApiErrorMessage(requestError, 'Unable to load brand configuration.')));
   }, []);
 
   const handleSubmit = async (event) => {
@@ -109,9 +109,9 @@ export default function ReceiptSettingsPage() {
     try {
       const response = await retailService.updateReceiptSettings(form);
       setForm(response);
-      setSuccess('Receipt and customer access branding updated.');
+      setSuccess('Brand configuration updated.');
     } catch (requestError) {
-      setError(getApiErrorMessage(requestError, 'Unable to update receipt settings.'));
+      setError(getApiErrorMessage(requestError, 'Unable to update brand configuration.'));
     }
   };
 
@@ -119,11 +119,11 @@ export default function ReceiptSettingsPage() {
     <div className="page">
       <PageHeader
         eyebrow="Admin"
-        title="Receipt and brand settings"
-        description="Control receipt details plus the customer-access page branding, logo, hero text, trust badges, and images."
+        title="Brand configuration"
+        description="Control the store identity, receipt details, customer access branding, logo, hero text, trust badges, and images."
       />
 
-      <Panel title="Receipt configuration" subtitle="These values are used by the print receipt action in billing.">
+      <Panel title="Business and receipt details" subtitle="These values are used across the website, customer access screens, and printed receipts.">
         <form className="form-grid" onSubmit={handleSubmit}>
           <div className="settings-two-column">
             <LabeledField label="Shop name" note="Shown as the main brand title on the customer access card and receipt header.">
@@ -255,7 +255,7 @@ export default function ReceiptSettingsPage() {
 
           {error ? <p className="error-text">{error}</p> : null}
           {success ? <p className="success-text">{success}</p> : null}
-          <button className="primary-btn" type="submit">Save Settings</button>
+          <button className="primary-btn" type="submit">Save configuration</button>
         </form>
       </Panel>
     </div>

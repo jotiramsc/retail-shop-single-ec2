@@ -465,7 +465,7 @@ export default function PublicProductsPage({ branding }) {
               <strong>{shopName}</strong>
             </div>
           </div>
-          <p>{branding.contact?.address || 'Update store address from receipt settings.'}</p>
+          <p>{branding.contact?.address || 'Update store address from brand configuration.'}</p>
         </div>
         <div className="glow-footer-links glow-footer-links-compact">
           <Link to="/">Home</Link>

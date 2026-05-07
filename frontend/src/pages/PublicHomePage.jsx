@@ -620,7 +620,7 @@ export default function PublicHomePage({ branding, siteVisitCount }) {
               <strong>{shopName}</strong>
             </div>
           </div>
-          <p>{branding.contact?.address || 'Update store address from receipt settings.'}</p>
+          <p>{branding.contact?.address || 'Update store address from brand configuration.'}</p>
         </div>
         <div className="glow-footer-links">
           {categoryGroups.map((category) => (

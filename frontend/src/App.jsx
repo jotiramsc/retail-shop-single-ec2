@@ -34,7 +34,7 @@ const navItems = [
   { to: '/app/reports', label: 'Reports', permission: 'REPORTS' },
   { to: '/app/salesperson-sales', label: 'Salesperson Sales', permission: 'SALESPERSON_SALES' },
   { to: '/app/site-interactions', label: 'Site Interaction', permission: 'SITE_INTERACTIONS' },
-  { to: '/app/settings/receipt', label: 'Receipt Settings', permission: 'RECEIPT_SETTINGS' },
+  { to: '/app/settings/receipt', label: 'Brand Configuration', permission: 'RECEIPT_SETTINGS' },
   { to: '/app/users', label: 'Users', permission: 'USER_MANAGEMENT' }
 ];
 

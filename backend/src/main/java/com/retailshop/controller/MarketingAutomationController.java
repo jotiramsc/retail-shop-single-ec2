@@ -18,6 +18,8 @@ import com.retailshop.enums.MarketingWorkflowStatus;
 import com.retailshop.service.MarketingAutomationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.task.TaskExecutor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -41,9 +43,11 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/marketing")
 @RequiredArgsConstructor
+@Slf4j
 public class MarketingAutomationController {
 
     private final MarketingAutomationService marketingAutomationService;
+    private final TaskExecutor applicationTaskExecutor;
 
     @PostMapping("/campaigns")
     @ResponseStatus(HttpStatus.CREATED)
@@ -56,6 +60,23 @@ public class MarketingAutomationController {
     public MarketingCampaignResponse generateCampaign(@PathVariable UUID campaignId) {
         requireAdminOrOwner();
         return marketingAutomationService.generateCampaign(campaignId, currentUsername());
+    }
+
+    @PostMapping("/campaigns/{campaignId}/generate-async")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public MarketingCampaignResponse generateCampaignAsync(@PathVariable UUID campaignId) {
+        requireAdminOrOwner();
+        String actor = currentUsername();
+        MarketingCampaignResponse response = marketingAutomationService.startCampaignGeneration(campaignId);
+        applicationTaskExecutor.execute(() -> {
+            try {
+                marketingAutomationService.generateCampaign(campaignId, actor);
+            } catch (Exception exception) {
+                log.error("AI campaign generation failed for campaign {}", campaignId, exception);
+                marketingAutomationService.markCampaignGenerationFailed(campaignId);
+            }
+        });
+        return response;
     }
 
     @GetMapping("/campaigns")

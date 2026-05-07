@@ -100,6 +100,17 @@ public class MarketingAutomationServiceImpl implements MarketingAutomationServic
 
     @Override
     @Transactional
+    public MarketingCampaignResponse startCampaignGeneration(UUID campaignId) {
+        Campaign campaign = getCampaignEntity(campaignId);
+        campaign.setStatus(MarketingWorkflowStatus.GENERATING);
+        campaign.setDraft(false);
+        Campaign saved = campaignRepository.save(campaign);
+        List<CampaignContent> contents = campaignContentRepository.findByCampaignIdOrderByCreatedAtAsc(campaignId);
+        return mapCampaignResponse(saved, contents);
+    }
+
+    @Override
+    @Transactional
     public MarketingCampaignResponse generateCampaign(UUID campaignId, String actor) {
         Campaign campaign = getCampaignEntity(campaignId);
         String shopName = resolveShopName();
@@ -136,6 +147,16 @@ public class MarketingAutomationServiceImpl implements MarketingAutomationServic
                 .orElse(""));
         campaignRepository.save(campaign);
         return mapCampaignResponse(campaign, updatedContents);
+    }
+
+    @Override
+    @Transactional
+    public void markCampaignGenerationFailed(UUID campaignId) {
+        campaignRepository.findById(campaignId).ifPresent(campaign -> {
+            campaign.setDraft(false);
+            campaign.setStatus(MarketingWorkflowStatus.FAILED);
+            campaignRepository.save(campaign);
+        });
     }
 
     @Override

@@ -91,6 +91,7 @@ export const retailService = {
   getMarketingCampaign: (campaignId) => api.get(`/marketing/campaigns/${campaignId}`).then((res) => res.data),
   createMarketingCampaign: (payload) => api.post('/marketing/campaigns', payload).then((res) => res.data),
   generateMarketingCampaign: (campaignId) => api.post(`/marketing/campaigns/${campaignId}/generate`).then((res) => res.data),
+  generateMarketingCampaignAsync: (campaignId) => api.post(`/marketing/campaigns/${campaignId}/generate-async`).then((res) => res.data),
   deleteMarketingCampaign: (campaignId) => api.delete(`/marketing/campaigns/${campaignId}`).then((res) => res.data),
   updateMarketingContent: (contentId, payload) => api.put(`/marketing/content/${contentId}`, payload).then((res) => res.data),
   approveMarketingContent: (contentId, payload = {}) => api.post(`/marketing/content/${contentId}/approve`, payload).then((res) => res.data),
