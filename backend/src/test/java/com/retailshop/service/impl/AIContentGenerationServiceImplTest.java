@@ -127,6 +127,30 @@ class AIContentGenerationServiceImplTest {
     }
 
     @Test
+    void shouldGenerateCleanMarathiWeddingSeasonCopy() {
+        MarketingProperties properties = new MarketingProperties();
+        properties.getAi().setEnabled(false);
+        AIContentGenerationServiceImpl service = new AIContentGenerationServiceImpl(properties, new ObjectMapper(), noOpImageUploadService);
+
+        Campaign campaign = new Campaign();
+        campaign.setCampaignName("लग्नाचा सीझन");
+        campaign.setCampaignType(MarketingCampaignType.SEASONAL);
+        campaign.setOfferTitle("लग्नाच्या सीझनसाठी ब्रायडल आणि गिफ्ट कलेक्शन");
+        campaign.setDiscountType(MarketingDiscountType.PERCENTAGE);
+        campaign.setDiscountValue(BigDecimal.valueOf(30));
+        campaign.setLanguage(MarketingLanguage.MARATHI);
+        campaign.setTone(MarketingTone.LUXURY);
+
+        var draft = service.generateDraft(campaign, "Krishnai Pearl Shopee", "JEWELLERY", null, MarketingPlatform.FACEBOOK);
+
+        assertTrue(draft.captionText().contains("लग्नसराईसाठी ब्रायडल आणि गिफ्ट कलेक्शनवर 30% पर्यंत सूट"));
+        assertEquals("लग्नसराई कलेक्शन पाहा", draft.callToAction());
+        assertFalse(draft.captionText().contains("लग्नाचा सीझन साठी"));
+        assertFalse(draft.captionText().contains("लग्नाच्या सीझनसाठी"));
+        assertFalse(draft.captionText().contains("लकशरी"));
+    }
+
+    @Test
     void shouldFallbackToInlineCreativePreviewWhenAiImageGenerationIsUnavailable() {
         MarketingProperties properties = new MarketingProperties();
         properties.getAi().setEnabled(false);
