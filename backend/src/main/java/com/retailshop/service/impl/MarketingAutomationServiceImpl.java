@@ -119,9 +119,12 @@ public class MarketingAutomationServiceImpl implements MarketingAutomationServic
         Map<MarketingPlatform, CampaignContent> existingByPlatform = campaignContentRepository.findByCampaignIdOrderByCreatedAtAsc(campaignId)
                 .stream()
                 .collect(Collectors.toMap(CampaignContent::getPlatform, Function.identity(), (left, right) -> right, LinkedHashMap::new));
+        List<MarketingPlatform> targetPlatforms = parsePlatforms(campaign.getTargetPlatforms());
+        AIContentGenerationService.GeneratedCreativeImage sharedCreative =
+                aiContentGenerationService.generateSharedCreativeImage(campaign, shopName, categoryName, productName);
 
         List<CampaignContent> updatedContents = new ArrayList<>();
-        for (MarketingPlatform platform : parsePlatforms(campaign.getTargetPlatforms())) {
+        for (MarketingPlatform platform : targetPlatforms) {
             AIContentGenerationService.GeneratedMarketingDraft draft =
                     aiContentGenerationService.generateDraft(campaign, shopName, categoryName, productName, platform);
             CampaignContent content = existingByPlatform.getOrDefault(platform, new CampaignContent());
@@ -130,8 +133,8 @@ public class MarketingAutomationServiceImpl implements MarketingAutomationServic
             content.setCaptionText(draft.captionText());
             content.setHashtags(draft.hashtags());
             content.setCallToAction(draft.callToAction());
-            content.setImagePrompt(draft.imagePrompt());
-            content.setImageUrl(draft.imageUrl());
+            content.setImagePrompt(defaultString(sharedCreative.imagePrompt(), draft.imagePrompt()));
+            content.setImageUrl(defaultString(sharedCreative.imageUrl(), draft.imageUrl()));
             content.setStatus(MarketingContentStatus.PENDING_APPROVAL);
             content.setRejectionReason(null);
             content.setScheduledAt(null);
@@ -674,5 +677,9 @@ public class MarketingAutomationServiceImpl implements MarketingAutomationServic
             return null;
         }
         return value.trim();
+    }
+
+    private String defaultString(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value.trim();
     }
 }

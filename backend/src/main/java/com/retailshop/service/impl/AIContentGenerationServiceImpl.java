@@ -12,21 +12,40 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import javax.imageio.ImageIO;
+import java.awt.AlphaComposite;
+import java.awt.Color;
+import java.awt.Font;
+import java.awt.FontMetrics;
+import java.awt.GradientPaint;
+import java.awt.Graphics2D;
+import java.awt.GraphicsEnvironment;
+import java.awt.RenderingHints;
+import java.awt.font.FontRenderContext;
+import java.awt.font.LineBreakMeasurer;
+import java.awt.font.TextAttribute;
+import java.awt.font.TextLayout;
+import java.awt.geom.Ellipse2D;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.text.AttributedString;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 @Slf4j
 @Service
@@ -70,6 +89,17 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
             }
         }
         return generateMock(campaign, shopName, categoryName, productName, platform);
+    }
+
+    @Override
+    public GeneratedCreativeImage generateSharedCreativeImage(Campaign campaign,
+                                                              String shopName,
+                                                              String categoryName,
+                                                              String productName) {
+        MarketingOccasionLibrary.Occasion festivalContext = detectFestivalContext(campaign);
+        String imagePrompt = buildSharedImagePrompt(campaign, shopName, categoryName, productName, festivalContext);
+        String imageUrl = generateCreativeImage(campaign, shopName, productName, MarketingPlatform.INSTAGRAM, imagePrompt);
+        return new GeneratedCreativeImage(imagePrompt, imageUrl);
     }
 
     private GeneratedMarketingDraft generateWithOpenAi(Campaign campaign,
@@ -129,8 +159,8 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
         String resolvedCaption = polishGeneratedCaption(defaultString(caption, buildMockCaption(campaign, shopName, productName, platform, festivalContext)), campaign, productName, platform, festivalContext);
         String resolvedHashtags = defaultString(hashtags, buildMockHashtags(campaign, categoryName, platform, festivalContext));
         String resolvedCta = polishGeneratedCta(defaultString(cta, buildMockCta(campaign, platform, festivalContext)), festivalContext);
-        String resolvedImagePrompt = defaultString(imagePrompt, buildImagePrompt(campaign, shopName, categoryName, productName, platform, festivalContext));
-        String resolvedImageUrl = generateCreativeImage(campaign, shopName, productName, platform, resolvedImagePrompt);
+        String resolvedImagePrompt = defaultString(imagePrompt, buildSharedImagePrompt(campaign, shopName, categoryName, productName, festivalContext));
+        String resolvedImageUrl = buildCreativePreview(campaign, shopName, productName, platform);
 
         return new GeneratedMarketingDraft(
                 resolvedCaption,
@@ -147,13 +177,13 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
                                                  String productName,
                                                  MarketingPlatform platform) {
         MarketingOccasionLibrary.Occasion festivalContext = detectFestivalContext(campaign);
-        String imagePrompt = buildImagePrompt(campaign, shopName, categoryName, productName, platform, festivalContext);
+        String imagePrompt = buildSharedImagePrompt(campaign, shopName, categoryName, productName, festivalContext);
         return new GeneratedMarketingDraft(
                 buildMockCaption(campaign, shopName, productName, platform, festivalContext),
                 buildMockHashtags(campaign, categoryName, platform, festivalContext),
                 buildMockCta(campaign, platform, festivalContext),
                 imagePrompt,
-                generateCreativeImage(campaign, shopName, productName, platform, imagePrompt)
+                buildCreativePreview(campaign, shopName, productName, platform)
         );
     }
 
@@ -177,7 +207,8 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
                 return fallbackPreview;
             }
             if (imagePayload.imageBytes() != null && imagePayload.imageBytes().length > 0) {
-                ImageUploadResponse uploadResponse = imageUploadService.uploadImageBytes(imagePayload.imageBytes(), imagePayload.contentType(), "marketing-campaigns");
+                byte[] finalImageBytes = composeCampaignCreativeImage(campaign, shopName, productName, platform, imagePayload.imageBytes());
+                ImageUploadResponse uploadResponse = imageUploadService.uploadImageBytes(finalImageBytes, "image/png", "marketing-campaigns");
                 if (uploadResponse != null && !isBlank(uploadResponse.getCloudfrontUrl())) {
                     return uploadResponse.getCloudfrontUrl().trim();
                 }
@@ -190,6 +221,219 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
             log.warn("Falling back to inline preview for generated marketing image on campaign {}", campaign.getId(), exception);
             return fallbackPreview;
         }
+    }
+
+    private byte[] composeCampaignCreativeImage(Campaign campaign,
+                                                String shopName,
+                                                String productName,
+                                                MarketingPlatform platform,
+                                                byte[] backgroundBytes) throws IOException {
+        BufferedImage source = ImageIO.read(new ByteArrayInputStream(backgroundBytes));
+        if (source == null) {
+            throw new IOException("Generated image could not be decoded");
+        }
+
+        int size = Math.min(source.getWidth(), source.getHeight());
+        int cropX = Math.max(0, (source.getWidth() - size) / 2);
+        int cropY = Math.max(0, (source.getHeight() - size) / 2);
+        BufferedImage canvas = new BufferedImage(size, size, BufferedImage.TYPE_INT_RGB);
+        Graphics2D graphics = canvas.createGraphics();
+        try {
+            applyImageRenderingHints(graphics);
+            graphics.drawImage(source, 0, 0, size, size, cropX, cropY, cropX + size, cropY + size, null);
+            drawImageTextOverlays(graphics, campaign, shopName, productName, platform, size);
+        } finally {
+            graphics.dispose();
+        }
+
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        ImageIO.write(canvas, "png", output);
+        return output.toByteArray();
+    }
+
+    private void drawImageTextOverlays(Graphics2D graphics,
+                                       Campaign campaign,
+                                       String shopName,
+                                       String productName,
+                                       MarketingPlatform platform,
+                                       int size) {
+        int margin = Math.max(48, size / 18);
+        Color deepShadow = new Color(23, 14, 10, 188);
+        Color warmGold = new Color(255, 230, 166);
+        Color ivory = new Color(255, 248, 226);
+        MarketingOccasionLibrary.Occasion festivalContext = detectFestivalContext(campaign);
+
+        graphics.setComposite(AlphaComposite.SrcOver);
+        graphics.setPaint(new GradientPaint(0, 0, new Color(0, 0, 0, 172), 0, size / 3f, new Color(0, 0, 0, 0)));
+        graphics.fillRect(0, 0, size, size / 3);
+        graphics.setPaint(new GradientPaint(0, size * 0.62f, new Color(0, 0, 0, 0), 0, size, new Color(0, 0, 0, 192)));
+        graphics.fillRect(0, (int) (size * 0.62), size, (int) (size * 0.38));
+
+        Font brandFont = preferredFont(Font.BOLD, Math.max(46, size / 14), "Noto Serif Devanagari", "Noto Sans Devanagari", "Serif");
+        Font headlineFont = preferredFont(Font.BOLD, Math.max(34, size / 24), "Noto Sans Devanagari", "Nirmala UI", "SansSerif");
+        Font ctaFont = preferredFont(Font.BOLD, Math.max(22, size / 40), "Noto Sans Devanagari", "Nirmala UI", "SansSerif");
+
+        String brand = defaultString(trimToNull(shopName), "Krishnai Pearl Shopee");
+        drawWrappedText(graphics, brand, brandFont, new Color(0, 0, 0, 130), margin + 3, margin + 3, size - (margin * 2), 2, TextAlign.CENTER);
+        drawWrappedText(graphics, brand, brandFont, ivory, margin, margin, size - (margin * 2), 2, TextAlign.CENTER);
+
+        drawOfferBadge(graphics, campaign, size, margin, warmGold);
+
+        String headline = buildCreativeImageHeadline(campaign, productName, festivalContext);
+        int bottomY = size - margin - Math.max(116, size / 8);
+        drawWrappedText(graphics, headline, headlineFont, new Color(0, 0, 0, 170), margin + 3, bottomY + 3, size - (margin * 2), 2, TextAlign.CENTER);
+        drawWrappedText(graphics, headline, headlineFont, warmGold, margin, bottomY, size - (margin * 2), 2, TextAlign.CENTER);
+
+        String cta = defaultString(trimToNull(buildMockCta(campaign, platform, festivalContext)),
+                resolveLanguage(campaign).equals("MARATHI") ? "आजच भेट द्या" : "Visit today");
+        int ctaY = size - margin - Math.max(34, size / 32);
+        drawRoundedTextBar(graphics, cta, ctaFont, deepShadow, ivory, margin, ctaY, size - (margin * 2));
+    }
+
+    private void drawOfferBadge(Graphics2D graphics, Campaign campaign, int size, int margin, Color warmGold) {
+        String badge = trimToNull(buildCreativeOfferBadge(campaign));
+        if (badge == null) {
+            return;
+        }
+        int diameter = Math.max(156, size / 5);
+        int x = size - margin - diameter;
+        int y = margin + Math.max(58, size / 18);
+        graphics.setColor(new Color(117, 24, 29, 226));
+        graphics.fill(new Ellipse2D.Double(x, y, diameter, diameter));
+        graphics.setStroke(new java.awt.BasicStroke(Math.max(3f, size / 260f)));
+        graphics.setColor(warmGold);
+        graphics.draw(new Ellipse2D.Double(x + 6, y + 6, diameter - 12, diameter - 12));
+
+        Font badgeFont = preferredFont(Font.BOLD, Math.max(28, size / 28), "Noto Sans Devanagari", "Nirmala UI", "SansSerif");
+        List<String> lines = splitTextLines(badge.replace(" पर्यंत ", " ").replace(" up to ", " "), 12, 3);
+        FontMetrics metrics = graphics.getFontMetrics(badgeFont);
+        int lineHeight = metrics.getHeight();
+        int textY = y + (diameter - (lineHeight * lines.size())) / 2 + metrics.getAscent();
+        graphics.setFont(badgeFont);
+        graphics.setColor(warmGold);
+        for (String line : lines) {
+            int textX = x + (diameter - metrics.stringWidth(line)) / 2;
+            graphics.drawString(line, textX, textY);
+            textY += lineHeight;
+        }
+    }
+
+    private void drawRoundedTextBar(Graphics2D graphics,
+                                    String text,
+                                    Font font,
+                                    Color background,
+                                    Color foreground,
+                                    int x,
+                                    int y,
+                                    int width) {
+        FontMetrics metrics = graphics.getFontMetrics(font);
+        int height = metrics.getHeight() + 24;
+        graphics.setColor(background);
+        graphics.fillRoundRect(x, y, width, height, height, height);
+        graphics.setFont(font);
+        graphics.setColor(foreground);
+        String clipped = clipTextToWidth(text, metrics, width - 48);
+        int textX = x + (width - metrics.stringWidth(clipped)) / 2;
+        int textY = y + ((height - metrics.getHeight()) / 2) + metrics.getAscent();
+        graphics.drawString(clipped, textX, textY);
+    }
+
+    private void drawWrappedText(Graphics2D graphics,
+                                 String text,
+                                 Font font,
+                                 Color color,
+                                 int x,
+                                 int y,
+                                 int width,
+                                 int maxLines,
+                                 TextAlign align) {
+        String cleaned = defaultString(text, "").replace('\n', ' ').replaceAll("\\s+", " ").trim();
+        if (cleaned.isBlank()) {
+            return;
+        }
+
+        AttributedString attributedString = new AttributedString(cleaned);
+        attributedString.addAttribute(TextAttribute.FONT, font);
+        FontRenderContext renderContext = graphics.getFontRenderContext();
+        LineBreakMeasurer measurer = new LineBreakMeasurer(attributedString.getIterator(), renderContext);
+        int end = cleaned.length();
+        float drawY = y;
+        int lineCount = 0;
+        graphics.setColor(color);
+        while (measurer.getPosition() < end && lineCount < maxLines) {
+            TextLayout layout = measurer.nextLayout(width);
+            drawY += layout.getAscent();
+            float drawX = switch (align) {
+                case CENTER -> x + (width - layout.getAdvance()) / 2f;
+                case RIGHT -> x + width - layout.getAdvance();
+                case LEFT -> x;
+            };
+            layout.draw(graphics, drawX, drawY);
+            drawY += layout.getDescent() + layout.getLeading() + (font.getSize2D() * 0.12f);
+            lineCount++;
+        }
+    }
+
+    private Font preferredFont(int style, int size, String... familyNames) {
+        Set<String> availableFamilies = availableFontFamilies();
+        for (String familyName : familyNames) {
+            if (availableFamilies.contains(familyName.toLowerCase(Locale.ROOT))) {
+                return new Font(familyName, style, size);
+            }
+        }
+        return new Font(Font.SANS_SERIF, style, size);
+    }
+
+    private Set<String> availableFontFamilies() {
+        Set<String> families = new HashSet<>();
+        for (String family : GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames(Locale.ROOT)) {
+            families.add(family.toLowerCase(Locale.ROOT));
+        }
+        return families;
+    }
+
+    private void applyImageRenderingHints(Graphics2D graphics) {
+        graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        graphics.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        graphics.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+        graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+    }
+
+    private String buildCreativeImageHeadline(Campaign campaign,
+                                              String productName,
+                                              MarketingOccasionLibrary.Occasion festivalContext) {
+        String language = resolveLanguage(campaign);
+        String offerLine = buildOfferLine(campaign, festivalContext);
+        if ("MARATHI".equals(language)) {
+            String subject = defaultString(resolveShowcaseSubject(campaign, productName, festivalContext), "निवडक कलेक्शन");
+            if (festivalContext != null) {
+                return "%s साठी %s".formatted(festivalDisplayName(festivalContext), defaultString(offerLine, subject));
+            }
+            return defaultString(offerLine, subject + " आजच पाहा");
+        }
+        String subject = defaultString(resolveShowcaseSubject(campaign, productName, festivalContext), "curated collection");
+        if (festivalContext != null) {
+            return "%s picks for %s".formatted(defaultString(offerLine, subject), festivalContext.englishName());
+        }
+        return defaultString(offerLine, "Explore " + subject);
+    }
+
+    private String clipTextToWidth(String text, FontMetrics metrics, int maxWidth) {
+        String cleaned = defaultString(text, "");
+        if (metrics.stringWidth(cleaned) <= maxWidth) {
+            return cleaned;
+        }
+        String ellipsis = "...";
+        while (!cleaned.isBlank() && metrics.stringWidth(cleaned + ellipsis) > maxWidth) {
+            cleaned = cleaned.substring(0, cleaned.length() - 1).trim();
+        }
+        return cleaned + ellipsis;
+    }
+
+    private enum TextAlign {
+        LEFT,
+        CENTER,
+        RIGHT
     }
 
     private GeneratedImagePayload generateOpenAiImagePayload(String imagePrompt) throws IOException, InterruptedException {
@@ -383,9 +627,10 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
                 - Avoid repeating campaign name or offer title as-is; turn it into attractive ad copy
                 - For Marathi, use phrases like ज्वेलरी, नेकलेस, बांगड्या, इयररिंग्स, गिफ्ट, सौंदर्य, कलेक्शन when relevant
                 - Avoid precious-metal-shop wording
-                - Image prompt must be suitable for OpenAI image generation and include the exact shop name, offer badge, and short caption/message as readable text when applicable
-                - If language is MARATHI, ask for clean readable Devanagari text and avoid English filler text
-                - Do not invent fake logos, seals, brand marks, watermarks, placeholder text, or extra unreadable label blocks. Use shop name as plain text when no real logo asset is supplied.
+                - Image prompt must be platform-neutral and suitable for one square creative reused on Instagram, Facebook, and WhatsApp
+                - Image prompt must ask for a clean product/background visual only; all text will be overlaid later by the website
+                - Image prompt must explicitly say: no text, no letters, no numbers, no logo, no watermark, no discount badge, no typography
+                - Do not invent fake logos, seals, brand marks, watermarks, placeholder text, or extra unreadable label blocks
                 """.formatted(
                 safe(campaign.getCampaignName()),
                 safe(shopName),
@@ -458,31 +703,22 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
         };
     }
 
-    private String buildImagePrompt(Campaign campaign,
-                                    String shopName,
-                                    String categoryName,
-                                    String productName,
-                                    MarketingPlatform platform,
-                                    MarketingOccasionLibrary.Occasion festivalContext) {
+    private String buildSharedImagePrompt(Campaign campaign,
+                                          String shopName,
+                                          String categoryName,
+                                          String productName,
+                                          MarketingOccasionLibrary.Occasion festivalContext) {
         String festivalPrompt = festivalContext == null
                 ? "general festive retail mood"
                 : "%s festival mood with %s"
                 .formatted(festivalContext.englishName(), festivalContext.visualHints());
-        String offerBadge = buildCreativeOfferBadge(campaign);
-        String landingUrl = defaultString(trimToNull(campaign.getLinkUrl()), "https://kpskrishnai.com");
-        String captionText = buildMockCaption(campaign, shopName, productName, platform, festivalContext);
-        return "Premium promotional creative for %s, %s campaign, focused on %s, in a %s tone, Indian women-focused jewellery and cosmetics retail aesthetic, pearl, ivory, emerald and deep maroon accent palette, elegant composition with necklaces, bangles, earrings, or beauty accessories where relevant, product-focused hero visual, %s, platform %s. Include only these exact text elements: shop name \"%s\", offer badge \"%s\", caption/message \"%s\", landing URL \"%s\". Render Marathi text in clean readable Devanagari. Do not use wording that implies a precious-metal shop. Do not invent any logo, emblem, fake phone number, fake website, watermark, placeholder phrase, English filler text, or unrelated text."
+        return "Premium square 1:1 social-commerce background image for %s, %s campaign, focused on %s, in a %s tone, Indian women-focused jewellery and cosmetics retail aesthetic, pearl, ivory, emerald and deep maroon accent palette, elegant composition with necklaces, bangles, earrings, or beauty accessories where relevant, product-focused hero visual, %s. Leave clean negative space at the top and bottom for later text overlay. No text, no letters, no numbers, no logo, no watermark, no discount badge, no typography, no fake brand mark, no placeholder label blocks. Do not use wording or visuals that imply a precious-metal shop."
                 .formatted(
                         defaultString(shopName, "retail brand"),
                         defaultString(campaign.getCampaignType() != null ? campaign.getCampaignType().name().replace('_', ' ').toLowerCase(Locale.ROOT) : null, "seasonal"),
                         defaultString(productName, defaultString(categoryName, "retail products")),
                         defaultString(campaign.getTone() != null ? campaign.getTone().name().toLowerCase(Locale.ROOT) : null, "premium"),
-                        festivalPrompt,
-                        platform.name().toLowerCase(Locale.ROOT),
-                        defaultString(shopName, "retail brand"),
-                        offerBadge,
-                        captionText,
-                        landingUrl
+                        festivalPrompt
                 );
     }
 

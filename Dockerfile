@@ -18,7 +18,7 @@ RUN ./mvnw clean package -DskipTests
 FROM eclipse-temurin:17-jre
 WORKDIR /app
 RUN apt-get update \
-    && apt-get install -y curl \
+    && apt-get install -y curl fontconfig fonts-noto-core \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=backend-build /app/target/retail-shop-backend-1.0.0.jar app.jar
 EXPOSE 8080
