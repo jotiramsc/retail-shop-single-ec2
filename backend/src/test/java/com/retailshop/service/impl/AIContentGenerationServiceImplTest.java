@@ -17,6 +17,7 @@ import java.math.BigDecimal;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AIContentGenerationServiceImplTest {
@@ -121,8 +122,10 @@ class AIContentGenerationServiceImplTest {
         assertTrue(draft.captionText().contains("आईसाठी खास भेटवस्तूंवर 15% पर्यंत सूट"));
         assertTrue(draft.hashtags().contains("#मातृदिन"));
         assertEquals("आईसाठी कलेक्शन पाहा", draft.callToAction());
-        assertTrue(draft.imagePrompt().contains("Mother's Day gifting moment"));
-        assertTrue(draft.imagePrompt().contains("daughter handing a wrapped gift box"));
+        assertTrue(draft.imagePrompt().contains("Mother's Day"));
+        assertTrue(draft.imagePrompt().toLowerCase().contains("mother"));
+        assertTrue(draft.imagePrompt().contains("Visual refresh seed"));
+        assertTrue(draft.imagePrompt().contains("Make this regeneration visually fresh"));
         assertTrue(draft.imagePrompt().contains("Avoid repeating the same necklace-on-silk flat lay"));
         assertFalse(draft.captionText().contains("मातु"));
         assertFalse(draft.captionText().contains("जपरी"));
@@ -148,12 +151,39 @@ class AIContentGenerationServiceImplTest {
 
         assertTrue(draft.captionText().contains("लग्नसराईसाठी ब्रायडल आणि गिफ्ट कलेक्शनवर 30% पर्यंत सूट"));
         assertEquals("लग्नसराई कलेक्शन पाहा", draft.callToAction());
-        assertTrue(draft.imagePrompt().contains("Maharashtrian wedding preparation scene"));
-        assertTrue(draft.imagePrompt().contains("bridal trousseau"));
+        assertTrue(draft.imagePrompt().toLowerCase().contains("wedding"));
+        assertTrue(draft.imagePrompt().toLowerCase().contains("jewellery"));
+        assertTrue(draft.imagePrompt().contains("Visual refresh seed"));
+        assertTrue(draft.imagePrompt().contains("Make this regeneration visually fresh"));
         assertTrue(draft.imagePrompt().contains("Avoid repeating the same necklace-on-silk flat lay"));
         assertFalse(draft.captionText().contains("लग्नाचा सीझन साठी"));
         assertFalse(draft.captionText().contains("लग्नाच्या सीझनसाठी"));
         assertFalse(draft.captionText().contains("लकशरी"));
+    }
+
+    @Test
+    void shouldChangeSharedImagePromptForEachRegenerationSeed() {
+        MarketingProperties properties = new MarketingProperties();
+        properties.getAi().setEnabled(false);
+        AIContentGenerationServiceImpl service = new AIContentGenerationServiceImpl(properties, new ObjectMapper(), noOpImageUploadService);
+
+        Campaign campaign = new Campaign();
+        campaign.setCampaignName("मातृ दिन");
+        campaign.setCampaignType(MarketingCampaignType.SEASONAL);
+        campaign.setOfferTitle("मातृ दिनासाठी आईंसाठी खास भेटवस्तू");
+        campaign.setDiscountType(MarketingDiscountType.PERCENTAGE);
+        campaign.setDiscountValue(BigDecimal.valueOf(15));
+        campaign.setLanguage(MarketingLanguage.MARATHI);
+        campaign.setTone(MarketingTone.EMOTIONAL);
+
+        var first = service.generateSharedCreativeImage(campaign, "Krishnai Pearl Shopee", "JEWELLERY", null, "first-regeneration");
+        var second = service.generateSharedCreativeImage(campaign, "Krishnai Pearl Shopee", "JEWELLERY", null, "second-regeneration");
+
+        assertNotEquals(first.imagePrompt(), second.imagePrompt());
+        assertTrue(first.imagePrompt().contains("Visual refresh seed: firstregen"));
+        assertTrue(second.imagePrompt().contains("Visual refresh seed: secondrege"));
+        assertTrue(first.imagePrompt().contains("Make this regeneration visually fresh"));
+        assertTrue(second.imagePrompt().contains("Make this regeneration visually fresh"));
     }
 
     @Test

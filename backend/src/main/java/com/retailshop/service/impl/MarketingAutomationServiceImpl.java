@@ -120,8 +120,9 @@ public class MarketingAutomationServiceImpl implements MarketingAutomationServic
                 .stream()
                 .collect(Collectors.toMap(CampaignContent::getPlatform, Function.identity(), (left, right) -> right, LinkedHashMap::new));
         List<MarketingPlatform> targetPlatforms = parsePlatforms(campaign.getTargetPlatforms());
+        String visualSeed = UUID.randomUUID().toString();
         AIContentGenerationService.GeneratedCreativeImage sharedCreative =
-                aiContentGenerationService.generateSharedCreativeImage(campaign, shopName, categoryName, productName);
+                aiContentGenerationService.generateSharedCreativeImage(campaign, shopName, categoryName, productName, visualSeed);
 
         List<CampaignContent> updatedContents = new ArrayList<>();
         for (MarketingPlatform platform : targetPlatforms) {

@@ -6,7 +6,11 @@ import com.retailshop.enums.MarketingPlatform;
 public interface AIContentGenerationService {
     GeneratedMarketingDraft generateDraft(Campaign campaign, String shopName, String categoryName, String productName, MarketingPlatform platform);
 
-    GeneratedCreativeImage generateSharedCreativeImage(Campaign campaign, String shopName, String categoryName, String productName);
+    GeneratedCreativeImage generateSharedCreativeImage(Campaign campaign,
+                                                       String shopName,
+                                                       String categoryName,
+                                                       String productName,
+                                                       String visualSeed);
 
     record GeneratedMarketingDraft(
             String captionText,
