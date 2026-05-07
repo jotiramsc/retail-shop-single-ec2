@@ -160,8 +160,9 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
         String cta = trimToNull(result.path("callToAction").asText(""));
         String imagePrompt = trimToNull(result.path("imagePrompt").asText(""));
         String resolvedCaption = polishGeneratedCaption(defaultString(caption, buildMockCaption(campaign, shopName, productName, platform, festivalContext)), campaign, productName, platform, festivalContext);
+        resolvedCaption = ensureMarathiCaptionQuality(resolvedCaption, campaign, shopName, productName, platform, festivalContext);
         String resolvedHashtags = defaultString(hashtags, buildMockHashtags(campaign, categoryName, platform, festivalContext));
-        String resolvedCta = polishGeneratedCta(defaultString(cta, buildMockCta(campaign, platform, festivalContext)), festivalContext);
+        String resolvedCta = polishGeneratedCta(defaultString(cta, buildMockCta(campaign, platform, festivalContext)), campaign, platform, festivalContext);
         String resolvedImagePrompt = defaultString(imagePrompt, buildSharedImagePrompt(campaign, shopName, categoryName, productName, festivalContext));
         String resolvedImageUrl = buildCreativePreview(campaign, shopName, productName, platform);
 
@@ -181,10 +182,19 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
                                                  MarketingPlatform platform) {
         MarketingOccasionLibrary.Occasion festivalContext = detectFestivalContext(campaign);
         String imagePrompt = buildSharedImagePrompt(campaign, shopName, categoryName, productName, festivalContext);
-        return new GeneratedMarketingDraft(
+        String caption = ensureMarathiCaptionQuality(
                 buildMockCaption(campaign, shopName, productName, platform, festivalContext),
+                campaign,
+                shopName,
+                productName,
+                platform,
+                festivalContext
+        );
+        String cta = polishGeneratedCta(buildMockCta(campaign, platform, festivalContext), campaign, platform, festivalContext);
+        return new GeneratedMarketingDraft(
+                caption,
                 buildMockHashtags(campaign, categoryName, platform, festivalContext),
-                buildMockCta(campaign, platform, festivalContext),
+                cta,
                 imagePrompt,
                 buildCreativePreview(campaign, shopName, productName, platform)
         );
@@ -421,10 +431,13 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
                 return buildMarathiMothersDayOfferLine(campaign);
             }
             String subject = defaultString(resolveShowcaseSubject(campaign, productName, festivalContext), "निवडक कलेक्शन");
+            String headline;
             if (festivalContext != null) {
-                return "%s साठी %s".formatted(festivalDisplayName(festivalContext), defaultString(offerLine, subject));
+                headline = "%s साठी %s".formatted(festivalDisplayName(festivalContext), defaultString(offerLine, subject));
+            } else {
+                headline = defaultString(offerLine, subject + " आजच पाहा");
             }
-            return defaultString(offerLine, subject + " आजच पाहा");
+            return ensureMarathiHeadlineQuality(headline, campaign, festivalContext);
         }
         String subject = defaultString(resolveShowcaseSubject(campaign, productName, festivalContext), "curated collection");
         if (festivalContext != null) {
@@ -1177,7 +1190,56 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
         if (isWeakCaption(cleaned, campaign, festivalContext)) {
             return buildMockCaption(campaign, "Retail Shop", productName, platform, festivalContext);
         }
+        return normalizeMarathiMarketingText(cleaned);
+    }
+
+    private String ensureMarathiCaptionQuality(String caption,
+                                               Campaign campaign,
+                                               String shopName,
+                                               String productName,
+                                               MarketingPlatform platform,
+                                               MarketingOccasionLibrary.Occasion festivalContext) {
+        if (!"MARATHI".equals(resolveLanguage(campaign))) {
+            return caption;
+        }
+        String cleaned = normalizeMarathiMarketingText(caption);
+        if (isWeakCaption(cleaned, campaign, festivalContext)) {
+            return normalizeMarathiMarketingText(buildMockCaption(campaign, shopName, productName, platform, festivalContext));
+        }
         return cleaned;
+    }
+
+    private String ensureMarathiHeadlineQuality(String headline,
+                                                Campaign campaign,
+                                                MarketingOccasionLibrary.Occasion festivalContext) {
+        if (!"MARATHI".equals(resolveLanguage(campaign))) {
+            return headline;
+        }
+        String cleaned = normalizeMarathiMarketingText(headline);
+        if (isOccasion(festivalContext, "mothers-day") || hasBadMarathiCopy(cleaned)) {
+            return buildMarathiMothersDayOfferLine(campaign);
+        }
+        return cleaned;
+    }
+
+    private String normalizeMarathiMarketingText(String value) {
+        return safe(value)
+                .replace("मातु दिन", "मातृ दिन")
+                .replace("मातु", "मातृ")
+                .replace("मातृ दिन साठी", "मातृ दिनासाठी")
+                .replace("मातृदिन साठी", "मातृदिनासाठी")
+                .replace("मातृ दिनासाठी आईंसाठी", "आईसाठी")
+                .replace("मातृ दिनासाठी आईसाठी", "आईसाठी")
+                .replace("आईंसाठी", "आईसाठी")
+                .replace("जपरी", "काळजीपूर्वक")
+                .replace("तिची देखभाल करा", "तिच्यासाठी सुंदर भेट निवडा")
+                .replace("तुमची देखभाल करा", "तिच्यासाठी सुंदर भेट निवडा")
+                .replace("खास खास", "खास")
+                .replaceAll("साठी\\s+साठी", "साठी")
+                .replaceAll("वर\\s+वर", "वर")
+                .replaceAll("\\s+([।.!?,])", "$1")
+                .replaceAll("\\s{2,}", " ")
+                .trim();
     }
 
     private boolean isWeakCaption(String caption,
@@ -1190,13 +1252,7 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
         if (cleaned.contains("Offer वर") || cleaned.contains("खास ऑफर उपलब्ध")) {
             return true;
         }
-        if (cleaned.contains("मातु")
-                || cleaned.contains("जपरी")
-                || cleaned.contains("तिची देखभाल करा")
-                || cleaned.contains("तुमची देखभाल करा")
-                || cleaned.contains("मातृ दिनासाठी आईंसाठी")
-                || cleaned.contains("मातृ दिन साठी")
-                || cleaned.contains("आईंसाठी")) {
+        if (hasBadMarathiCopy(cleaned)) {
             return true;
         }
         String comparableCaption = comparableText(cleaned);
@@ -1215,12 +1271,33 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
         return false;
     }
 
-    private String polishGeneratedCta(String cta, MarketingOccasionLibrary.Occasion festivalContext) {
-        if (festivalContext == null) {
-            return cta;
+    private boolean hasBadMarathiCopy(String value) {
+        String cleaned = safe(value);
+        return cleaned.contains("मातु")
+                || cleaned.contains("जपरी")
+                || cleaned.contains("तिची देखभाल करा")
+                || cleaned.contains("तुमची देखभाल करा")
+                || cleaned.contains("मातृ दिनासाठी आईंसाठी")
+                || cleaned.contains("मातृ दिनासाठी आईसाठी")
+                || cleaned.contains("मातृ दिन साठी")
+                || cleaned.contains("आईंसाठी")
+                || cleaned.contains("साठी साठी")
+                || cleaned.contains("वर वर");
+    }
+
+    private String polishGeneratedCta(String cta,
+                                      Campaign campaign,
+                                      MarketingPlatform platform,
+                                      MarketingOccasionLibrary.Occasion festivalContext) {
+        if ("MARATHI".equals(resolveLanguage(campaign)) && isOccasion(festivalContext, "mothers-day")) {
+            return platform == MarketingPlatform.WHATSAPP ? "आईसाठी भेट निवडा" : "आईसाठी कलेक्शन पाहा";
         }
-        return cta.replace(festivalContext.marathiName() + " निमित्त " + festivalContext.marathiName(),
+        if (festivalContext == null) {
+            return "MARATHI".equals(resolveLanguage(campaign)) ? normalizeMarathiMarketingText(cta) : cta;
+        }
+        String polished = cta.replace(festivalContext.marathiName() + " निमित्त " + festivalContext.marathiName(),
                 festivalContext.marathiName() + " निमित्त खास ऑफर");
+        return "MARATHI".equals(resolveLanguage(campaign)) ? normalizeMarathiMarketingText(polished) : polished;
     }
 
     private String buildCreativeOfferBadge(Campaign campaign) {
