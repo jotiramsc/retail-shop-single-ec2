@@ -121,6 +121,9 @@ class AIContentGenerationServiceImplTest {
         assertTrue(draft.captionText().contains("आईसाठी खास भेटवस्तूंवर 15% पर्यंत सूट"));
         assertTrue(draft.hashtags().contains("#मातृदिन"));
         assertEquals("आईसाठी कलेक्शन पाहा", draft.callToAction());
+        assertTrue(draft.imagePrompt().contains("Mother's Day gifting moment"));
+        assertTrue(draft.imagePrompt().contains("daughter handing a wrapped gift box"));
+        assertTrue(draft.imagePrompt().contains("Avoid repeating the same necklace-on-silk flat lay"));
         assertFalse(draft.captionText().contains("मातु"));
         assertFalse(draft.captionText().contains("जपरी"));
         assertFalse(draft.captionText().contains("आईंसाठी"));
@@ -145,6 +148,9 @@ class AIContentGenerationServiceImplTest {
 
         assertTrue(draft.captionText().contains("लग्नसराईसाठी ब्रायडल आणि गिफ्ट कलेक्शनवर 30% पर्यंत सूट"));
         assertEquals("लग्नसराई कलेक्शन पाहा", draft.callToAction());
+        assertTrue(draft.imagePrompt().contains("Maharashtrian wedding preparation scene"));
+        assertTrue(draft.imagePrompt().contains("bridal trousseau"));
+        assertTrue(draft.imagePrompt().contains("Avoid repeating the same necklace-on-silk flat lay"));
         assertFalse(draft.captionText().contains("लग्नाचा सीझन साठी"));
         assertFalse(draft.captionText().contains("लग्नाच्या सीझनसाठी"));
         assertFalse(draft.captionText().contains("लकशरी"));

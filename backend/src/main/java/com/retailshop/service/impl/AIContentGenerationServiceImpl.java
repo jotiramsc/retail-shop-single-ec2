@@ -787,18 +787,57 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
                                           String categoryName,
                                           String productName,
                                           MarketingOccasionLibrary.Occasion festivalContext) {
-        String festivalPrompt = festivalContext == null
-                ? "general festive retail mood"
-                : "%s festival mood with %s"
-                .formatted(festivalContext.englishName(), festivalContext.visualHints());
-        return "Premium square 1:1 social-commerce background image for %s, %s campaign, focused on %s, in a %s tone, Indian women-focused jewellery and cosmetics retail aesthetic, pearl, ivory, emerald and deep maroon accent palette, elegant composition with necklaces, bangles, earrings, or beauty accessories where relevant, product-focused hero visual, %s. Leave clean negative space at the top and bottom for later text overlay. No text, no letters, no numbers, no logo, no watermark, no discount badge, no typography, no fake brand mark, no placeholder label blocks. Do not use wording or visuals that imply a precious-metal shop."
+        String occasionName = festivalContext == null ? "seasonal retail" : festivalContext.englishName();
+        String subject = defaultString(productName, defaultString(categoryName, "jewellery, cosmetics, gifting products"));
+        String scenePrompt = buildFestivalScenePrompt(subject, festivalContext);
+        String variationPrompt = buildVisualVariationPrompt(campaign, festivalContext);
+        return "Premium square 1:1 social-commerce campaign background for %s. Occasion: %s. Product focus: %s. Tone: %s. Scene direction: %s. Composition variation: %s. Make the image clearly relatable to the occasion, with Indian retail context and natural festival props, not just a product catalogue display. Show jewellery, cosmetics, or gift products as part of the festival story. Use a refined palette that matches the occasion, with realistic light, depth, and premium styling. Leave clean negative space at the top and bottom for later text overlay. Avoid repeating the same necklace-on-silk flat lay, generic jewellery tray, plain studio product display, or unrelated decorative background. No text, no letters, no numbers, no logo, no watermark, no discount badge, no typography, no fake brand mark, no placeholder label blocks. Do not use wording or visuals that imply a precious-metal shop."
                 .formatted(
                         defaultString(shopName, "retail brand"),
-                        defaultString(campaign.getCampaignType() != null ? campaign.getCampaignType().name().replace('_', ' ').toLowerCase(Locale.ROOT) : null, "seasonal"),
-                        defaultString(productName, defaultString(categoryName, "retail products")),
+                        occasionName,
+                        subject,
                         defaultString(campaign.getTone() != null ? campaign.getTone().name().toLowerCase(Locale.ROOT) : null, "premium"),
-                        festivalPrompt
+                        scenePrompt,
+                        variationPrompt
                 );
+    }
+
+    private String buildFestivalScenePrompt(String subject,
+                                            MarketingOccasionLibrary.Occasion festivalContext) {
+        if (festivalContext == null) {
+            return "a fresh retail lifestyle scene with gift-ready packaging, customer browsing mood, and %s placed naturally in the scene"
+                    .formatted(subject);
+        }
+        return switch (festivalContext.key()) {
+            case "mothers-day" -> "a warm Mother's Day gifting moment: a daughter handing a wrapped gift box to her mother at home, flowers, greeting card, soft morning light, a small jewellery box or beauty gift visible, emotional and premium";
+            case "wedding-season" -> "a Maharashtrian wedding preparation scene: bridal trousseau, saree fabric, mehendi hands, marigold flowers, soft mandap decor in the background, statement jewellery and gift box arranged as part of the bridal story";
+            case "diwali" -> "a Diwali gifting scene: diyas, rangoli edge, festive gift boxes, warm lantern light, jewellery or beauty products styled as gifts for family celebrations";
+            case "gudi-padwa" -> "a Gudi Padwa new-year scene: festive home entrance, gudi, mango leaves, saffron silk, fresh flowers, jewellery or beauty gift placed as an auspicious new purchase";
+            case "akshaya-tritiya" -> "an Akshaya Tritiya auspicious shopping scene: puja thali, turmeric, rice, flowers, temple-bell inspired decor, elegant jewellery box as a festive purchase";
+            case "makar-sankranti" -> "a Makar Sankranti haldi-kumkum scene: tilgul sweets, black-and-gold festive styling, turmeric-kumkum thali, bangles or earrings as thoughtful gifts";
+            case "raksha-bandhan" -> "a Raksha Bandhan gifting scene: rakhi thali, sibling gift box, warm family setting, jewellery or beauty gift shown as a premium surprise";
+            case "ganesh-chaturthi" -> "a Ganesh Chaturthi festive home scene: marigold toran, modak plate, warm festive decor, family shopping mood, jewellery or beauty products as celebration-ready gifts";
+            case "navratri" -> "a Navratri celebration scene: colorful dupattas, dandiya sticks, festive lights, makeup and jewellery prepared for a garba night";
+            case "dussehra" -> "a Dussehra auspicious buying scene: marigold flowers, festive entrance decor, gold-toned light, gift-ready jewellery or beauty products arranged for शुभ खरेदी";
+            case "holi", "rang-panchami" -> "a colorful Holi celebration scene: flower petals, bright gulal bowls, skincare or cosmetics with festive jewellery accents, joyful but elegant";
+            case "womens-day" -> "a Women's Day self-gifting scene: elegant dressing table, confident styling mood, beauty products and jewellery prepared as a personal treat";
+            case "maharashtra-day" -> "a Maharashtra Day regional style scene: saffron and green festive accents, Paithani-inspired fabric, local pride decor, jewellery and beauty products styled for Maharashtrian elegance";
+            case "valentines-day" -> "a Valentine's Day gifting scene: rose petals, handwritten gift card without readable text, elegant jewellery or beauty gift box, romantic premium lighting";
+            case "vat-pournima", "hartalika-teej", "karwa-chauth" -> "a traditional married-women festive scene: saree, mehendi, bangles, mangalsutra-inspired styling, flowers and devotional decor, premium but respectful";
+            default -> "an occasion-specific Indian festival lifestyle scene using these cues: %s, with %s placed naturally as part of gifting or festive dressing"
+                    .formatted(festivalContext.visualHints(), subject);
+        };
+    }
+
+    private String buildVisualVariationPrompt(Campaign campaign, MarketingOccasionLibrary.Occasion festivalContext) {
+        int variant = captionVariant(campaign, MarketingPlatform.INSTAGRAM, 4);
+        String occasion = festivalContext == null ? "seasonal retail" : festivalContext.englishName();
+        return switch (variant) {
+            case 1 -> "lifestyle close-up with hands, gift box, and festival props; shallow depth of field; product is visible but not isolated";
+            case 2 -> "wide festive home or shop-corner scene with clear occasion props for %s; product appears in the foreground with room for overlay text".formatted(occasion);
+            case 3 -> "editorial social-media composition with diagonal fabric, flowers, gift packaging, and occasion-specific props; avoid central catalogue symmetry";
+            default -> "premium realistic scene with a human gifting or getting-ready cue, festival props, and products integrated into the moment";
+        };
     }
 
     private String buildOfferLine(Campaign campaign, MarketingOccasionLibrary.Occasion festivalContext) {
