@@ -29,6 +29,7 @@ public class AppProperties {
     private Msg91 msg91 = new Msg91();
     private Pricing pricing = new Pricing();
     private Redis redis = new Redis();
+    private Payment payment = new Payment();
     private Razorpay razorpay = new Razorpay();
     private PhonePe phonepe = new PhonePe();
     private Twilio twilio = new Twilio();
@@ -102,8 +103,14 @@ public class AppProperties {
 
     @Getter
     @Setter
+    public static class Payment {
+        private String provider = "RAZORPAY";
+    }
+
+    @Getter
+    @Setter
     public static class Razorpay {
-        private String keyId = "";
+        private String keyId = "rzp_test_SirLkQHBMbkN2d";
         private String keySecret = "";
         private String webhookSecret = "";
     }

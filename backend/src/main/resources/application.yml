@@ -72,8 +72,10 @@ app:
     otp-key-prefix: ${APP_REDIS_OTP_KEY_PREFIX:retail:otp:}
     cart-key-prefix: ${APP_REDIS_CART_KEY_PREFIX:retail:cart:}
     cart-ttl-minutes: ${APP_REDIS_CART_TTL_MINUTES:30}
+  payment:
+    provider: ${PAYMENT_PROVIDER:RAZORPAY}
   razorpay:
-    key-id: ${RAZORPAY_KEY_ID:}
+    key-id: ${RAZORPAY_KEY_ID:rzp_test_SirLkQHBMbkN2d}
     key-secret: ${RAZORPAY_KEY_SECRET:}
     webhook-secret: ${RAZORPAY_WEBHOOK_SECRET:}
   phonepe:

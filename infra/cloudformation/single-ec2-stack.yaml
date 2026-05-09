@@ -77,6 +77,23 @@ Parameters:
   CheckoutFreeDeliveryMinOrder:
     Type: String
     Default: '0'
+  PaymentProvider:
+    Type: String
+    Default: RAZORPAY
+    AllowedValues:
+      - RAZORPAY
+      - PHONEPE
+  RazorpayKeyId:
+    Type: String
+    Default: rzp_test_SirLkQHBMbkN2d
+  RazorpayKeySecret:
+    Type: String
+    Default: ''
+    NoEcho: true
+  RazorpayWebhookSecret:
+    Type: String
+    Default: ''
+    NoEcho: true
   PhonePeClientId:
     Type: String
     Default: ''
@@ -392,6 +409,10 @@ Resources:
           "CHECKOUT_TAX_PERCENT":"${CheckoutTaxPercent}",
           "CHECKOUT_DELIVERY_CHARGE":"${CheckoutDeliveryCharge}",
           "CHECKOUT_FREE_DELIVERY_MIN_ORDER":"${CheckoutFreeDeliveryMinOrder}",
+          "PAYMENT_PROVIDER":"${PaymentProvider}",
+          "RAZORPAY_KEY_ID":"${RazorpayKeyId}",
+          "RAZORPAY_KEY_SECRET":"${RazorpayKeySecret}",
+          "RAZORPAY_WEBHOOK_SECRET":"${RazorpayWebhookSecret}",
           "PHONEPE_CLIENT_ID":"${PhonePeClientId}",
           "PHONEPE_CLIENT_SECRET":"${PhonePeClientSecret}",
           "PHONEPE_CLIENT_VERSION":"${PhonePeClientVersion}",

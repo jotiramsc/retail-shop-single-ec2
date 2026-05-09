@@ -693,7 +693,7 @@ export default function CheckoutPage() {
                 {placingOrder ? 'Opening payment...' : 'Pay and place order'}
               </button>
               <small className="customer-helper-copy">
-                PhonePe opens when the gateway is configured. Local environments still fall back safely for test checkout.
+                Razorpay opens when the gateway is configured. Local environments still fall back safely for test checkout.
               </small>
             </aside>
           </div>

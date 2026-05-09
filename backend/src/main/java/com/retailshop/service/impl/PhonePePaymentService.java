@@ -20,12 +20,20 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.Map;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 
 @Service
 @RequiredArgsConstructor
 public class PhonePePaymentService implements PaymentService {
+
+    private static final String PHONEPE_PROVIDER = "PHONEPE";
+    private static final String RAZORPAY_PROVIDER = "RAZORPAY";
+    private static final String RAZORPAY_API_BASE_URL = "https://api.razorpay.com/v1";
 
     private final AppProperties appProperties;
     private final ObjectMapper objectMapper;
@@ -38,11 +46,15 @@ public class PhonePePaymentService implements PaymentService {
     public PaymentOrderResponse createPaymentOrder(BigDecimal amount, String receipt, String requestedRedirectUrl) {
         BigDecimal safeAmount = amount == null ? BigDecimal.ZERO : amount.max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
         long amountSubunits = safeAmount.movePointRight(2).longValue();
+        if (isRazorpayProvider()) {
+            return createRazorpayPaymentOrder(safeAmount, amountSubunits, receipt);
+        }
+
         String merchantOrderId = "PP-" + System.currentTimeMillis();
 
-        if (!isConfigured()) {
+        if (!isPhonePeConfigured()) {
             return PaymentOrderResponse.builder()
-                    .provider("PHONEPE")
+                    .provider(PHONEPE_PROVIDER)
                     .configured(false)
                     .orderId(merchantOrderId)
                     .receipt(receipt)
@@ -99,7 +111,7 @@ public class PhonePePaymentService implements PaymentService {
                 ));
             }
             return PaymentOrderResponse.builder()
-                    .provider("PHONEPE")
+                    .provider(PHONEPE_PROVIDER)
                     .configured(true)
                     .orderId(merchantOrderId)
                     .receipt(receipt)
@@ -121,9 +133,12 @@ public class PhonePePaymentService implements PaymentService {
         if (isBlank(merchantOrderId)) {
             throw new BusinessException("Merchant order id is required");
         }
-        if (!isConfigured()) {
+        if (isRazorpayProvider() || merchantOrderId.startsWith("order_") || merchantOrderId.startsWith("RZP-")) {
+            return getRazorpayPaymentStatus(merchantOrderId);
+        }
+        if (!isPhonePeConfigured()) {
             return PaymentStatusResponse.builder()
-                    .provider("PHONEPE")
+                    .provider(PHONEPE_PROVIDER)
                     .merchantOrderId(merchantOrderId)
                     .state("COMPLETED")
                     .paymentState("SUCCESS")
@@ -147,7 +162,7 @@ public class PhonePePaymentService implements PaymentService {
             String transactionId = firstText(body, "paymentDetails.0.transactionId", "paymentDetails.transactionId", "data.paymentDetails.0.transactionId", "transactionId");
             boolean success = isSuccessState(state) || isSuccessState(paymentState);
             return PaymentStatusResponse.builder()
-                    .provider("PHONEPE")
+                    .provider(PHONEPE_PROVIDER)
                     .merchantOrderId(merchantOrderId)
                     .transactionId(transactionId)
                     .state(state)
@@ -165,11 +180,132 @@ public class PhonePePaymentService implements PaymentService {
 
     @Override
     public boolean verifyPayment(PlaceOrderRequest request, BigDecimal amount) {
-        String merchantOrderId = firstNonBlank(request.getPhonepeMerchantOrderId(), request.getRazorpayOrderId());
+        if (!isBlank(request.getRazorpayOrderId()) || RAZORPAY_PROVIDER.equalsIgnoreCase(request.getPaymentProvider())) {
+            return verifyRazorpayPayment(request);
+        }
+        String merchantOrderId = request.getPhonepeMerchantOrderId();
         return getPaymentStatus(merchantOrderId).isSuccess();
     }
 
-    private boolean isConfigured() {
+    private PaymentOrderResponse createRazorpayPaymentOrder(BigDecimal safeAmount, long amountSubunits, String receipt) {
+        String localOrderId = "RZP-" + System.currentTimeMillis();
+        if (!isRazorpayConfigured()) {
+            return PaymentOrderResponse.builder()
+                    .provider(RAZORPAY_PROVIDER)
+                    .configured(false)
+                    .keyId(trimToEmpty(appProperties.getRazorpay().getKeyId()))
+                    .orderId(localOrderId)
+                    .receipt(receipt)
+                    .currency("INR")
+                    .amount(safeAmount)
+                    .amountSubunits(amountSubunits)
+                    .build();
+        }
+
+        try {
+            String payload = objectMapper.writeValueAsString(Map.of(
+                    "amount", amountSubunits,
+                    "currency", "INR",
+                    "receipt", trimReceipt(receipt),
+                    "notes", Map.of("source", "website_checkout")
+            ));
+
+            HttpRequest request = HttpRequest.newBuilder(URI.create(RAZORPAY_API_BASE_URL + "/orders"))
+                    .POST(HttpRequest.BodyPublishers.ofString(payload))
+                    .header("Content-Type", "application/json")
+                    .header("Accept", "application/json")
+                    .header("Authorization", razorpayBasicAuthHeader())
+                    .build();
+            JsonNode body = readRazorpayResponse(httpClient.send(request, HttpResponse.BodyHandlers.ofString()));
+            String orderId = firstText(body, "id");
+            if (isBlank(orderId)) {
+                throw new BusinessException(firstTextOrDefault(
+                        body,
+                        "Unable to create Razorpay payment",
+                        "error.description",
+                        "error.reason",
+                        "message"
+                ));
+            }
+            return PaymentOrderResponse.builder()
+                    .provider(RAZORPAY_PROVIDER)
+                    .configured(true)
+                    .keyId(appProperties.getRazorpay().getKeyId().trim())
+                    .orderId(orderId)
+                    .receipt(firstNonBlank(firstText(body, "receipt"), receipt))
+                    .currency(firstNonBlank(firstText(body, "currency"), "INR"))
+                    .amount(safeAmount)
+                    .amountSubunits(amountSubunits)
+                    .build();
+        } catch (IOException | InterruptedException exception) {
+            if (exception instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BusinessException("Unable to create Razorpay payment");
+        }
+    }
+
+    private PaymentStatusResponse getRazorpayPaymentStatus(String orderId) {
+        if (!isRazorpayConfigured()) {
+            return PaymentStatusResponse.builder()
+                    .provider(RAZORPAY_PROVIDER)
+                    .merchantOrderId(orderId)
+                    .state("LOCAL_TEST")
+                    .paymentState("SUCCESS")
+                    .paymentMode("TEST")
+                    .transactionId("local-" + orderId)
+                    .success(true)
+                    .build();
+        }
+
+        try {
+            HttpRequest request = HttpRequest.newBuilder(URI.create(RAZORPAY_API_BASE_URL + "/orders/" + encode(orderId)))
+                    .GET()
+                    .header("Accept", "application/json")
+                    .header("Authorization", razorpayBasicAuthHeader())
+                    .build();
+            JsonNode body = readRazorpayResponse(httpClient.send(request, HttpResponse.BodyHandlers.ofString()));
+            String status = firstText(body, "status");
+            long amountPaid = parseLong(firstText(body, "amount_paid"), 0L);
+            boolean success = "paid".equalsIgnoreCase(status) || amountPaid > 0;
+            return PaymentStatusResponse.builder()
+                    .provider(RAZORPAY_PROVIDER)
+                    .merchantOrderId(orderId)
+                    .state(status)
+                    .paymentState(success ? "SUCCESS" : status)
+                    .paymentMode(RAZORPAY_PROVIDER)
+                    .transactionId(orderId)
+                    .success(success)
+                    .build();
+        } catch (IOException | InterruptedException exception) {
+            if (exception instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BusinessException("Unable to verify Razorpay payment");
+        }
+    }
+
+    private boolean verifyRazorpayPayment(PlaceOrderRequest request) {
+        if (!isRazorpayConfigured()) {
+            return !isBlank(request.getRazorpayOrderId());
+        }
+        if (isBlank(request.getRazorpayOrderId()) || isBlank(request.getRazorpayPaymentId()) || isBlank(request.getRazorpaySignature())) {
+            return false;
+        }
+        String payload = request.getRazorpayOrderId().trim() + "|" + request.getRazorpayPaymentId().trim();
+        return constantTimeEquals(hmacSha256(payload, appProperties.getRazorpay().getKeySecret()), request.getRazorpaySignature().trim());
+    }
+
+    private boolean isRazorpayProvider() {
+        return RAZORPAY_PROVIDER.equalsIgnoreCase(trimToEmpty(appProperties.getPayment().getProvider()));
+    }
+
+    private boolean isRazorpayConfigured() {
+        return !isBlank(appProperties.getRazorpay().getKeyId())
+                && !isBlank(appProperties.getRazorpay().getKeySecret());
+    }
+
+    private boolean isPhonePeConfigured() {
         return !isBlank(appProperties.getPhonepe().getClientId())
                 && !isBlank(appProperties.getPhonepe().getClientSecret());
     }
@@ -230,6 +366,21 @@ public class PhonePePaymentService implements PaymentService {
                     "error.description",
                     "details.0.message",
                     "error"
+            ));
+        }
+        return body;
+    }
+
+    private JsonNode readRazorpayResponse(HttpResponse<String> response) throws IOException {
+        JsonNode body = objectMapper.readTree(response.body());
+        if (response.statusCode() >= 400) {
+            throw new BusinessException(firstTextOrDefault(
+                    body,
+                    "Razorpay request failed",
+                    "error.description",
+                    "error.reason",
+                    "error.source",
+                    "message"
             ));
         }
         return body;
@@ -310,6 +461,38 @@ public class PhonePePaymentService implements PaymentService {
         return URLEncoder.encode(value, StandardCharsets.UTF_8);
     }
 
+    private String razorpayBasicAuthHeader() {
+        String credentials = appProperties.getRazorpay().getKeyId().trim() + ":" + appProperties.getRazorpay().getKeySecret().trim();
+        return "Basic " + Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private String hmacSha256(String payload, String secret) {
+        try {
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(secret.trim().getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+            byte[] digest = mac.doFinal(payload.getBytes(StandardCharsets.UTF_8));
+            StringBuilder builder = new StringBuilder(digest.length * 2);
+            for (byte item : digest) {
+                builder.append(String.format("%02x", item));
+            }
+            return builder.toString();
+        } catch (Exception exception) {
+            throw new BusinessException("Unable to verify Razorpay payment");
+        }
+    }
+
+    private boolean constantTimeEquals(String expected, String actual) {
+        return MessageDigest.isEqual(
+                trimToEmpty(expected).getBytes(StandardCharsets.UTF_8),
+                trimToEmpty(actual).getBytes(StandardCharsets.UTF_8)
+        );
+    }
+
+    private String trimReceipt(String receipt) {
+        String trimmed = firstNonBlank(receipt, "checkout");
+        return trimmed.length() > 40 ? trimmed.substring(0, 40) : trimmed;
+    }
+
     private boolean isSuccessState(String value) {
         if (isBlank(value)) {
             return false;
@@ -368,5 +551,9 @@ public class PhonePePaymentService implements PaymentService {
 
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
+    }
+
+    private String trimToEmpty(String value) {
+        return value == null ? "" : value.trim();
     }
 }
