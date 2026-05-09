@@ -1,5 +1,5 @@
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import BillingPage from './pages/BillingPage';
 import ProductsPage from './pages/ProductsPage';
 import CustomersPage from './pages/CustomersPage';
@@ -114,6 +114,24 @@ export default function App() {
   const [branding, setBranding] = useState(() => getStoredBranding());
   const [siteVisitCount, setSiteVisitCount] = useState(() => getStoredVisitCount());
 
+  const handleLogout = useCallback(() => {
+    clearAuthSession();
+    setAuth(null);
+  }, []);
+
+  useEffect(() => {
+    if (!auth) {
+      return undefined;
+    }
+    const expiresAt = Date.parse(auth.expiresAt || '');
+    if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+      handleLogout();
+      return undefined;
+    }
+    const timeoutId = window.setTimeout(handleLogout, Math.min(expiresAt - Date.now(), 2_147_483_647));
+    return () => window.clearTimeout(timeoutId);
+  }, [auth, handleLogout]);
+
   useEffect(() => {
     document.title = branding.shopName || defaultBranding.shopName;
   }, [branding.shopName]);
@@ -147,11 +165,6 @@ export default function App() {
       cancelled = true;
     };
   }, [location.pathname, location.search]);
-
-  const handleLogout = () => {
-    clearAuthSession();
-    setAuth(null);
-  };
 
   return (
     <Routes>

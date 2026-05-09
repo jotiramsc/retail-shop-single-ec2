@@ -7,6 +7,7 @@ import com.retailshop.dto.CustomerOtpVerifyRequest;
 import com.retailshop.dto.LoginRequest;
 import com.retailshop.dto.LoginResponse;
 import com.retailshop.entity.StaffUser;
+import com.retailshop.security.StaffJwtService;
 import com.retailshop.service.CustomerAuthService;
 import com.retailshop.service.StaffUserService;
 import jakarta.validation.Valid;
@@ -26,6 +27,7 @@ public class AuthController {
     private final AuthenticationManager authenticationManager;
     private final StaffUserService staffUserService;
     private final CustomerAuthService customerAuthService;
+    private final StaffJwtService staffJwtService;
 
     @PostMapping("/login")
     public LoginResponse login(@Valid @RequestBody LoginRequest request) {
@@ -33,12 +35,15 @@ public class AuthController {
                 new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword()));
 
         StaffUser user = staffUserService.getByUsername(request.getUsername());
+        StaffJwtService.StaffToken token = staffJwtService.issueToken(user);
 
         return LoginResponse.builder()
                 .username(user.getUsername())
                 .role(user.getRole().name())
                 .displayName(user.getDisplayName())
                 .permissions(staffUserService.getEffectivePermissions(user).stream().map(Enum::name).toList())
+                .token("Bearer " + token.token())
+                .expiresAt(token.expiresAt())
                 .build();
     }
 

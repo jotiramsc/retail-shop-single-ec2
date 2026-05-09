@@ -3,6 +3,7 @@ package com.retailshop.config;
 import com.retailshop.entity.StaffUser;
 import com.retailshop.enums.AppPermission;
 import com.retailshop.security.CustomerJwtFilter;
+import com.retailshop.security.StaffJwtFilter;
 import com.retailshop.service.StaffUserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -33,6 +34,7 @@ import java.util.stream.Stream;
 public class SecurityConfig {
 
     private final StaffUserService staffUserService;
+    private final StaffJwtFilter staffJwtFilter;
     private final CustomerJwtFilter customerJwtFilter;
     @Value("${app.cors.allowed-origins}")
     private String allowedOrigins;
@@ -74,8 +76,9 @@ public class SecurityConfig {
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/products/catalog", "/api/products/catalog/home", "/api/products/catalog/trending").permitAll()
                         .requestMatchers("/api/cart/**", "/api/address/**", "/api/order/**", "/api/orders/**", "/api/checkout/**", "/api/customer-profile/**").hasRole("CUSTOMER")
                         .anyRequest().authenticated())
-                .addFilterBefore(customerJwtFilter, UsernamePasswordAuthenticationFilter.class)
-                .httpBasic(Customizer.withDefaults());
+                .addFilterBefore(staffJwtFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(customerJwtFilter, StaffJwtFilter.class)
+                .httpBasic(httpBasic -> httpBasic.disable());
 
         return http.build();
     }

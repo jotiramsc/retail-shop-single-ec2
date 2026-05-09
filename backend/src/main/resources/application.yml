@@ -41,6 +41,9 @@ app:
   low-stock-threshold: 5
   slow-moving-min-stock: 10
   slow-moving-max-units-sold: 3
+  staff-auth:
+    jwt-secret: ${STAFF_JWT_SECRET:local-dev-staff-secret-change-me}
+    jwt-ttl-minutes: ${STAFF_JWT_TTL_MINUTES:480}
   aws:
     region: ${AWS_REGION:us-east-1}
     s3-bucket: ${AWS_S3_BUCKET:}

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { retailService } from '../services/retailService';
-import { buildBasicToken, storeAuthSession } from '../utils/auth';
+import { storeAuthSession } from '../utils/auth';
 import { defaultBranding } from '../utils/branding';
 import { getApiErrorMessage } from '../utils/validation';
 
@@ -34,11 +34,7 @@ export default function LoginPage({ onLogin, branding = defaultBranding }) {
     setError('');
     setSubmitting(true);
     try {
-      const profile = await retailService.login(form);
-      const session = {
-        ...profile,
-        token: buildBasicToken(form.username, form.password)
-      };
+      const session = await retailService.login(form);
       storeAuthSession(session);
       onLogin(session);
     } catch (requestError) {

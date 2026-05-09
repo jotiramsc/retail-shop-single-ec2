@@ -24,6 +24,7 @@ public class AppProperties {
     private int slowMovingMaxUnitsSold = 3;
 
     private Aws aws = new Aws();
+    private StaffAuth staffAuth = new StaffAuth();
     private CustomerAuth customerAuth = new CustomerAuth();
     private Msg91 msg91 = new Msg91();
     private Pricing pricing = new Pricing();
@@ -47,6 +48,13 @@ public class AppProperties {
 
         @Min(1)
         private long uploadMaxBytes = 5_242_880L;
+    }
+
+    @Getter
+    @Setter
+    public static class StaffAuth {
+        private String jwtSecret = "local-dev-staff-secret-change-me";
+        private long jwtTtlMinutes = 480L;
     }
 
     @Getter

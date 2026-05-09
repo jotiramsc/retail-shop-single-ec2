@@ -25,7 +25,9 @@ public class CustomerJwtFilter extends OncePerRequestFilter {
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
         String authorization = request.getHeader("Authorization");
-        if (authorization != null && authorization.startsWith("Bearer ")) {
+        if (SecurityContextHolder.getContext().getAuthentication() == null
+                && authorization != null
+                && authorization.startsWith("Bearer ")) {
             customerJwtService.parse(authorization.substring("Bearer ".length()))
                     .ifPresent(principal -> SecurityContextHolder.getContext().setAuthentication(
                             new UsernamePasswordAuthenticationToken(
