@@ -57,6 +57,7 @@ public class MarketingProperties {
     @Setter
     public static class WhatsApp {
         private String provider = "GUPSHUP";
+        private String phoneNumberId = "";
     }
 
     @Getter

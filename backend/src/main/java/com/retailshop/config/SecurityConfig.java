@@ -62,6 +62,7 @@ public class SecurityConfig {
                                 "/app/**").permitAll()
                         .requestMatchers("/actuator/health", "/api/auth/login", "/api/auth/send-otp", "/api/auth/verify-otp").permitAll()
                         .requestMatchers("/api/phonepe/webhook", "/api/razorpay/webhook").permitAll()
+                        .requestMatchers("/api/whatsapp/webhook", "/api/whatsapp/webhook/**").permitAll()
                         .requestMatchers("/api/omnichannel/webhooks/**").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/images/**").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.HEAD, "/api/images/**").permitAll()

@@ -131,6 +131,7 @@ marketing:
     graph-version: ${MARKETING_META_GRAPH_VERSION:${META_GRAPH_VERSION:v23.0}}
   whatsapp:
     provider: ${MARKETING_WHATSAPP_PROVIDER:GUPSHUP}
+    phone-number-id: ${MARKETING_WHATSAPP_PHONE_NUMBER_ID:}
   twilio:
     account-sid: ${MARKETING_TWILIO_ACCOUNT_SID:${TWILIO_ACCOUNT_SID:}}
     auth-token: ${MARKETING_TWILIO_AUTH_TOKEN:${TWILIO_AUTH_TOKEN:}}
