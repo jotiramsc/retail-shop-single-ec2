@@ -24,7 +24,7 @@ The original request mentioned MySQL, but this implementation uses PostgreSQL be
 - Centralized checkout and billing pricing via `OrderPricingService`
 - Single active coupon flow with automatic recalculation across checkout, orders, and billing
 - Offer automation for smart suggestions
-- WhatsApp OTP and customer messaging over Twilio
+- WhatsApp OTP, marketing, and customer bot messaging over Meta WhatsApp Cloud API
 - Instagram and Facebook publishing over Meta Graph API
 - Marketing Automation with AI draft generation, approval queue, scheduling, publishing logs, and analytics
 
@@ -131,40 +131,24 @@ export DB_PASSWORD=retail_pass
 Optional integration env vars:
 
 ```bash
-export TWILIO_ACCOUNT_SID=...
-export TWILIO_AUTH_TOKEN=...
-export TWILIO_WHATSAPP_FROM=whatsapp:+14155238886
-export TWILIO_WHATSAPP_OTP_CONTENT_SID=
-export TWILIO_WHATSAPP_ORDER_CONTENT_SID=
-export TWILIO_WHATSAPP_OFFER_CONTENT_SID=
-export GUPSHUP_API_KEY=
-export GUPSHUP_APP_NAME=
-export GUPSHUP_SOURCE_NUMBER=
-export GUPSHUP_OTP_TEMPLATE_ID=
 export META_ACCESS_TOKEN=
+export META_WHATSAPP_PHONE_NUMBER_ID=
+export META_WHATSAPP_OTP_TEMPLATE_NAME=
+export META_WHATSAPP_OTP_TEMPLATE_LANGUAGE=en_US
 export FB_PAGE_ID=
 export IG_BUSINESS_ACCOUNT_ID=
 export META_GRAPH_VERSION=v23.0
 export MARKETING_AI_ENABLED=true
 export MARKETING_OPENAI_API_KEY=
 export MARKETING_OPENAI_MODEL=gpt-4.1-mini
-export MARKETING_IMAGE_PROVIDER=LEONARDO
-export MARKETING_LEONARDO_API_KEY=
-export MARKETING_LEONARDO_MODEL_ID=de7d3faf-762f-48e0-b3b7-9d0ac3a3fcf3
-export MARKETING_LEONARDO_STYLE_UUID=111dc692-d470-4eec-b791-3475abac4c46
+export MARKETING_OPENAI_IMAGE_MODEL=gpt-image-1.5
+export MARKETING_OPENAI_IMAGE_SIZE=1024x1024
+export MARKETING_OPENAI_IMAGE_QUALITY=medium
 export MARKETING_META_ACCESS_TOKEN=
 export MARKETING_INSTAGRAM_BUSINESS_ACCOUNT_ID=
 export MARKETING_FACEBOOK_PAGE_ID=
 export MARKETING_META_GRAPH_VERSION=v23.0
-export MARKETING_WHATSAPP_PROVIDER=GUPSHUP
-export MARKETING_GUPSHUP_API_KEY=
-export MARKETING_GUPSHUP_APP_NAME=
-export MARKETING_GUPSHUP_SOURCE_NUMBER=
-export MARKETING_GUPSHUP_TEMPLATE_ID=
-export MARKETING_TWILIO_ACCOUNT_SID=
-export MARKETING_TWILIO_AUTH_TOKEN=
-export MARKETING_TWILIO_WHATSAPP_FROM=
-export MARKETING_TWILIO_OFFER_CONTENT_SID=
+export MARKETING_WHATSAPP_PHONE_NUMBER_ID=
 export CHECKOUT_TAX_PERCENT=0
 export CHECKOUT_DELIVERY_CHARGE=0
 export CHECKOUT_FREE_DELIVERY_MIN_ORDER=0
@@ -262,14 +246,13 @@ Sample SKUs:
 - Stock thresholds and slow-moving automation thresholds are configurable in `application.yml`
 - Frontend is built into static assets and served by Nginx in Docker
 - The root `Dockerfile` packages the frontend into Spring Boot for a single-container app deploy
-- Twilio WhatsApp delivery requires either a registered sender or the joined Twilio sandbox
+- Meta WhatsApp Cloud API requires a phone number id, permanent access token, customer opt-in, and approved templates for OTP/marketing outside the customer-service window
 - Meta publishing requires Page and Instagram Business credentials with publish permissions
-- Gupshup marketing publishing needs API key, app name, source number, and an approved WhatsApp template id
 - `schema.sql` and `data.sql` bootstrap the database predictably
 
 ## Next Production Upgrades
 
-- Move Twilio and Meta secrets from plain ECS env vars into AWS Secrets Manager
+- Keep Meta, OpenAI, Razorpay, and database secrets in AWS Secrets Manager
 - Add richer per-recipient WhatsApp delivery tracking and template management
 - Add audit tables and inventory movement ledger
 - Add pagination and search endpoints

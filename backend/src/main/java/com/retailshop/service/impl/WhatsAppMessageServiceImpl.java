@@ -6,7 +6,10 @@ import com.retailshop.config.AppProperties;
 import com.retailshop.entity.Campaign;
 import com.retailshop.entity.Customer;
 import com.retailshop.entity.CustomerOrder;
+import com.retailshop.enums.OrderStatus;
+import com.retailshop.enums.WhatsAppTemplateKey;
 import com.retailshop.service.MarketingChannelResult;
+import com.retailshop.service.OtpDeliveryService;
 import com.retailshop.service.WhatsAppMessageService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,26 +24,19 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Base64;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Service
-public class WhatsAppMessageServiceImpl implements WhatsAppMessageService {
-
-    private static final String TWILIO_SANDBOX_WHATSAPP_NUMBER = "whatsapp:+14155238886";
-    private static final String TWILIO_SANDBOX_OTP_TEMPLATE_NAME = "verifications_2fa_template";
-    private static final String TWILIO_AUTHENTICATION_TEMPLATE_TYPE = "whatsapp/authentication";
+public class WhatsAppMessageServiceImpl implements WhatsAppMessageService, OtpDeliveryService {
 
     private final AppProperties appProperties;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
-    private volatile OtpTemplateResolution cachedOtpTemplateResolution;
 
     @Autowired
     public WhatsAppMessageServiceImpl(AppProperties appProperties, ObjectMapper objectMapper) {
@@ -55,80 +51,263 @@ public class WhatsAppMessageServiceImpl implements WhatsAppMessageService {
 
     @Override
     public boolean isConfigured() {
-        AppProperties.Twilio twilio = appProperties.getTwilio();
-        return twilio != null
-                && twilio.getAccountSid() != null
-                && !twilio.getAccountSid().isBlank()
-                && twilio.getAuthToken() != null
-                && !twilio.getAuthToken().isBlank()
-                && twilio.getWhatsappFrom() != null
-                && !twilio.getWhatsappFrom().isBlank();
+        if (useGupshup()) {
+            AppProperties.Gupshup gupshup = appProperties.getGupshup();
+            return gupshup != null
+                    && hasText(gupshup.getApiKey())
+                    && hasText(gupshup.getSourceNumber())
+                    && hasText(gupshup.getAppName());
+        }
+        AppProperties.Meta meta = appProperties.getMeta();
+        return meta != null
+                && hasText(meta.getAccessToken())
+                && hasText(meta.getWhatsappPhoneNumberId());
+    }
+
+    @Override
+    public String getChannel() {
+        return "WHATSAPP";
     }
 
     @Override
     public MarketingChannelResult sendOtp(String mobile, String otp, long otpTtlMinutes) {
-        String body = "Your login code is " + otp + ". It expires in " + otpTtlMinutes + " minutes.";
-        OtpTemplateResolution otpTemplate = resolveOtpTemplate();
-        Map<String, String> contentVariables = otpTemplate.authenticationTemplate()
-                ? Map.of("1", otp)
-                : Map.of(
-                "1", "login",
-                "2", otp
-        );
-        if (otpTemplate.requiresTemplateButMissing()) {
+        if (useGupshup()) {
+            AppProperties.Gupshup gupshup = appProperties.getGupshup();
+            String templateId = gupshup == null || gupshup.getTemplates() == null ? "" : gupshup.getTemplates().getOtp();
+            if (!hasText(templateId)) {
+                return MarketingChannelResult.builder()
+                        .success(false)
+                        .errorMessage("Gupshup OTP template id is not configured")
+                        .build();
+            }
+            MarketingChannelResult result = sendGupshupTemplateMessage(
+                    mobile,
+                    templateId,
+                    List.of(safeText(otp), "Login", safeText(otp), "Login")
+            );
+            if (!result.isSuccess()) {
+                log.warn("Gupshup WhatsApp OTP template send failed for {}: {}", mobile, result.getErrorMessage());
+            }
+            return result;
+        }
+
+        AppProperties.Meta meta = appProperties.getMeta();
+        if (!hasText(meta.getWhatsappOtpTemplateName())) {
             return MarketingChannelResult.builder()
                     .success(false)
-                    .errorMessage("Twilio WhatsApp OTP template is not configured")
+                    .errorMessage("WhatsApp OTP template is not configured for the selected sender phone")
                     .build();
         }
-        return sendSingleMessage(mobile, body, otpTemplate.contentSid(), contentVariables);
+
+        MarketingChannelResult templateResult = sendOtpTemplateMessage(
+                mobile,
+                meta.getWhatsappOtpTemplateName(),
+                defaultString(meta.getWhatsappOtpTemplateLanguage(), "en_US"),
+                otp
+        );
+        if (!templateResult.isSuccess()) {
+            log.warn("WhatsApp OTP template send failed for {}: {}", mobile, templateResult.getErrorMessage());
+        }
+        return templateResult;
+    }
+
+    @Override
+    public MarketingChannelResult sendTemplate(String mobile, WhatsAppTemplateKey templateKey, List<String> variables) {
+        if (useGupshup()) {
+            String templateId = resolveGupshupTemplateId(templateKey);
+            if (hasText(templateId)) {
+                MarketingChannelResult templateResult = sendGupshupTemplateMessage(mobile, templateId, variables);
+                if (templateResult.isSuccess()) {
+                    return templateResult;
+                }
+                log.warn("Gupshup WhatsApp template {} failed, falling back to text: {}", templateKey, templateResult.getErrorMessage());
+            }
+            return sendSingleTextMessage(mobile, fallbackText(templateKey, variables));
+        }
+
+        TemplateSpec template = resolveTemplate(templateKey);
+        if (hasText(template.name())) {
+            MarketingChannelResult templateResult = sendTemplateMessage(mobile, template.name(), template.language(), variables);
+            if (templateResult.isSuccess() || !canFallbackToText(templateResult.getErrorMessage())) {
+                return templateResult;
+            }
+            log.warn("WhatsApp template {} failed, falling back to text for test sender: {}", templateKey, templateResult.getErrorMessage());
+        }
+        return sendSingleTextMessage(mobile, fallbackText(templateKey, variables));
+    }
+
+    @Override
+    public MarketingChannelResult sendText(String mobile, String body) {
+        return sendSingleTextMessage(mobile, safeText(body));
+    }
+
+    @Override
+    public MarketingChannelResult sendImage(String mobile, String imageUrl, String caption) {
+        String safeImageUrl = safeText(imageUrl);
+        if (!hasText(safeImageUrl)) {
+            return MarketingChannelResult.builder()
+                    .success(false)
+                    .errorMessage("WhatsApp image URL is required")
+                    .build();
+        }
+        if (useGupshup()) {
+            return sendGupshupImageMessage(mobile, safeImageUrl, safeText(caption));
+        }
+        if (!isConfigured()) {
+            log.info("WhatsApp image fallback log for {}: {}", mobile, safeImageUrl);
+            return MarketingChannelResult.builder()
+                    .success(false)
+                    .errorMessage(whatsAppConfigurationError())
+                    .build();
+        }
+        Map<String, Object> image = new LinkedHashMap<>();
+        image.put("link", safeImageUrl);
+        if (hasText(caption)) {
+            image.put("caption", safeText(caption));
+        }
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("messaging_product", "whatsapp");
+        payload.put("to", formatWhatsAppRecipient(mobile));
+        payload.put("type", "image");
+        payload.put("image", image);
+        return sendMetaMessage(payload);
+    }
+
+    @Override
+    public MarketingChannelResult sendOrderConfirmation(CustomerOrder order) {
+        return sendTemplate(orderMobile(order), WhatsAppTemplateKey.ORDER_CONFIRMATION, List.of(
+                customerName(order),
+                orderNumber(order),
+                formatCurrency(order.getFinalAmount()),
+                estimatedDeliveryDate()
+        ));
+    }
+
+    @Override
+    public MarketingChannelResult sendOrderDispatched(CustomerOrder order, String trackingId, String trackingUrl) {
+        return sendTemplate(orderMobile(order), WhatsAppTemplateKey.ORDER_DISPATCHED, List.of(
+                customerName(order),
+                orderNumber(order),
+                defaultString(trackingId, "Will be shared soon"),
+                defaultString(trackingUrl, appWebsiteUrl())
+        ));
+    }
+
+    @Override
+    public MarketingChannelResult sendOrderDelivered(CustomerOrder order) {
+        return sendTemplate(orderMobile(order), WhatsAppTemplateKey.ORDER_DELIVERED, List.of(customerName(order), orderNumber(order)));
+    }
+
+    @Override
+    public MarketingChannelResult sendOrderCancelled(CustomerOrder order) {
+        return sendTemplate(orderMobile(order), WhatsAppTemplateKey.ORDER_CANCELLED, List.of(customerName(order), orderNumber(order)));
+    }
+
+    @Override
+    public MarketingChannelResult sendOrderReturned(CustomerOrder order) {
+        return sendTemplate(orderMobile(order), WhatsAppTemplateKey.ORDER_RETURNED, List.of(customerName(order), orderNumber(order)));
+    }
+
+    @Override
+    public MarketingChannelResult sendRefundInitiated(CustomerOrder order, String refundAmount) {
+        return sendTemplate(orderMobile(order), WhatsAppTemplateKey.REFUND_INITIATED, List.of(
+                customerName(order),
+                orderNumber(order),
+                defaultString(refundAmount, formatCurrency(order.getFinalAmount()))
+        ));
+    }
+
+    @Override
+    public MarketingChannelResult sendPaymentSuccess(CustomerOrder order) {
+        return sendTemplate(orderMobile(order), WhatsAppTemplateKey.PAYMENT_SUCCESS, List.of(
+                customerName(order),
+                orderNumber(order),
+                formatCurrency(order.getFinalAmount())
+        ));
+    }
+
+    @Override
+    public MarketingChannelResult sendPaymentFailed(CustomerOrder order) {
+        return sendTemplate(orderMobile(order), WhatsAppTemplateKey.PAYMENT_FAILED, List.of(
+                customerName(order),
+                orderNumber(order),
+                formatCurrency(order.getFinalAmount())
+        ));
+    }
+
+    @Override
+    public MarketingChannelResult sendBotWelcome(String mobile, String customerName) {
+        return sendTemplate(mobile, WhatsAppTemplateKey.BOT_WELCOME, List.of(defaultString(customerName, "Customer")));
+    }
+
+    @Override
+    public MarketingChannelResult sendBotMenu(String mobile, String customerName) {
+        return sendTemplate(mobile, WhatsAppTemplateKey.BOT_MENU, List.of(defaultString(customerName, "Customer")));
+    }
+
+    @Override
+    public MarketingChannelResult sendSupportEscalation(String mobile, String customerName) {
+        return sendTemplate(mobile, WhatsAppTemplateKey.SUPPORT_ESCALATION, List.of(defaultString(customerName, "Customer")));
+    }
+
+    @Override
+    public MarketingChannelResult sendOutOfOffice(String mobile, String customerName) {
+        return sendTemplate(mobile, WhatsAppTemplateKey.OUT_OF_OFFICE, List.of(defaultString(customerName, "Customer")));
+    }
+
+    @Override
+    public MarketingChannelResult sendFeedbackRequest(CustomerOrder order) {
+        return sendTemplate(orderMobile(order), WhatsAppTemplateKey.FEEDBACK_REQUEST, List.of(customerName(order), orderNumber(order)));
     }
 
     @Override
     public MarketingChannelResult sendOrderUpdate(CustomerOrder order) {
-        String body = "Order " + order.getOrderNumber()
-                + " is confirmed. Total " + formatCurrency(order.getFinalAmount())
-                + ". Payment status: " + safeText(order.getPaymentStatus()) + ".";
-        return sendSingleMessage(
-                order.getCustomer() != null ? order.getCustomer().getMobile() : "",
-                body,
-                appProperties.getTwilio().getOrderUpdateContentSid(),
-                Map.of(
-                        "1", safeText(order.getOrderNumber()),
-                        "2", formatCurrency(order.getFinalAmount()),
-                        "3", safeText(order.getStatus() != null ? order.getStatus().name() : order.getPaymentStatus()),
-                        "4", ""
-                )
-        );
+        if (order == null || order.getStatus() == null) {
+            return MarketingChannelResult.builder()
+                    .success(false)
+                    .errorMessage("Order status is required for WhatsApp update")
+                    .build();
+        }
+        if (order.getStatus() == OrderStatus.SHIPPED) {
+            return sendOrderDispatched(order, null, null);
+        }
+        if (order.getStatus() == OrderStatus.DELIVERED || order.getStatus() == OrderStatus.COMPLETED) {
+            return sendOrderDelivered(order);
+        }
+        if (order.getStatus() == OrderStatus.CANCELLED) {
+            return sendOrderCancelled(order);
+        }
+        if (order.getStatus() == OrderStatus.RETURNED) {
+            return sendOrderReturned(order);
+        }
+        if (order.getStatus() == OrderStatus.REFUND_INITIATED) {
+            return sendRefundInitiated(order, null);
+        }
+        if (order.getStatus() == OrderStatus.PAYMENT_FAILED) {
+            return sendPaymentFailed(order);
+        }
+        return sendOrderConfirmation(order);
     }
 
     @Override
     public MarketingChannelResult broadcastOffer(List<Customer> customers, String content) {
-        return broadcast(customers, content, appProperties.getTwilio().getOfferContentSid(), Map.of(
-                "1", safeText(content)
-        ));
+        return broadcast(customers, safeText(content));
     }
 
     @Override
     public MarketingChannelResult publishCampaign(Campaign campaign, List<Customer> customers) {
-        return broadcast(customers, buildCampaignBody(campaign), appProperties.getTwilio().getOfferContentSid(), Map.of(
-                "1", safeText(campaign.getName()),
-                "2", safeText(campaign.getContent())
-        ));
+        return broadcast(customers, buildCampaignBody(campaign));
     }
 
-    private MarketingChannelResult broadcast(List<Customer> customers,
-                                             String body,
-                                             String contentSid,
-                                             Map<String, String> contentVariables) {
+    private MarketingChannelResult broadcast(List<Customer> customers, String body) {
         if (!isConfigured()) {
             return MarketingChannelResult.builder()
                     .success(false)
-                    .errorMessage("Twilio WhatsApp sender is not configured")
+                    .errorMessage(whatsAppConfigurationError())
                     .build();
         }
         List<Customer> recipients = customers == null ? List.of() : customers.stream()
-                .filter(customer -> customer.getMobile() != null && !customer.getMobile().isBlank())
+                .filter(customer -> hasText(customer.getMobile()))
                 .toList();
         if (recipients.isEmpty()) {
             return MarketingChannelResult.builder()
@@ -138,70 +317,306 @@ public class WhatsAppMessageServiceImpl implements WhatsAppMessageService {
         }
 
         int sentCount = 0;
+        String firstMessageId = null;
         String firstError = null;
         for (Customer customer : recipients) {
-            MarketingChannelResult result = sendSingleMessage(customer.getMobile(), body, contentSid, contentVariables);
+            MarketingChannelResult result = sendSingleTextMessage(customer.getMobile(), body);
             if (result.isSuccess()) {
                 sentCount++;
-            } else if (firstError == null) {
+                if (!hasText(firstMessageId)) {
+                    firstMessageId = result.getResponseId();
+                }
+            } else if (!hasText(firstError)) {
                 firstError = result.getErrorMessage();
             }
         }
 
         return MarketingChannelResult.builder()
-                .success(sentCount == recipients.size())
-                .responseId("broadcast:sent=" + sentCount + "/" + recipients.size())
-                .errorMessage(firstError)
+                .success(sentCount > 0)
+                .responseId(hasText(firstMessageId) ? firstMessageId : "broadcast:sent=" + sentCount + "/" + recipients.size())
+                .errorMessage(sentCount == recipients.size() ? null : firstError)
                 .build();
     }
 
-    private MarketingChannelResult sendSingleMessage(String mobile,
-                                                     String body,
-                                                     String contentSid,
-                                                     Map<String, String> contentVariables) {
+    private MarketingChannelResult sendSingleTextMessage(String mobile, String body) {
+        if (useGupshup()) {
+            return sendGupshupTextMessage(mobile, body);
+        }
         if (!isConfigured()) {
             log.info("WhatsApp fallback log for {}: {}", mobile, body);
             return MarketingChannelResult.builder()
                     .success(false)
-                    .errorMessage("Twilio WhatsApp sender is not configured")
+                    .errorMessage(whatsAppConfigurationError())
                     .build();
         }
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("messaging_product", "whatsapp");
+        payload.put("to", formatWhatsAppRecipient(mobile));
+        payload.put("type", "text");
+        payload.put("text", Map.of(
+                "preview_url", true,
+                "body", body
+        ));
+        return sendMetaMessage(payload);
+    }
 
+    private MarketingChannelResult sendTemplateMessage(String mobile, String templateName, String languageCode, List<String> bodyParams) {
+        if (!isConfigured()) {
+            return MarketingChannelResult.builder()
+                    .success(false)
+                    .errorMessage(whatsAppConfigurationError())
+                    .build();
+        }
+        List<Map<String, String>> parameters = bodyParams == null ? List.of() : bodyParams.stream()
+                .map(value -> Map.of("type", "text", "text", safeText(value)))
+                .toList();
+
+        Map<String, Object> template = new LinkedHashMap<>();
+        template.put("name", templateName.trim());
+        template.put("language", Map.of("code", defaultString(languageCode, "en_US")));
+        if (!parameters.isEmpty()) {
+            template.put("components", List.of(Map.of(
+                    "type", "body",
+                    "parameters", parameters
+            )));
+        }
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("messaging_product", "whatsapp");
+        payload.put("to", formatWhatsAppRecipient(mobile));
+        payload.put("type", "template");
+        payload.put("template", template);
+        return sendMetaMessage(payload);
+    }
+
+    private MarketingChannelResult sendOtpTemplateMessage(String mobile, String templateName, String languageCode, String otp) {
+        if (!isConfigured()) {
+            return MarketingChannelResult.builder()
+                    .success(false)
+                    .errorMessage(whatsAppConfigurationError())
+                    .build();
+        }
+        String code = safeText(otp);
+        Map<String, Object> template = new LinkedHashMap<>();
+        template.put("name", templateName.trim());
+        template.put("language", Map.of("code", defaultString(languageCode, "en_US")));
+        template.put("components", List.of(
+                Map.of(
+                        "type", "body",
+                        "parameters", List.of(Map.of("type", "text", "text", code))
+                ),
+                Map.of(
+                        "type", "button",
+                        "sub_type", "url",
+                        "index", "0",
+                        "parameters", List.of(Map.of("type", "text", "text", code))
+                )
+        ));
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("messaging_product", "whatsapp");
+        payload.put("to", formatWhatsAppRecipient(mobile));
+        payload.put("type", "template");
+        payload.put("template", template);
+        return sendMetaMessage(payload);
+    }
+
+    private MarketingChannelResult sendGupshupTextMessage(String mobile, String body) {
+        if (!isConfigured()) {
+            return MarketingChannelResult.builder()
+                    .success(false)
+                    .errorMessage(whatsAppConfigurationError())
+                    .build();
+        }
         try {
-            AppProperties.Twilio twilio = appProperties.getTwilio();
-            Map<String, String> formData = new LinkedHashMap<>();
-            formData.put("From", formatWhatsAppAddress(twilio.getWhatsappFrom()));
-            formData.put("To", formatWhatsAppAddress(mobile));
-            if (contentSid != null && !contentSid.isBlank()) {
-                formData.put("ContentSid", contentSid.trim());
-                formData.put("ContentVariables", objectMapper.writeValueAsString(contentVariables));
-            } else {
-                formData.put("Body", body);
-            }
+            Map<String, String> formData = baseGupshupFormData(mobile);
+            formData.put("message", objectMapper.writeValueAsString(Map.of(
+                    "type", "text",
+                    "text", safeText(body)
+            )));
+            return sendGupshupForm(appProperties.getGupshup().getMessageEndpoint(), formData);
+        } catch (IOException exception) {
+            log.warn("Unable to build Gupshup WhatsApp text payload", exception);
+            return MarketingChannelResult.builder()
+                    .success(false)
+                    .errorMessage("Unable to send WhatsApp message with Gupshup")
+                    .build();
+        }
+    }
 
-            HttpRequest request = HttpRequest.newBuilder(URI.create(
-                            "https://api.twilio.com/2010-04-01/Accounts/" + twilio.getAccountSid().trim() + "/Messages.json"))
+    private MarketingChannelResult sendGupshupImageMessage(String mobile, String imageUrl, String caption) {
+        if (!isConfigured()) {
+            return MarketingChannelResult.builder()
+                    .success(false)
+                    .errorMessage(whatsAppConfigurationError())
+                    .build();
+        }
+        try {
+            Map<String, String> formData = baseGupshupFormData(mobile);
+            Map<String, Object> message = new LinkedHashMap<>();
+            message.put("type", "image");
+            message.put("originalUrl", imageUrl);
+            message.put("previewUrl", imageUrl);
+            if (hasText(caption)) {
+                message.put("caption", safeText(caption));
+            }
+            formData.put("message", objectMapper.writeValueAsString(message));
+            return sendGupshupForm(appProperties.getGupshup().getMessageEndpoint(), formData);
+        } catch (IOException exception) {
+            log.warn("Unable to build Gupshup WhatsApp image payload", exception);
+            return MarketingChannelResult.builder()
+                    .success(false)
+                    .errorMessage("Unable to send WhatsApp image with Gupshup")
+                    .build();
+        }
+    }
+
+    private MarketingChannelResult sendGupshupTemplateMessage(String mobile, String templateId, List<String> params) {
+        if (!isConfigured()) {
+            return MarketingChannelResult.builder()
+                    .success(false)
+                    .errorMessage(whatsAppConfigurationError())
+                    .build();
+        }
+        if (!hasText(templateId)) {
+            return MarketingChannelResult.builder()
+                    .success(false)
+                    .errorMessage("Gupshup template id is required")
+                    .build();
+        }
+        try {
+            Map<String, String> formData = baseGupshupFormData(mobile);
+            List<String> safeParams = params == null ? List.of() : params.stream()
+                    .map(this::safeText)
+                    .toList();
+            formData.put("template", objectMapper.writeValueAsString(Map.of(
+                    "id", templateId.trim(),
+                    "params", safeParams
+            )));
+            return sendGupshupForm(appProperties.getGupshup().getTemplateEndpoint(), formData);
+        } catch (IOException exception) {
+            log.warn("Unable to build Gupshup WhatsApp template payload", exception);
+            return MarketingChannelResult.builder()
+                    .success(false)
+                    .errorMessage("Unable to send WhatsApp template with Gupshup")
+                    .build();
+        }
+    }
+
+    private Map<String, String> baseGupshupFormData(String mobile) {
+        AppProperties.Gupshup gupshup = appProperties.getGupshup();
+        Map<String, String> formData = new LinkedHashMap<>();
+        formData.put("channel", "whatsapp");
+        formData.put("source", digitsOnly(gupshup.getSourceNumber()));
+        formData.put("destination", formatWhatsAppRecipient(mobile));
+        formData.put("src.name", gupshup.getAppName().trim());
+        return formData;
+    }
+
+    private MarketingChannelResult sendGupshupForm(String endpoint, Map<String, String> formData) {
+        AppProperties.Gupshup gupshup = appProperties.getGupshup();
+        int attempts = Math.max(1, gupshup.getMaxAttempts());
+        long retryDelayMs = Math.max(0L, gupshup.getRetryDelayMs());
+        MarketingChannelResult lastResult = null;
+        for (int attempt = 1; attempt <= attempts; attempt++) {
+            lastResult = sendGupshupFormOnce(endpoint, formData);
+            if (lastResult.isSuccess() || attempt == attempts || !shouldRetry(lastResult.getErrorMessage())) {
+                return lastResult;
+            }
+            sleepBeforeRetry(retryDelayMs);
+        }
+        return lastResult == null ? MarketingChannelResult.builder()
+                .success(false)
+                .errorMessage("Unable to send WhatsApp message with Gupshup")
+                .build() : lastResult;
+    }
+
+    private MarketingChannelResult sendGupshupFormOnce(String endpoint, Map<String, String> formData) {
+        try {
+            AppProperties.Gupshup gupshup = appProperties.getGupshup();
+            HttpRequest request = HttpRequest.newBuilder(URI.create(defaultString(endpoint, "https://api.gupshup.io/wa/api/v1/msg")))
                     .POST(HttpRequest.BodyPublishers.ofString(toFormBody(formData)))
-                    .header("authorization", basicAuthHeader())
-                    .header("content-type", "application/x-www-form-urlencoded")
-                    .header("accept", "application/json")
+                    .header("apikey", gupshup.getApiKey().trim())
+                    .header("Content-Type", "application/x-www-form-urlencoded")
+                    .header("Cache-Control", "no-cache")
+                    .header("Accept", "application/json")
                     .build();
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            JsonNode payload = parseJson(response.body());
-            if (response.statusCode() >= 400) {
+            JsonNode body = parseJson(response.body());
+            if (response.statusCode() >= 400 || isGupshupError(body)) {
                 return MarketingChannelResult.builder()
                         .success(false)
-                        .errorMessage(extractError(payload, "Unable to send WhatsApp message"))
+                        .errorMessage(extractGupshupError(body, "Unable to send WhatsApp message with Gupshup"))
                         .build();
             }
             return MarketingChannelResult.builder()
                     .success(true)
-                    .responseId(payload.path("sid").asText(""))
+                    .responseId(firstText(
+                            body.path("messageId").asText(""),
+                            body.path("message").path("messageId").asText(""),
+                            body.path("id").asText(""),
+                            body.path("message").path("id").asText(""),
+                            body.path("messages").path(0).path("id").asText("")
+                    ))
                     .build();
         } catch (IOException | InterruptedException exception) {
             if (exception instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
             }
+            log.warn("Unable to send WhatsApp message through Gupshup", exception);
+            return MarketingChannelResult.builder()
+                    .success(false)
+                    .errorMessage("Unable to send WhatsApp message with Gupshup")
+                    .build();
+        }
+    }
+
+    private MarketingChannelResult sendMetaMessage(Map<String, Object> payload) {
+        AppProperties.Meta meta = appProperties.getMeta();
+        int attempts = Math.max(1, meta.getWhatsappMaxAttempts());
+        long retryDelayMs = Math.max(0L, meta.getWhatsappRetryDelayMs());
+        MarketingChannelResult lastResult = null;
+        for (int attempt = 1; attempt <= attempts; attempt++) {
+            lastResult = sendMetaMessageOnce(payload);
+            if (lastResult.isSuccess() || attempt == attempts || !shouldRetry(lastResult.getErrorMessage())) {
+                return lastResult;
+            }
+            sleepBeforeRetry(retryDelayMs);
+        }
+        return lastResult == null ? MarketingChannelResult.builder()
+                .success(false)
+                .errorMessage("Unable to send WhatsApp message")
+                .build() : lastResult;
+    }
+
+    private MarketingChannelResult sendMetaMessageOnce(Map<String, Object> payload) {
+        try {
+            AppProperties.Meta meta = appProperties.getMeta();
+            String version = defaultString(meta.getGraphVersion(), "v23.0");
+            String endpoint = "https://graph.facebook.com/" + version + "/" + meta.getWhatsappPhoneNumberId().trim() + "/messages";
+            HttpRequest request = HttpRequest.newBuilder(URI.create(endpoint))
+                    .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(payload)))
+                    .header("Authorization", "Bearer " + meta.getAccessToken().trim())
+                    .header("Content-Type", "application/json")
+                    .header("Accept", "application/json")
+                    .build();
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            JsonNode body = parseJson(response.body());
+            if (response.statusCode() >= 400) {
+                return MarketingChannelResult.builder()
+                        .success(false)
+                        .errorMessage(extractError(body, "Unable to send WhatsApp message"))
+                        .build();
+            }
+            return MarketingChannelResult.builder()
+                    .success(true)
+                    .responseId(body.path("messages").path(0).path("id").asText(""))
+                    .build();
+        } catch (IOException | InterruptedException exception) {
+            if (exception instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            log.warn("Unable to send WhatsApp message through Meta", exception);
             return MarketingChannelResult.builder()
                     .success(false)
                     .errorMessage("Unable to send WhatsApp message")
@@ -209,81 +624,109 @@ public class WhatsAppMessageServiceImpl implements WhatsAppMessageService {
         }
     }
 
-    private OtpTemplateResolution resolveOtpTemplate() {
-        AppProperties.Twilio twilio = appProperties.getTwilio();
-        String configuredSid = safeText(twilio.getOtpContentSid());
-        if (!configuredSid.isBlank()) {
-            return new OtpTemplateResolution(configuredSid, configuredSid.equals(discoverAuthenticationTemplateSid()), false);
-        }
-
-        OtpTemplateResolution cachedResolution = cachedOtpTemplateResolution;
-        if (cachedResolution != null && !cachedResolution.contentSid().isBlank()) {
-            return cachedResolution;
-        }
-
-        String discoveredSid = discoverAuthenticationTemplateSid();
-        if (!discoveredSid.isBlank()) {
-            OtpTemplateResolution discoveredResolution = new OtpTemplateResolution(discoveredSid, true, false);
-            cachedOtpTemplateResolution = discoveredResolution;
-            return discoveredResolution;
-        }
-
-        if (isSandboxSender()) {
-            return new OtpTemplateResolution("", false, true);
-        }
-        return OtpTemplateResolution.none();
+    private TemplateSpec resolveTemplate(WhatsAppTemplateKey key) {
+        AppProperties.Meta meta = appProperties.getMeta();
+        AppProperties.WhatsappTemplates templates = meta.getWhatsappTemplates();
+        String defaultLanguage = templates == null ? "en_US" : defaultString(templates.getDefaultLanguage(), "en_US");
+        AppProperties.Template template = switch (key) {
+            case ORDER_CONFIRMATION -> templates == null ? null : templates.getOrderConfirmation();
+            case ORDER_DISPATCHED -> templates == null ? null : templates.getOrderDispatched();
+            case ORDER_DELIVERED -> templates == null ? null : templates.getOrderDelivered();
+            case ORDER_CANCELLED -> templates == null ? null : templates.getOrderCancelled();
+            case ORDER_RETURNED -> templates == null ? null : templates.getOrderReturned();
+            case REFUND_INITIATED -> templates == null ? null : templates.getRefundInitiated();
+            case PAYMENT_FAILED -> templates == null ? null : templates.getPaymentFailed();
+            case PAYMENT_SUCCESS -> templates == null ? null : templates.getPaymentSuccess();
+            case BOT_WELCOME -> templates == null ? null : templates.getBotWelcome();
+            case BOT_MENU -> templates == null ? null : templates.getBotMenu();
+            case SUPPORT_ESCALATION -> templates == null ? null : templates.getSupportEscalation();
+            case OUT_OF_OFFICE -> templates == null ? null : templates.getOutOfOffice();
+            case FEEDBACK_REQUEST -> templates == null ? null : templates.getFeedbackRequest();
+            case LOGIN_OTP -> new AppProperties.Template(meta.getWhatsappOtpTemplateName(), meta.getWhatsappOtpTemplateLanguage());
+        };
+        return new TemplateSpec(
+                template == null ? key.getDefaultTemplateName() : defaultString(template.getName(), key.getDefaultTemplateName()),
+                template == null ? defaultLanguage : defaultString(template.getLanguage(), defaultLanguage)
+        );
     }
 
-    private String discoverAuthenticationTemplateSid() {
+    private String resolveGupshupTemplateId(WhatsAppTemplateKey key) {
+        AppProperties.Gupshup gupshup = appProperties.getGupshup();
+        AppProperties.GupshupTemplates templates = gupshup == null ? null : gupshup.getTemplates();
+        if (templates == null) {
+            return "";
+        }
+        return switch (key) {
+            case LOGIN_OTP -> templates.getOtp();
+            case ORDER_CONFIRMATION -> templates.getOrderConfirmation();
+            case ORDER_DISPATCHED -> templates.getOrderDispatched();
+            case ORDER_DELIVERED -> templates.getOrderDelivered();
+            case ORDER_CANCELLED -> templates.getOrderCancelled();
+            case ORDER_RETURNED -> templates.getOrderReturned();
+            case REFUND_INITIATED -> templates.getRefundInitiated();
+            case PAYMENT_FAILED -> templates.getPaymentFailed();
+            case PAYMENT_SUCCESS -> templates.getPaymentSuccess();
+            case BOT_WELCOME -> templates.getBotWelcome();
+            case BOT_MENU -> templates.getBotMenu();
+            case SUPPORT_ESCALATION -> templates.getSupportEscalation();
+            case OUT_OF_OFFICE -> templates.getOutOfOffice();
+            case FEEDBACK_REQUEST -> templates.getFeedbackRequest();
+        };
+    }
+
+    private String fallbackText(WhatsAppTemplateKey key, List<String> variables) {
+        List<String> values = variables == null ? List.of() : variables;
+        String first = valueAt(values, 0);
+        String second = valueAt(values, 1);
+        String third = valueAt(values, 2);
+        String fourth = valueAt(values, 3);
+        return switch (key) {
+            case ORDER_CONFIRMATION -> "Hi " + first + ", your order " + second + " has been successfully placed.\nTotal Amount: " + third + "\nEstimated Delivery: " + fourth;
+            case ORDER_DISPATCHED -> "Hi " + first + ", your order " + second + " has been dispatched.\nTracking ID: " + third + "\nTrack here: " + fourth;
+            case ORDER_DELIVERED -> "Hi " + first + ", your order " + second + " has been delivered successfully. Thank you for shopping with us.";
+            case ORDER_CANCELLED -> "Hi " + first + ", your order " + second + " has been cancelled. Please contact support if you need help.";
+            case ORDER_RETURNED -> "Hi " + first + ", your return request for order " + second + " has been received. We will update you shortly.";
+            case REFUND_INITIATED -> "Hi " + first + ", refund for order " + second + " has been initiated. Amount: " + third + ".";
+            case PAYMENT_FAILED -> "Hi " + first + ", payment for order " + second + " was not completed. Amount: " + third + ". Please try again from the website.";
+            case PAYMENT_SUCCESS -> "Hi " + first + ", payment for order " + second + " was successful. Amount: " + third + ".";
+            case LOGIN_OTP -> "Your OTP for login is " + first + ". Valid for 5 minutes. Do not share it with anyone.";
+            case BOT_WELCOME -> "Hi " + first + ", welcome to our service. How can we help you today?";
+            case BOT_MENU -> "Hi " + first + ", choose an option:\n1. Track Order\n2. Talk to Support\n3. Return Order\n4. FAQs";
+            case SUPPORT_ESCALATION -> "Hi " + first + ", our support team has been notified and will contact you soon.";
+            case OUT_OF_OFFICE -> "Hi " + first + ", our team is currently away. Please leave your query and we will respond as soon as possible.";
+            case FEEDBACK_REQUEST -> "Hi " + first + ", your order " + second + " was delivered. Please share your feedback with us.";
+        };
+    }
+
+    private boolean canFallbackToText(String errorMessage) {
+        String normalized = safeText(errorMessage).toLowerCase();
+        return normalized.contains("template")
+                || normalized.contains("translation")
+                || normalized.contains("does not exist")
+                || normalized.contains("parameter")
+                || normalized.contains("permission")
+                || normalized.contains("unsupported");
+    }
+
+    private boolean shouldRetry(String errorMessage) {
+        String normalized = safeText(errorMessage).toLowerCase();
+        return normalized.contains("temporarily")
+                || normalized.contains("timeout")
+                || normalized.contains("rate")
+                || normalized.contains("too many")
+                || normalized.contains("try again")
+                || normalized.contains("unable to send");
+    }
+
+    private void sleepBeforeRetry(long retryDelayMs) {
+        if (retryDelayMs <= 0) {
+            return;
+        }
         try {
-            HttpRequest request = HttpRequest.newBuilder(URI.create("https://content.twilio.com/v1/Content"))
-                    .GET()
-                    .header("authorization", basicAuthHeader())
-                    .header("accept", "application/json")
-                    .build();
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() >= 400) {
-                log.warn("Unable to discover Twilio sandbox OTP template. HTTP {}", response.statusCode());
-                return "";
-            }
-
-            JsonNode payload = parseJson(response.body());
-            List<JsonNode> contents = new ArrayList<>();
-            payload.path("contents").forEach(contents::add);
-            for (JsonNode content : contents) {
-                JsonNode types = content.path("types");
-                boolean matchesFriendlyName = TWILIO_SANDBOX_OTP_TEMPLATE_NAME.equals(content.path("friendly_name").asText(""));
-                boolean matchesAuthType = containsTemplateType(types, TWILIO_AUTHENTICATION_TEMPLATE_TYPE);
-                if (matchesFriendlyName || matchesAuthType) {
-                    return safeText(content.path("sid").asText(""));
-                }
-            }
-        } catch (IOException | InterruptedException exception) {
-            if (exception instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
-            }
-            log.warn("Unable to discover Twilio sandbox OTP template", exception);
+            Thread.sleep(retryDelayMs);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
         }
-        return "";
-    }
-
-    private boolean isSandboxSender() {
-        return TWILIO_SANDBOX_WHATSAPP_NUMBER.equalsIgnoreCase(formatWhatsAppAddress(appProperties.getTwilio().getWhatsappFrom()));
-    }
-
-    private boolean containsTemplateType(JsonNode types, String expectedType) {
-        if (types == null || types.isMissingNode() || types.isNull()) {
-            return false;
-        }
-        if (types.isArray()) {
-            for (JsonNode type : types) {
-                if (expectedType.equals(type.asText(""))) {
-                    return true;
-                }
-            }
-            return false;
-        }
-        return types.has(expectedType);
     }
 
     private String buildCampaignBody(Campaign campaign) {
@@ -292,13 +735,13 @@ public class WhatsAppMessageServiceImpl implements WhatsAppMessageService {
             builder.append(campaign.getName().trim());
         }
         if (campaign.getOfferProduct() != null && !campaign.getOfferProduct().isBlank()) {
-            if (builder.length() > 0) {
+            if (!builder.isEmpty()) {
                 builder.append("\n");
             }
             builder.append(campaign.getOfferProduct().trim());
         }
         if (campaign.getContent() != null && !campaign.getContent().isBlank()) {
-            if (builder.length() > 0) {
+            if (!builder.isEmpty()) {
                 builder.append("\n\n");
             }
             builder.append(campaign.getContent().trim());
@@ -320,39 +763,121 @@ public class WhatsAppMessageServiceImpl implements WhatsAppMessageService {
         if (payload == null || payload.isMissingNode() || payload.isNull()) {
             return fallback;
         }
-        if (payload.hasNonNull("message") && !payload.get("message").asText().isBlank()) {
-            return payload.get("message").asText();
+        String nested = payload.path("error").path("message").asText("");
+        if (!nested.isBlank()) {
+            return nested;
         }
-        if (payload.hasNonNull("detail") && !payload.get("detail").asText().isBlank()) {
-            return payload.get("detail").asText();
+        String direct = payload.path("message").asText("");
+        return direct.isBlank() ? fallback : direct;
+    }
+
+    private boolean useGupshup() {
+        return "GUPSHUP".equalsIgnoreCase(safeText(appProperties.getWhatsappProvider()));
+    }
+
+    private boolean isGupshupError(JsonNode payload) {
+        if (payload == null || payload.isMissingNode() || payload.isNull()) {
+            return false;
+        }
+        String status = payload.path("status").asText("");
+        if ("error".equalsIgnoreCase(status) || "failed".equalsIgnoreCase(status)) {
+            return true;
+        }
+        return !payload.path("error").isMissingNode() && !payload.path("error").isNull();
+    }
+
+    private String extractGupshupError(JsonNode payload, String fallback) {
+        if (payload == null || payload.isMissingNode() || payload.isNull()) {
+            return fallback;
+        }
+        String nestedMessage = payload.path("message").path("message").asText("");
+        if (hasText(nestedMessage)) {
+            return nestedMessage;
+        }
+        String nestedError = payload.path("error").path("message").asText("");
+        if (hasText(nestedError)) {
+            return nestedError;
+        }
+        String directMessage = payload.path("message").asText("");
+        if (hasText(directMessage)) {
+            return directMessage;
+        }
+        String directError = payload.path("error").asText("");
+        if (hasText(directError)) {
+            return directError;
         }
         return fallback;
     }
 
-    private String basicAuthHeader() {
-        AppProperties.Twilio twilio = appProperties.getTwilio();
-        String credentials = twilio.getAccountSid().trim() + ":" + twilio.getAuthToken().trim();
-        return "Basic " + Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
-    }
-
     private String toFormBody(Map<String, String> formData) {
         return formData.entrySet().stream()
-                .map(entry -> URLEncoder.encode(entry.getKey(), StandardCharsets.UTF_8)
-                        + "="
-                        + URLEncoder.encode(entry.getValue() == null ? "" : entry.getValue(), StandardCharsets.UTF_8))
-                .collect(Collectors.joining("&"));
+                .map(entry -> encode(entry.getKey()) + "=" + encode(entry.getValue()))
+                .reduce((left, right) -> left + "&" + right)
+                .orElse("");
     }
 
-    private String formatWhatsAppAddress(String mobile) {
-        String value = safeText(mobile);
-        if (value.startsWith("whatsapp:")) {
-            return value;
+    private String encode(String value) {
+        return URLEncoder.encode(value == null ? "" : value, StandardCharsets.UTF_8);
+    }
+
+    private String firstText(String... values) {
+        if (values == null) {
+            return "";
         }
-        String digits = value.replaceAll("[^0-9+]", "");
-        if (!digits.startsWith("+")) {
-            digits = "+91" + digits.substring(Math.max(0, digits.length() - 10));
+        for (String value : values) {
+            if (hasText(value)) {
+                return value.trim();
+            }
         }
-        return "whatsapp:" + digits;
+        return "";
+    }
+
+    private String whatsAppConfigurationError() {
+        if (useGupshup()) {
+            return "Gupshup WhatsApp sender needs API key, source number, and app name";
+        }
+        return "Meta WhatsApp sender needs access token and phone number id";
+    }
+
+    private String formatWhatsAppRecipient(String mobile) {
+        String digits = mobile == null ? "" : mobile.replaceAll("\\D", "");
+        if (digits.length() == 10) {
+            return "91" + digits;
+        }
+        return digits;
+    }
+
+    private String digitsOnly(String value) {
+        return value == null ? "" : value.replaceAll("\\D", "");
+    }
+
+    private String customerName(CustomerOrder order) {
+        Customer customer = order == null ? null : order.getCustomer();
+        return customer == null ? "Customer" : defaultString(customer.getName(), "Customer");
+    }
+
+    private String orderMobile(CustomerOrder order) {
+        Customer customer = order == null ? null : order.getCustomer();
+        return customer == null ? "" : safeText(customer.getMobile());
+    }
+
+    private String orderNumber(CustomerOrder order) {
+        return order == null ? "" : defaultString(order.getOrderNumber(), String.valueOf(order.getId()));
+    }
+
+    private String estimatedDeliveryDate() {
+        return LocalDate.now().plusDays(5).format(DateTimeFormatter.ofPattern("dd MMM yyyy"));
+    }
+
+    private String appWebsiteUrl() {
+        return "https://kpskrishnai.com";
+    }
+
+    private String valueAt(List<String> values, int index) {
+        if (values == null || index < 0 || index >= values.size()) {
+            return "";
+        }
+        return safeText(values.get(index));
     }
 
     private String formatCurrency(BigDecimal amount) {
@@ -361,15 +886,18 @@ public class WhatsAppMessageServiceImpl implements WhatsAppMessageService {
                 : amount.setScale(2, RoundingMode.HALF_UP));
     }
 
+    private String defaultString(String value, String fallback) {
+        return hasText(value) ? value.trim() : fallback;
+    }
+
     private String safeText(String value) {
         return value == null ? "" : value.trim();
     }
 
-    private record OtpTemplateResolution(String contentSid,
-                                         boolean authenticationTemplate,
-                                         boolean requiresTemplateButMissing) {
-        private static OtpTemplateResolution none() {
-            return new OtpTemplateResolution("", false, false);
-        }
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+
+    private record TemplateSpec(String name, String language) {
     }
 }

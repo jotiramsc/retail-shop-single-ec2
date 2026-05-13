@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Retail App Brochure Trifold</title>
+    <style>
+      :root {
+        --sand: #f7efe3;
+        --paper: #fffdf9;
+        --ink: #251d15;
+        --muted: #62594f;
+        --copper: #c07b52;
+        --copper-deep: #7f4129;
+        --teal: #1e5f5c;
+        --teal-soft: #e5f0ee;
+        --line: rgba(127, 65, 41, 0.18);
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: Inter, "Segoe UI", Arial, sans-serif;
+        background:
+          radial-gradient(circle at 15% 18%, rgba(192,123,82,0.18), transparent 20rem),
+          radial-gradient(circle at 88% 82%, rgba(30,95,92,0.14), transparent 24rem),
+          linear-gradient(135deg, #efe0d4, #ffffff 46%, #e8f1f0);
+        color: var(--ink);
+      }
+      .canvas { display: grid; justify-content: center; padding: 24px; }
+      .page {
+        width: 297mm;
+        min-height: 210mm;
+        background: var(--paper);
+        box-shadow: 0 28px 80px rgba(37, 29, 21, 0.14);
+        overflow: hidden;
+      }
+      .trifold {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        min-height: 210mm;
+      }
+      .panel {
+        padding: 14mm 10mm;
+        position: relative;
+        border-right: 1px solid rgba(127,65,41,0.08);
+      }
+      .panel:last-child { border-right: none; }
+      .panel h1, .panel h2, .panel h3, .panel p, .panel ul { margin: 0; }
+      .left {
+        background:
+          linear-gradient(180deg, rgba(192,123,82,0.12), transparent 30%),
+          var(--paper);
+      }
+      .center {
+        background:
+          linear-gradient(180deg, rgba(30,95,92,0.08), transparent 34%),
+          linear-gradient(145deg, #fffdf9, #fbf7ef);
+      }
+      .right {
+        background:
+          linear-gradient(180deg, rgba(30,95,92,0.1), transparent 26%),
+          linear-gradient(145deg, #fffaf5, #f8efe2);
+      }
+
+      .brand {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        margin-bottom: 18px;
+      }
+      .mark {
+        width: 42px;
+        height: 42px;
+        border-radius: 14px;
+        background: linear-gradient(145deg, #fff1e8, var(--copper));
+        overflow: hidden;
+        border: 1px solid rgba(127,65,41,0.16);
+      }
+      .mark img { width: 100%; height: 100%; object-fit: cover; }
+      .brand-name {
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 21px;
+        line-height: 1;
+      }
+      .brand-sub {
+        font-size: 8px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        margin-top: 4px;
+        font-weight: 900;
+      }
+      .eyebrow {
+        font-size: 9px;
+        color: var(--copper-deep);
+        text-transform: uppercase;
+        font-weight: 900;
+        letter-spacing: 0.08em;
+        margin-bottom: 8px;
+      }
+      h1 {
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 34px;
+        line-height: 0.96;
+        margin-bottom: 10px;
+      }
+      .lead {
+        color: #504840;
+        font-size: 13px;
+        line-height: 1.55;
+      }
+      .tag-list {
+        margin-top: 14px;
+        display: grid;
+        gap: 8px;
+      }
+      .tag {
+        background: rgba(255,255,255,0.84);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 10px 12px;
+      }
+      .tag strong {
+        display: block;
+        color: var(--teal);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 4px;
+      }
+      .tag span {
+        display: block;
+        color: var(--muted);
+        font-size: 11px;
+        line-height: 1.35;
+      }
+
+      .block-title {
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 24px;
+        line-height: 1;
+        margin-bottom: 8px;
+      }
+      .block-copy {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.45;
+        margin-bottom: 10px;
+      }
+      .mock {
+        background: rgba(255,255,255,0.88);
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        padding: 10px;
+        margin-bottom: 12px;
+      }
+      .topbar {
+        display: flex;
+        gap: 4px;
+        margin-bottom: 8px;
+      }
+      .topbar i {
+        display: block;
+        width: 5px;
+        height: 5px;
+        border-radius: 999px;
+        background: rgba(127,65,41,0.32);
+      }
+      .metric-row {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 7px;
+        margin-bottom: 8px;
+      }
+      .metric {
+        background: linear-gradient(145deg, #fff6ea, #f0e9dd);
+        border: 1px solid rgba(127,65,41,0.12);
+        border-radius: 12px;
+        padding: 8px;
+      }
+      .metric span {
+        display: block;
+        color: var(--muted);
+        font-size: 7px;
+        font-weight: 900;
+        text-transform: uppercase;
+      }
+      .metric b {
+        display: block;
+        margin-top: 5px;
+        font-size: 15px;
+      }
+      .chart {
+        height: 72px;
+        display: flex;
+        gap: 7px;
+        align-items: end;
+        padding: 10px;
+        background: rgba(30,95,92,0.06);
+        border-radius: 12px;
+      }
+      .chart i {
+        display: block;
+        width: 100%;
+        background: linear-gradient(180deg, var(--copper), var(--teal));
+        border-radius: 8px 8px 4px 4px;
+      }
+      .chart i:nth-child(1){height:32%}
+      .chart i:nth-child(2){height:66%}
+      .chart i:nth-child(3){height:52%}
+      .chart i:nth-child(4){height:78%}
+
+      .feature-list {
+        display: grid;
+        gap: 8px;
+      }
+      .feature {
+        border-top: 1px solid rgba(127,65,41,0.1);
+        padding-top: 7px;
+      }
+      .feature strong {
+        display: block;
+        font-size: 13px;
+      }
+      .feature span {
+        display: block;
+        color: var(--muted);
+        font-size: 11px;
+        line-height: 1.35;
+        margin-top: 2px;
+      }
+
+      .price-card {
+        background: white;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 12px;
+        margin-bottom: 10px;
+      }
+      .price-card h3 {
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 22px;
+        margin-bottom: 4px;
+      }
+      .price-card p {
+        color: var(--muted);
+        font-size: 11px;
+        line-height: 1.35;
+        margin-bottom: 8px;
+      }
+      .price {
+        color: var(--teal);
+        font-size: 25px;
+        font-weight: 800;
+        line-height: 1;
+      }
+      .support {
+        color: var(--muted);
+        font-size: 10px;
+        margin-top: 4px;
+      }
+      .note {
+        background: linear-gradient(145deg, rgba(30,95,92,0.08), rgba(192,123,82,0.08));
+        border: 1px solid rgba(127,65,41,0.14);
+        border-radius: 16px;
+        padding: 12px;
+        color: #52483f;
+        font-size: 11px;
+        line-height: 1.45;
+      }
+      .contact {
+        margin-top: 12px;
+        background: linear-gradient(145deg, var(--teal), #2b6b66);
+        color: white;
+        border-radius: 18px;
+        padding: 14px;
+      }
+      .contact h3 {
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 22px;
+        margin-bottom: 8px;
+        color: #ffe6b0;
+      }
+      .contact span {
+        display: block;
+        color: rgba(255,230,176,0.86);
+        font-size: 9px;
+        font-weight: 900;
+        text-transform: uppercase;
+        margin-top: 8px;
+        margin-bottom: 3px;
+      }
+      .contact b {
+        display: block;
+        font-size: 14px;
+      }
+      @page { size: A4 landscape; margin: 0; }
+      @media print {
+        * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        body { background: #fff; }
+        .canvas { display: block; padding: 0; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="canvas">
+      <section class="page">
+        <div class="trifold">
+          <article class="panel left">
+            <div class="brand">
+              <div class="mark"><img src="../frontend/public/assets/glowjewels/app_logo.png" alt="App logo" /></div>
+              <div>
+                <div class="brand-name">Retail Commerce App</div>
+                <div class="brand-sub">Trifold sales brochure</div>
+              </div>
+            </div>
+            <div class="eyebrow">Retail operations in one system</div>
+            <h1>Sell faster, manage better, and grow online.</h1>
+            <p class="lead">A retail software platform that combines billing, inventory, customer management, online selling, reports, and team visibility in one connected app.</p>
+            <div class="tag-list">
+              <div class="tag"><strong>Billing + POS</strong><span>Fast billing with stock checks, discounts, customer search, and print support.</span></div>
+              <div class="tag"><strong>Inventory + pricing</strong><span>Product editing, low-stock alerts, shop price and website price control.</span></div>
+              <div class="tag"><strong>Website + orders</strong><span>Storefront, cart, OTP login, checkout, offers, and order history.</span></div>
+            </div>
+          </article>
+
+          <article class="panel center">
+            <div class="block-title">What the app covers</div>
+            <p class="block-copy">For shops that want both operational speed and a proper online selling system.</p>
+            <div class="mock">
+              <div class="topbar"><i></i><i></i><i></i></div>
+              <div class="metric-row">
+                <div class="metric"><span>Orders</span><b>128</b></div>
+                <div class="metric"><span>Customers</span><b>4.8k</b></div>
+                <div class="metric"><span>Stock</span><b>46</b></div>
+              </div>
+              <div class="chart"><i></i><i></i><i></i><i></i></div>
+            </div>
+            <div class="feature-list">
+              <div class="feature"><strong>Customer website</strong><span>Branded storefront, mobile-first browsing, cart, checkout, and account access.</span></div>
+              <div class="feature"><strong>Coupons and offers</strong><span>Single active coupon logic, pricing recalculation, and promotion control.</span></div>
+              <div class="feature"><strong>Salesperson tracking</strong><span>Assign sales, measure staff performance, and control visibility by role.</span></div>
+              <div class="feature"><strong>Reports and analytics</strong><span>Daily, monthly, annual, category-wise, item-wise, and salesperson-wise reporting.</span></div>
+              <div class="feature"><strong>Marketing tools</strong><span>Campaign workflows with WhatsApp, Instagram, Facebook, and visit tracking.</span></div>
+            </div>
+          </article>
+
+          <article class="panel right">
+            <div class="block-title">Delivery options</div>
+            <p class="block-copy">Commercials are shared after requirement mapping and rollout planning.</p>
+            <div class="price-card">
+              <h3>Starter rollout</h3>
+              <p>Branded website, product catalogue, product management, and guided launch support.</p>
+              <div class="price">Scope-based commercial</div>
+              <div class="support">Shared after requirement review</div>
+            </div>
+            <div class="price-card">
+              <h3>Growth rollout</h3>
+              <p>Customer login, cart, checkout, coupons, reports, and website order management.</p>
+              <div class="price">Custom proposal</div>
+              <div class="support">Positioned after scope finalization</div>
+            </div>
+            <div class="price-card">
+              <h3>Integrated rollout</h3>
+              <p>Inventory sync, marketing tools, analytics, salesperson tracking, and advanced reporting.</p>
+              <div class="price">Final commercial scope</div>
+              <div class="support">Recommended for full operational control</div>
+            </div>
+            <div class="note"><strong>Commercial note:</strong> Hosting, storage, domain, SMS/WhatsApp usage, payment gateway fees, and other third-party cloud services are billed separately in the client’s own account.</div>
+            <div class="contact">
+              <h3>Get the app demo</h3>
+              <span>Phone / WhatsApp</span>
+              <b>8390968506</b>
+              <span>Email</span>
+              <b>chavanjotiram24@gmail.com</b>
+            </div>
+          </article>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

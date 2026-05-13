@@ -28,10 +28,9 @@ This repo now includes a reusable bootstrap + deploy path for a new AWS account:
 Holds application env values like:
 
 - `CUSTOMER_JWT_SECRET`
-- `PHONEPE_*`
-- `TWILIO_*`
-- `GUPSHUP_*`
 - `META_*`
+- `META_WHATSAPP_*`
+- `RAZORPAY_*`
 - `AWS_S3_BUCKET`
 - `AWS_CLOUDFRONT_DOMAIN`
 

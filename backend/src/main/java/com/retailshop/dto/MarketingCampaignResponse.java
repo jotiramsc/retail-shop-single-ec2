@@ -21,12 +21,16 @@ public class MarketingCampaignResponse {
     private UUID id;
     private String campaignName;
     private MarketingCampaignType campaignType;
+    private String campaignGoal;
+    private String offerMode;
+    private UUID linkedOfferId;
     private UUID categoryId;
     private UUID productId;
     private String categoryName;
     private String productName;
     private String offerTitle;
     private String landingUrl;
+    private String couponCode;
     private MarketingDiscountType discountType;
     private BigDecimal discountValue;
     private LocalDate startDate;

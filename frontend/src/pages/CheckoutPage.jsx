@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { retailService } from '../services/retailService';
 import {
   clearCustomerSession,
@@ -28,39 +28,7 @@ const initialAddress = {
   longitude: ''
 };
 
-const PHONEPE_PENDING_ORDER_KEY = 'retail.phonepe.pending-order';
-
-const readPendingPhonePeOrder = () => {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-  const rawValue = window.sessionStorage.getItem(PHONEPE_PENDING_ORDER_KEY);
-  if (!rawValue) {
-    return null;
-  }
-  try {
-    return JSON.parse(rawValue);
-  } catch {
-    window.sessionStorage.removeItem(PHONEPE_PENDING_ORDER_KEY);
-    return null;
-  }
-};
-
-const writePendingPhonePeOrder = (payload) => {
-  if (typeof window === 'undefined') {
-    return;
-  }
-  window.sessionStorage.setItem(PHONEPE_PENDING_ORDER_KEY, JSON.stringify(payload));
-};
-
-const clearPendingPhonePeOrder = () => {
-  if (typeof window === 'undefined') {
-    return;
-  }
-  window.sessionStorage.removeItem(PHONEPE_PENDING_ORDER_KEY);
-};
-
-const normalizePaymentProvider = (value) => String(value || 'PHONEPE').trim().toUpperCase();
+const normalizePaymentProvider = (value) => String(value || 'RAZORPAY').trim().toUpperCase();
 
 const loadRazorpayCheckout = () => new Promise((resolve) => {
   if (window.Razorpay) {
@@ -90,13 +58,12 @@ const launchRazorpayPayment = ({ paymentOrder, customerSession }) => new Promise
     return;
   }
 
-  const razorpay = new window.Razorpay({
+  const options = {
     key: paymentOrder.keyId,
     amount: paymentOrder.amountSubunits,
     currency: paymentOrder.currency || 'INR',
     name: 'Krishnai Pearl Shoppee',
     description: 'Customer order checkout',
-    order_id: paymentOrder.orderId,
     prefill: {
       name: customerSession?.name || '',
       contact: customerSession?.mobile?.replace(/\D/g, '') || ''
@@ -111,7 +78,13 @@ const launchRazorpayPayment = ({ paymentOrder, customerSession }) => new Promise
       ondismiss: () => reject(new Error('Payment was cancelled before confirmation.'))
     },
     handler: (response) => resolve(response)
-  });
+  };
+
+  if (String(paymentOrder.orderId || '').startsWith('order_')) {
+    options.order_id = paymentOrder.orderId;
+  }
+
+  const razorpay = new window.Razorpay(options);
 
   razorpay.on('payment.failed', (event) => {
     reject(new Error(event?.error?.description || 'Payment failed.'));
@@ -121,7 +94,6 @@ const launchRazorpayPayment = ({ paymentOrder, customerSession }) => new Promise
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
-  const location = useLocation();
   const [customerSession, setCustomerSession] = useState(() => getStoredCustomerSession());
   const [cart, setCart] = useState({ items: [], subtotal: 0 });
   const [quote, setQuote] = useState(null);
@@ -132,15 +104,8 @@ export default function CheckoutPage() {
   const [loading, setLoading] = useState(true);
   const [savingAddress, setSavingAddress] = useState(false);
   const [placingOrder, setPlacingOrder] = useState(false);
-  const [verifyingPhonePe, setVerifyingPhonePe] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const handledPhonePeReturnRef = useRef('');
-
-  const phonepeMerchantOrderId = useMemo(
-    () => new URLSearchParams(location.search).get('phonepeMerchantOrderId') || '',
-    [location.search]
-  );
 
   const syncCheckoutQuote = async (preferredCouponCode = getStoredCheckoutCouponCode()) => {
     const normalizedCouponCode = String(preferredCouponCode || '').trim().toUpperCase();
@@ -198,75 +163,6 @@ export default function CheckoutPage() {
     loadCheckout();
   }, []);
 
-  useEffect(() => {
-    if (!customerSession?.token || !phonepeMerchantOrderId) {
-      return;
-    }
-    if (handledPhonePeReturnRef.current === phonepeMerchantOrderId) {
-      return;
-    }
-
-    handledPhonePeReturnRef.current = phonepeMerchantOrderId;
-    const pendingOrder = readPendingPhonePeOrder();
-
-    if (!pendingOrder?.addressId) {
-      clearPendingPhonePeOrder();
-      setError('PhonePe returned, but the checkout session expired before we could confirm the order.');
-      navigate('/checkout', { replace: true });
-      return;
-    }
-    if (pendingOrder.merchantOrderId && pendingOrder.merchantOrderId !== phonepeMerchantOrderId) {
-      handledPhonePeReturnRef.current = '';
-      clearPendingPhonePeOrder();
-      setError('PhonePe returned with a different checkout reference than the order we started.');
-      navigate('/checkout', { replace: true });
-      return;
-    }
-
-    const finalizePhonePeOrder = async () => {
-      setVerifyingPhonePe(true);
-      setError('');
-      setSuccess('');
-      try {
-        const paymentStatus = await retailService.getPaymentStatus(phonepeMerchantOrderId);
-        if (!paymentStatus?.success) {
-          throw new Error(
-            paymentStatus?.paymentState
-              ? `PhonePe payment is ${String(paymentStatus.paymentState).toLowerCase()}.`
-              : 'PhonePe payment is not confirmed yet.'
-          );
-        }
-
-        await retailService.placeOrder({
-          addressId: pendingOrder.addressId,
-          couponCode: pendingOrder.couponCode || undefined,
-          paymentProvider: normalizePaymentProvider(paymentStatus.provider),
-          phonepeMerchantOrderId,
-          phonepeTransactionId: paymentStatus.transactionId
-        });
-
-        clearStoredCheckoutCouponCode();
-        clearPendingPhonePeOrder();
-        navigate('/orders?placed=1', { replace: true });
-      } catch (err) {
-        if (isCustomerAuthError(err)) {
-          clearCustomerSession();
-          clearStoredCheckoutCouponCode();
-          setCustomerSession(null);
-          return;
-        }
-        handledPhonePeReturnRef.current = '';
-        clearPendingPhonePeOrder();
-        setError(err.response?.data?.message || err.message || 'Unable to confirm the PhonePe payment.');
-        navigate('/checkout', { replace: true });
-      } finally {
-        setVerifyingPhonePe(false);
-      }
-    };
-
-    finalizePhonePeOrder();
-  }, [customerSession?.token, navigate, phonepeMerchantOrderId]);
-
   const activeFinalTotal = useMemo(
     () => quote?.finalTotal ?? cart?.subtotal ?? 0,
     [quote, cart]
@@ -302,7 +198,11 @@ export default function CheckoutPage() {
     setError('');
     setSuccess('');
     try {
-      const saved = await retailService.addAddress(addressForm);
+      const saved = await retailService.addAddress({
+        ...addressForm,
+        recipientName: customerSession?.name || 'Customer',
+        mobile: customerSession?.mobile || addressForm.mobile
+      });
       const nextAddresses = [saved, ...addresses];
       setAddresses(nextAddresses);
       setSelectedAddressId(saved.id);
@@ -419,34 +319,14 @@ export default function CheckoutPage() {
       const paymentProvider = normalizePaymentProvider(paymentOrder?.provider);
 
       if (!paymentOrder?.configured) {
-        const orderPayload = {
+        await retailService.placeOrder({
           addressId: selectedAddressId,
           couponCode: resolvedCouponCode,
-          paymentProvider
-        };
-        if (paymentProvider === 'PHONEPE') {
-          orderPayload.phonepeMerchantOrderId = paymentOrder?.orderId;
-        } else {
-          orderPayload.razorpayOrderId = paymentOrder?.orderId;
-        }
-        await retailService.placeOrder({
-          ...orderPayload
+          paymentProvider,
+          razorpayOrderId: paymentOrder?.orderId
         });
         clearStoredCheckoutCouponCode();
         navigate('/orders?placed=1');
-        return;
-      }
-
-      if (paymentProvider === 'PHONEPE') {
-        if (!paymentOrder?.paymentUrl) {
-          throw new Error('Unable to start PhonePe checkout right now.');
-        }
-        writePendingPhonePeOrder({
-          addressId: selectedAddressId,
-          couponCode: resolvedCouponCode || '',
-          merchantOrderId: paymentOrder.orderId
-        });
-        window.location.assign(paymentOrder.paymentUrl);
         return;
       }
 
@@ -463,7 +343,8 @@ export default function CheckoutPage() {
       await retailService.placeOrder({
         addressId: selectedAddressId,
         couponCode: resolvedCouponCode,
-        razorpayOrderId: paymentResult.razorpay_order_id,
+        paymentProvider,
+        razorpayOrderId: paymentResult.razorpay_order_id || paymentOrder.orderId,
         razorpayPaymentId: paymentResult.razorpay_payment_id,
         razorpaySignature: paymentResult.razorpay_signature
       });
@@ -476,7 +357,12 @@ export default function CheckoutPage() {
         setCustomerSession(null);
         return;
       }
-      setError(err.response?.data?.message || err.message || 'Unable to place the order.');
+      const message = err.response?.data?.message || err.message || 'Unable to place the order.';
+      if (message.toLowerCase().includes('mobile otp verification')) {
+        navigate('/customer-login?redirect=/checkout');
+        return;
+      }
+      setError(message);
     } finally {
       setPlacingOrder(false);
     }
@@ -495,7 +381,6 @@ export default function CheckoutPage() {
         </div>
 
         {loading ? <p>Loading checkout…</p> : null}
-        {verifyingPhonePe ? <p>Confirming PhonePe payment…</p> : null}
         {error ? <p className="error-text">{error}</p> : null}
         {success ? <p className="success-text">{success}</p> : null}
 
@@ -531,8 +416,6 @@ export default function CheckoutPage() {
                 <form className="customer-address-form" onSubmit={saveAddress}>
                   <div className="customer-form-grid">
                     <input value={addressForm.label} onChange={(event) => setAddressForm((current) => ({ ...current, label: event.target.value }))} placeholder="Label" />
-                    <input value={addressForm.recipientName} onChange={(event) => setAddressForm((current) => ({ ...current, recipientName: event.target.value }))} placeholder="Recipient name" />
-                    <input value={addressForm.mobile} onChange={(event) => setAddressForm((current) => ({ ...current, mobile: event.target.value }))} placeholder="Mobile number" />
                     <input value={addressForm.line1} onChange={(event) => setAddressForm((current) => ({ ...current, line1: event.target.value }))} placeholder="Address line 1" />
                     <input value={addressForm.line2} onChange={(event) => setAddressForm((current) => ({ ...current, line2: event.target.value }))} placeholder="Address line 2" />
                     <input value={addressForm.landmark} onChange={(event) => setAddressForm((current) => ({ ...current, landmark: event.target.value }))} placeholder="Landmark" />
@@ -693,7 +576,7 @@ export default function CheckoutPage() {
                 {placingOrder ? 'Opening payment...' : 'Pay and place order'}
               </button>
               <small className="customer-helper-copy">
-                Razorpay opens when the gateway is configured. Local environments still fall back safely for test checkout.
+                Razorpay opens securely for online payment.
               </small>
             </aside>
           </div>

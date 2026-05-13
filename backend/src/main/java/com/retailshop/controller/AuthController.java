@@ -1,6 +1,7 @@
 package com.retailshop.controller;
 
 import com.retailshop.dto.CustomerAuthResponse;
+import com.retailshop.dto.CustomerGoogleLoginRequest;
 import com.retailshop.dto.CustomerOtpRequest;
 import com.retailshop.dto.CustomerOtpSendResponse;
 import com.retailshop.dto.CustomerOtpVerifyRequest;
@@ -55,5 +56,15 @@ public class AuthController {
     @PostMapping("/verify-otp")
     public CustomerAuthResponse verifyOtp(@Valid @RequestBody CustomerOtpVerifyRequest request) {
         return customerAuthService.verifyOtp(request);
+    }
+
+    @PostMapping("/google/verify-mobile")
+    public CustomerAuthResponse verifyGoogleMobileOtp(@Valid @RequestBody CustomerOtpVerifyRequest request) {
+        return customerAuthService.verifyGoogleMobileOtp(request);
+    }
+
+    @PostMapping("/google")
+    public CustomerAuthResponse googleLogin(@Valid @RequestBody CustomerGoogleLoginRequest request) {
+        return customerAuthService.loginWithGoogle(request);
     }
 }

@@ -10,6 +10,7 @@ import {
 import { defaultBranding } from '../utils/branding';
 import { addGuestCartItem, getGuestCartCount } from '../utils/cart';
 import { storeCheckoutCouponCode } from '../utils/checkout';
+import { getApiErrorMessage } from '../utils/validation';
 import { applySeo, preloadImage } from '../utils/seo';
 import StorefrontHeader from '../components/StorefrontHeader';
 
@@ -58,10 +59,25 @@ function productFallback(index) {
   return fallbacks[index % fallbacks.length];
 }
 
+function HeartIcon({ filled = false }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="glow-icon-svg">
+      <path
+        d="M12 20.3 4.9 13.7a4.7 4.7 0 0 1 6.6-6.7l.5.5.5-.5a4.7 4.7 0 1 1 6.6 6.7L12 20.3Z"
+        fill={filled ? 'currentColor' : 'none'}
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
+    </svg>
+  );
+}
+
 function buildPublicCategories(categoryOptions, products) {
   const byId = new Map();
 
-  (categoryOptions || []).forEach((option) => {
+  (Array.isArray(categoryOptions) ? categoryOptions : []).forEach((option) => {
     const name = titleCaseCategory(option.displayName || option.code);
     const id = normalizeId(name);
     if (!byId.has(id)) {
@@ -69,7 +85,7 @@ function buildPublicCategories(categoryOptions, products) {
     }
   });
 
-  products.forEach((product) => {
+  (Array.isArray(products) ? products : []).forEach((product) => {
     const name = titleCaseCategory(product.category);
     const id = normalizeId(name);
     if (!byId.has(id)) {
@@ -99,6 +115,8 @@ export default function PublicProductsPage({ branding }) {
   const [error, setError] = useState('');
   const [cartMessage, setCartMessage] = useState('');
   const [cartCount, setCartCount] = useState(0);
+  const [wishlistCount, setWishlistCount] = useState(0);
+  const [wishlistProductIds, setWishlistProductIds] = useState(() => new Set());
   const [customerSession, setCustomerSession] = useState(() => getStoredCustomerSession());
 
   useEffect(() => {
@@ -117,24 +135,51 @@ export default function PublicProductsPage({ branding }) {
 
   useEffect(() => {
     if (customerSession?.token) {
-      retailService.getCart()
-        .then((cart) => {
+      Promise.all([
+        retailService.getCart(),
+        retailService.getWishlist()
+      ])
+        .then(([cart, wishlist]) => {
           setCartCount((cart.items || []).reduce((total, item) => total + Number(item.quantity || 0), 0));
+          setWishlistCount((wishlist || []).length);
+          setWishlistProductIds(new Set((wishlist || []).map((item) => String(item.productId))));
         })
         .catch((err) => {
           if (isCustomerAuthError(err)) {
             clearCustomerSession();
             setCustomerSession(null);
             setCartCount(getGuestCartCount());
+            setWishlistCount(0);
+            setWishlistProductIds(new Set());
             return;
           }
           setCartCount(0);
+          setWishlistCount(0);
+          setWishlistProductIds(new Set());
         });
       return;
     }
 
     setCartCount(getGuestCartCount());
+    setWishlistCount(0);
+    setWishlistProductIds(new Set());
   }, [customerSession?.token]);
+
+  useEffect(() => {
+    if (!cartMessage) {
+      return undefined;
+    }
+    const timer = window.setTimeout(() => setCartMessage(''), 4200);
+    return () => window.clearTimeout(timer);
+  }, [cartMessage]);
+
+  useEffect(() => {
+    if (!error) {
+      return undefined;
+    }
+    const timer = window.setTimeout(() => setError(''), 4200);
+    return () => window.clearTimeout(timer);
+  }, [error]);
 
   const categories = useMemo(
     () => buildPublicCategories(categoryOptions, products),
@@ -254,10 +299,34 @@ export default function PublicProductsPage({ branding }) {
       setCartMessage(successMessage);
       return true;
     } catch (err) {
-      setError(err.response?.data?.message || 'Unable to add product to cart.');
+      setError(getApiErrorMessage(err, 'Unable to add product to cart. Please check stock and try again.'));
       return false;
     }
   }, [customerSession?.token]);
+
+  const saveToWishlist = async (product) => {
+    setError('');
+    setCartMessage('');
+    if (!customerSession?.token) {
+      setError('Please login or sign up to save products in your wishlist.');
+      navigate(`/customer-login?redirect=${encodeURIComponent('/products')}`);
+      return;
+    }
+    try {
+      const wishlist = await retailService.addToWishlist({ productId: product.id, quantity: 1 });
+      setWishlistCount((wishlist || []).length);
+      setWishlistProductIds(new Set((wishlist || []).map((item) => String(item.productId))));
+      setCartMessage(`${product.name} added to wishlist.`);
+    } catch (err) {
+      if (isCustomerAuthError(err)) {
+        clearCustomerSession();
+        setCustomerSession(null);
+        navigate(`/customer-login?redirect=${encodeURIComponent('/products')}`);
+        return;
+      }
+      setError(getApiErrorMessage(err, 'Unable to save product to wishlist. Please try again.'));
+    }
+  };
 
   useEffect(() => {
     const productId = searchParams.get('autoAdd') || searchParams.get('productId');
@@ -306,7 +375,13 @@ export default function PublicProductsPage({ branding }) {
 
   return (
     <main className={pageClassName}>
-      <StorefrontHeader logo={logo} shopName={shopName} navLinks={headerLinks} cartCount={cartCount} />
+      <StorefrontHeader
+        logo={logo}
+        shopName={shopName}
+        navLinks={headerLinks}
+        cartCount={cartCount}
+        wishlistCount={wishlistCount}
+      />
 
       <section className="glow-products-hero">
         <div className="glow-products-hero-copy">
@@ -405,8 +480,8 @@ export default function PublicProductsPage({ branding }) {
             </div>
           ) : null}
 
-          {error ? <p className="error-text">{error}</p> : null}
-          {cartMessage ? <p className="success-text">{cartMessage}</p> : null}
+          {error ? <p className="error-text storefront-feedback error" role="alert">{error}</p> : null}
+          {cartMessage ? <p className="success-text storefront-feedback" role="status" aria-live="polite">{cartMessage}</p> : null}
 
           <div className="glow-products-grid">
             {filteredProducts.map((product, index) => (
@@ -423,6 +498,15 @@ export default function PublicProductsPage({ branding }) {
                     decoding="async"
                   />
                   {product.showInNewRelease ? <span className="glow-product-badge">New</span> : null}
+                  <button
+                    type="button"
+                    className={`product-wishlist-btn ${wishlistProductIds.has(String(product.id)) ? 'is-saved' : ''}`}
+                    onClick={() => saveToWishlist(product)}
+                    aria-label={`Add ${product.name} to wishlist`}
+                    title="Add to wishlist"
+                  >
+                    <HeartIcon filled={wishlistProductIds.has(String(product.id))} />
+                  </button>
                 </div>
                 <div className="glow-product-card-copy">
                   <p>{titleCaseCategory(product.category)}</p>
@@ -470,6 +554,7 @@ export default function PublicProductsPage({ branding }) {
         <div className="glow-footer-links glow-footer-links-compact">
           <Link to="/">Home</Link>
           <Link to="/cart">Cart</Link>
+          <Link to="/privacy-policy">Privacy Policy</Link>
           <Link to="/login">Staff Login</Link>
         </div>
       </footer>

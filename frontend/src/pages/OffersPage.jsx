@@ -19,7 +19,7 @@ const blankOffer = {
   active: true
 };
 
-export default function OffersPage() {
+export default function OffersPage({ embedded = false }) {
   const [products, setProducts] = useState([]);
   const [offersPage, setOffersPage] = useState({ items: [], page: 0, totalPages: 0, totalItems: 0, hasNext: false, hasPrevious: false });
   const [categoryOptions, setCategoryOptions] = useState([]);
@@ -136,12 +136,14 @@ export default function OffersPage() {
   };
 
   return (
-    <div className="page">
-      <PageHeader
-        eyebrow="Offers"
-        title="Promotions and smart suggestions"
-        description="Only one best valid offer applies per product. Suggestions are generated from stock depth and low sales velocity."
-      />
+    <div className={embedded ? 'offers-embedded-stack' : 'page'}>
+      {!embedded ? (
+        <PageHeader
+          eyebrow="Offers"
+          title="Promotions and smart suggestions"
+          description="Only one best valid offer applies per product. Suggestions are generated from stock depth and low sales velocity."
+        />
+      ) : null}
 
       <div className="two-column">
         <Panel title={editingOfferId ? 'Edit offer' : 'Create offer'} subtitle="Product-specific offers override by being more relevant, but discounts still never stack. Category means the offer applies to every product in that selected category.">
@@ -211,7 +213,7 @@ export default function OffersPage() {
           </form>
         </Panel>
 
-        <Panel title="Offer suggestions" subtitle="Recommended by the automation engine for slow-moving stock.">
+        <Panel title="Offer suggestions" subtitle="Recommended from stock depth, demand signals, and sales velocity.">
           <DataTable
             columns={[
               { key: 'productName', label: 'Product' },

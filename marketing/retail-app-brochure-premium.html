@@ -1,0 +1,647 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Retail App Brochure Premium</title>
+    <style>
+      :root {
+        --bg: #f5efe5;
+        --paper: #fffdf8;
+        --ink: #241d16;
+        --muted: #645b51;
+        --line: rgba(126, 88, 28, 0.18);
+        --gold: #c28a37;
+        --gold-deep: #7a5213;
+        --forest: #174d45;
+        --forest-soft: #e6f0ec;
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: Inter, "Segoe UI", Arial, sans-serif;
+        background:
+          radial-gradient(circle at 15% 20%, rgba(194,138,55,0.18), transparent 20rem),
+          radial-gradient(circle at 85% 80%, rgba(23,77,69,0.14), transparent 24rem),
+          linear-gradient(135deg, #ecdfca, #ffffff 48%, #e6f0ec);
+        color: var(--ink);
+      }
+
+      .canvas {
+        display: grid;
+        justify-content: center;
+        padding: 28px;
+      }
+
+      .page {
+        width: 210mm;
+        min-height: 297mm;
+        background: var(--paper);
+        border: 1px solid rgba(126, 88, 28, 0.16);
+        box-shadow: 0 28px 80px rgba(36, 29, 22, 0.16);
+        position: relative;
+        overflow: hidden;
+      }
+
+      .page::before {
+        content: "";
+        position: absolute;
+        inset: 8mm;
+        border: 1px solid var(--line);
+      }
+
+      .page::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background-image:
+          radial-gradient(circle, rgba(194,138,55,0.08) 0 1px, transparent 1.2px);
+        background-size: 30px 30px;
+        opacity: 0.5;
+        pointer-events: none;
+      }
+
+      .inner {
+        position: relative;
+        z-index: 1;
+        padding: 14mm;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+
+      header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .brand-lockup {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .brand-mark {
+        width: 42px;
+        height: 42px;
+        border-radius: 50%;
+        background: linear-gradient(145deg, #fff5de, var(--gold));
+        border: 1px solid rgba(126, 88, 28, 0.2);
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+      }
+
+      .brand-mark img { width: 100%; height: 100%; object-fit: cover; }
+      .brand-name {
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 23px;
+        font-weight: 700;
+        line-height: 1;
+      }
+      .brand-sub {
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-size: 8px;
+        font-weight: 900;
+        margin-top: 4px;
+      }
+
+      .tag {
+        color: var(--forest);
+        border: 1px solid rgba(23,77,69,0.18);
+        border-radius: 999px;
+        padding: 8px 14px;
+        font-size: 10px;
+        font-weight: 900;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+
+      .hero {
+        display: grid;
+        grid-template-columns: 1.05fr 0.95fr;
+        gap: 16px;
+        align-items: stretch;
+      }
+
+      .eyebrow {
+        color: var(--gold-deep);
+        text-transform: uppercase;
+        font-size: 10px;
+        font-weight: 900;
+        letter-spacing: 0.08em;
+        margin-bottom: 8px;
+      }
+
+      h1, h2, h3, p { margin: 0; }
+      h1 {
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 48px;
+        line-height: 0.95;
+        max-width: 500px;
+      }
+      .lead {
+        margin-top: 12px;
+        max-width: 510px;
+        color: #534a41;
+        font-size: 15px;
+        line-height: 1.55;
+      }
+
+      .hero-badges {
+        margin-top: 14px;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+      .badge-card {
+        background: rgba(255,255,255,0.86);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 12px;
+        min-height: 78px;
+      }
+      .badge-card strong {
+        display: block;
+        color: var(--forest);
+        text-transform: uppercase;
+        font-size: 11px;
+        font-weight: 900;
+        letter-spacing: 0.05em;
+        margin-bottom: 5px;
+      }
+      .badge-card span {
+        font-size: 13px;
+        line-height: 1.35;
+        color: var(--muted);
+      }
+
+      .showcase {
+        display: grid;
+        grid-template-columns: 0.9fr 1.1fr;
+        gap: 10px;
+      }
+      .mock, .mock-small {
+        background: rgba(255,255,255,0.88);
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        overflow: hidden;
+      }
+      .mock {
+        min-height: 270px;
+        display: grid;
+        grid-template-columns: 52px 1fr;
+      }
+      .mock-nav {
+        background: linear-gradient(180deg, var(--forest), #1e6d60);
+        padding: 10px 7px;
+        display: grid;
+        gap: 7px;
+        align-content: start;
+      }
+      .mock-nav i {
+        display: block;
+        height: 6px;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.45);
+      }
+      .mock-main {
+        padding: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 9px;
+      }
+      .metric-row {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+      }
+      .metric {
+        background: linear-gradient(145deg, #fff7e4, #f3e6c7);
+        border: 1px solid rgba(194,138,55,0.16);
+        border-radius: 12px;
+        min-height: 56px;
+        padding: 8px;
+      }
+      .metric b {
+        display: block;
+        font-size: 16px;
+        margin-top: 6px;
+      }
+      .metric span {
+        color: var(--muted);
+        font-size: 8px;
+        font-weight: 800;
+        text-transform: uppercase;
+      }
+      .chart {
+        height: 94px;
+        display: flex;
+        align-items: end;
+        gap: 8px;
+        background: rgba(23,77,69,0.06);
+        border: 1px solid rgba(23,77,69,0.1);
+        border-radius: 14px;
+        padding: 12px;
+      }
+      .chart i {
+        display: block;
+        width: 100%;
+        background: linear-gradient(180deg, #d3b37b, var(--forest));
+        border-radius: 10px 10px 4px 4px;
+      }
+      .chart i:nth-child(1) { height: 38%; }
+      .chart i:nth-child(2) { height: 68%; }
+      .chart i:nth-child(3) { height: 52%; }
+      .chart i:nth-child(4) { height: 84%; }
+      .chart i:nth-child(5) { height: 44%; }
+      .list-box {
+        flex: 1;
+        background: rgba(255,255,255,0.92);
+        border: 1px solid rgba(23,77,69,0.1);
+        border-radius: 14px;
+        padding: 10px;
+      }
+      .list-box i {
+        display: block;
+        height: 8px;
+        margin-bottom: 6px;
+        border-radius: 999px;
+        background: rgba(23,77,69,0.14);
+      }
+      .list-box i:nth-child(1) { width: 85%; }
+      .list-box i:nth-child(2) { width: 64%; }
+      .list-box i:nth-child(3) { width: 76%; }
+      .list-box i:nth-child(4) { width: 58%; }
+
+      .mock-small {
+        display: grid;
+        gap: 10px;
+        grid-template-rows: 1fr 1fr;
+      }
+      .mini-panel {
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+      }
+      .mini-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .mini-title {
+        color: var(--forest);
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 20px;
+        line-height: 1;
+      }
+      .mini-pill {
+        border: 1px solid rgba(23,77,69,0.14);
+        border-radius: 999px;
+        padding: 5px 8px;
+        color: var(--forest);
+        font-size: 8px;
+        font-weight: 900;
+        text-transform: uppercase;
+      }
+      .mini-copy {
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.35;
+      }
+      .mini-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+      .mini-grid b {
+        display: block;
+        min-height: 34px;
+        border-radius: 12px;
+        background: linear-gradient(145deg, #fff7e4, #edf3f0);
+        border: 1px solid var(--line);
+      }
+
+      .contact-band {
+        background: linear-gradient(145deg, var(--forest), #1a6a5e);
+        color: white;
+        border-radius: 18px;
+        padding: 16px 18px;
+        display: grid;
+        grid-template-columns: 1.1fr 0.9fr;
+        gap: 16px;
+        align-items: center;
+      }
+      .contact-band h2 {
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 21px;
+        line-height: 1;
+        color: #ffe5a6;
+      }
+      .contact-band p {
+        margin-top: 6px;
+        color: rgba(255,255,255,0.84);
+        font-size: 13px;
+        line-height: 1.45;
+      }
+      .contact-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+      .contact-grid div span {
+        display: block;
+        color: rgba(255,229,166,0.86);
+        font-size: 9px;
+        font-weight: 900;
+        text-transform: uppercase;
+        margin-bottom: 4px;
+      }
+      .contact-grid div b {
+        font-size: 14px;
+        display: block;
+      }
+
+      .content-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+      .panel {
+        background: rgba(255,255,255,0.9);
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        padding: 16px;
+      }
+      .panel h2 {
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 28px;
+        line-height: 1;
+        margin-bottom: 8px;
+      }
+      .panel p {
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.45;
+        margin-bottom: 10px;
+      }
+      .feature-list {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0,1fr));
+        gap: 10px 12px;
+      }
+      .feature {
+        border-top: 1px solid rgba(126, 88, 28, 0.12);
+        padding-top: 8px;
+      }
+      .feature strong {
+        display: block;
+        font-size: 14px;
+        margin-bottom: 2px;
+      }
+      .feature span {
+        color: var(--muted);
+        font-size: 11px;
+        line-height: 1.35;
+      }
+
+      .bottom {
+        display: grid;
+        grid-template-columns: 0.9fr 1.1fr;
+        gap: 12px;
+      }
+      .why {
+        background: linear-gradient(145deg, #fff9ee, #f6ead4);
+        border: 1px solid rgba(194,138,55,0.22);
+        border-radius: 18px;
+        padding: 16px;
+      }
+      .why h3 {
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 26px;
+        margin-bottom: 10px;
+      }
+      .why ul {
+        margin: 0;
+        padding-left: 18px;
+        color: #4d453c;
+        font-size: 12px;
+        line-height: 1.5;
+      }
+      .why li + li { margin-top: 5px; }
+
+      .pricing {
+        border: 1px solid rgba(23,77,69,0.16);
+        border-radius: 18px;
+        overflow: hidden;
+        background: rgba(255,255,255,0.92);
+      }
+      .pricing-head, .pricing-row {
+        display: grid;
+        grid-template-columns: 1.1fr 1.15fr 0.75fr;
+      }
+      .pricing-head {
+        background: linear-gradient(145deg, var(--forest), #165f56);
+        color: #fff;
+        font-size: 10px;
+        font-weight: 900;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+      .pricing-head div, .pricing-row div { padding: 12px; }
+      .pricing-row {
+        border-top: 1px solid rgba(126,88,28,0.12);
+      }
+      .pricing-row strong {
+        display: block;
+        font-size: 15px;
+      }
+      .pricing-row span {
+        color: var(--muted);
+        display: block;
+        font-size: 11px;
+        line-height: 1.35;
+        margin-top: 3px;
+      }
+      .pricing-row b {
+        color: var(--forest);
+        display: block;
+        font-size: 16px;
+      }
+
+      .footer {
+        display: grid;
+        grid-template-columns: 1.1fr 0.9fr;
+        gap: 12px;
+        align-items: end;
+      }
+      .note {
+        font-size: 11px;
+        color: #655b51;
+        line-height: 1.5;
+      }
+      .note strong { color: var(--ink); }
+      .cta {
+        background: linear-gradient(145deg, #f3d49a, var(--gold));
+        color: #261a08;
+        border-radius: 16px;
+        min-height: 82px;
+        display: grid;
+        place-items: center;
+        text-align: center;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 22px;
+        padding: 10px;
+      }
+
+      @page { size: A4 portrait; margin: 0; }
+      @media print {
+        * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        body { background: #fff; }
+        .canvas { padding: 0; display: block; }
+        .page { box-shadow: none; border: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="canvas">
+      <section class="page">
+        <div class="inner">
+          <header>
+            <div class="brand-lockup">
+              <div class="brand-mark"><img src="../frontend/public/assets/glowjewels/app_logo.png" alt="App logo" /></div>
+              <div>
+                <div class="brand-name">Retail Commerce App</div>
+                <div class="brand-sub">Billing, inventory, ecommerce, and growth system</div>
+              </div>
+            </div>
+            <div class="tag">Premium brochure</div>
+          </header>
+
+          <section class="hero">
+            <div>
+              <div class="eyebrow">Built for modern retail businesses</div>
+              <h1>One app to run your counter, customers, inventory, and online sales.</h1>
+              <p class="lead">A complete retail operating system for shops that want fast billing, stock control, offers, customer management, website orders, reports, and marketing from one dashboard.</p>
+              <div class="hero-badges">
+                <div class="badge-card"><strong>Counter sales</strong><span>Fast billing, stock checks, customer autofill, discounts, and print-ready invoices.</span></div>
+                <div class="badge-card"><strong>Online selling</strong><span>Customer website, cart, checkout, offers, OTP login, and order management.</span></div>
+                <div class="badge-card"><strong>Business control</strong><span>Inventory, reports, salesperson tracking, role-based access, and pricing rules.</span></div>
+                <div class="badge-card"><strong>Growth tools</strong><span>Campaigns, coupons, visitor tracking, and marketing insights in one admin panel.</span></div>
+              </div>
+            </div>
+
+            <div class="showcase">
+              <div class="mock">
+                <div class="mock-nav"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+                <div class="mock-main">
+                  <div class="metric-row">
+                    <div class="metric"><span>Orders</span><b>128</b></div>
+                    <div class="metric"><span>Customers</span><b>4.8k</b></div>
+                    <div class="metric"><span>Stock</span><b>46</b></div>
+                  </div>
+                  <div class="chart"><i></i><i></i><i></i><i></i><i></i></div>
+                  <div class="list-box"><i></i><i></i><i></i><i></i></div>
+                </div>
+              </div>
+              <div class="mock-small">
+                <div class="mini-panel">
+                  <div class="mini-top"><div class="mini-title">Retail Storefront</div><div class="mini-pill">Customer site</div></div>
+                  <div class="eyebrow" style="font-size:8px; margin:0; color:var(--gold-deep);">Online selling experience</div>
+                  <div class="mini-copy">Browse, add to cart, log in, and order online.</div>
+                </div>
+                <div class="mini-panel" style="background:linear-gradient(145deg, rgba(23,77,69,0.04), rgba(194,138,55,0.06));">
+                  <div class="mini-top"><div class="mini-title" style="font-size:18px;">Operations Snapshot</div><div class="mini-pill">Realtime</div></div>
+                  <div class="mini-grid"><b></b><b></b><b></b><b></b></div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="contact-band">
+            <div>
+              <h2>Demo-ready, client-ready, retail-ready.</h2>
+              <p>A complete brochure for presenting the app to retail businesses that want billing, inventory, website orders, and operational control in one system.</p>
+            </div>
+            <div class="contact-grid">
+              <div><span>Phone / WhatsApp</span><b>8390968506</b></div>
+              <div><span>Email</span><b>chavanjotiram24@gmail.com</b></div>
+            </div>
+          </section>
+
+          <section class="content-grid">
+            <article class="panel">
+              <h2>What shoppers get</h2>
+              <p>A polished customer website experience that helps the business actually sell, not just display products.</p>
+              <div class="feature-list">
+                <div class="feature"><strong>Branded online storefront</strong><span>Mobile-friendly browsing with category-led discovery.</span></div>
+                <div class="feature"><strong>OTP customer login</strong><span>Simple sign-in flow with order history and account access.</span></div>
+                <div class="feature"><strong>Cart and checkout</strong><span>Website orders with address handling and payment flow support.</span></div>
+                <div class="feature"><strong>Coupons and offers</strong><span>Automatic pricing rules with single active coupon logic.</span></div>
+                <div class="feature"><strong>Real product availability</strong><span>Customer-friendly stock messaging and availability visibility.</span></div>
+                <div class="feature"><strong>Trending products</strong><span>Best-selling products ranked from actual sales activity.</span></div>
+              </div>
+            </article>
+            <article class="panel">
+              <h2>What the business gets</h2>
+              <p>One operational system for counter billing, inventory, website orders, reports, customers, and promotions.</p>
+              <div class="feature-list">
+                <div class="feature"><strong>Fast POS billing</strong><span>Counter-ready billing with customer search, stock checks, and print flow.</span></div>
+                <div class="feature"><strong>Inventory management</strong><span>Product editing, low-stock alerts, search, and stock-aware selling.</span></div>
+                <div class="feature"><strong>Customer database</strong><span>Mobile-first customer records and purchase history reuse.</span></div>
+                <div class="feature"><strong>Salesperson tracking</strong><span>Assign sales to staff, view role-based dashboards, and measure performance.</span></div>
+                <div class="feature"><strong>Reports and analytics</strong><span>Daily, monthly, annual, product-wise, and salesperson-wise reporting.</span></div>
+                <div class="feature"><strong>Marketing tools</strong><span>Campaign workflows for WhatsApp, Instagram, and Facebook.</span></div>
+              </div>
+            </article>
+          </section>
+
+          <section class="bottom">
+            <div class="why">
+              <h3>Why clients buy this</h3>
+              <ul>
+                <li>Runs offline billing and online orders from one admin system.</li>
+                <li>Reduces manual work across inventory, offers, and customer handling.</li>
+                <li>Creates a professional selling experience for both counter and website customers.</li>
+                <li>Gives owners clear reporting, staff visibility, and operational control.</li>
+                <li>Works especially well for boutiques, beauty stores, lifestyle retail, gift shops, and specialty retail.</li>
+              </ul>
+            </div>
+            <div class="pricing">
+              <div class="pricing-head">
+                <div>Delivery option</div>
+                <div>What it covers</div>
+                <div>Commercial note</div>
+              </div>
+              <div class="pricing-row">
+                <div><strong>Starter rollout</strong><span>For shops beginning digital operations</span></div>
+                <div><span>Branded website, product catalog, mobile browsing, product management, and guided launch support</span></div>
+                <div><b>Quoted after scope mapping</b><span>Final commercials depend on modules and rollout depth</span></div>
+              </div>
+              <div class="pricing-row">
+                <div><strong>Growth rollout</strong><span>For active online selling</span></div>
+                <div><span>Customer login, cart, checkout, coupons, website order management, reports, and custom domain setup</span></div>
+                <div><b>Shared after requirement review</b><span>Best for businesses adding stronger ecommerce workflows</span></div>
+              </div>
+              <div class="pricing-row">
+                <div><strong>Integrated rollout</strong><span>For full retail operations control</span></div>
+                <div><span>Inventory sync, marketing tools, analytics, salesperson tracking, and advanced operational reporting</span></div>
+                <div><b>Planned per final scope</b><span>Recommended for multi-role teams and growth-focused stores</span></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="footer">
+            <div class="note"><strong>Commercial note:</strong> Final commercials are shared after requirement mapping and rollout planning. Cloud hosting, storage, domain, SMS/WhatsApp usage, and third-party payment costs are billed separately in the client’s own account.</div>
+            <div class="cta">Call / WhatsApp: 8390968506<br />chavanjotiram24@gmail.com</div>
+          </section>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

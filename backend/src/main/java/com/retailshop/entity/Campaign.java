@@ -45,6 +45,18 @@ public class Campaign {
     @Column(name = "campaign_type")
     private MarketingCampaignType campaignType;
 
+    @Column(name = "campaign_goal", length = 80)
+    private String campaignGoal;
+
+    @Column(name = "offer_mode", length = 80)
+    private String offerMode;
+
+    @Column(name = "linked_offer_id")
+    private UUID linkedOfferId;
+
+    @Column(name = "coupon_code", length = 100)
+    private String couponCode;
+
     @Column(nullable = false, length = 2000)
     private String content;
 
@@ -131,6 +143,12 @@ public class Campaign {
         }
         if (campaignType == null) {
             campaignType = MarketingCampaignType.CUSTOM;
+        }
+        if (campaignGoal == null || campaignGoal.isBlank()) {
+            campaignGoal = campaignType == MarketingCampaignType.OFFER ? "OFFER" : "AWARENESS";
+        }
+        if (offerMode == null || offerMode.isBlank()) {
+            offerMode = discountType != null && discountType != MarketingDiscountType.NONE ? "MANUAL" : "NONE";
         }
         if (discountType == null) {
             discountType = MarketingDiscountType.NONE;

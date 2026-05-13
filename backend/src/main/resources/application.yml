@@ -78,75 +78,130 @@ app:
     key-id: ${RAZORPAY_KEY_ID:rzp_test_SirLkQHBMbkN2d}
     key-secret: ${RAZORPAY_KEY_SECRET:}
     webhook-secret: ${RAZORPAY_WEBHOOK_SECRET:}
-  phonepe:
-    client-id: ${PHONEPE_CLIENT_ID:}
-    client-secret: ${PHONEPE_CLIENT_SECRET:}
-    client-version: ${PHONEPE_CLIENT_VERSION:1}
-    env: ${PHONEPE_ENV:sandbox}
-    redirect-url: ${PHONEPE_REDIRECT_URL:http://localhost:5176/checkout}
-    webhook-url: ${PHONEPE_WEBHOOK_URL:}
-  twilio:
-    account-sid: ${TWILIO_ACCOUNT_SID:}
-    auth-token: ${TWILIO_AUTH_TOKEN:}
-    verify-service-sid: ${TWILIO_VERIFY_SERVICE_SID:}
-    verify-friendly-name: ${TWILIO_VERIFY_FRIENDLY_NAME:Retail Shop OTP}
-    channel: ${TWILIO_VERIFY_CHANNEL:whatsapp}
-    whatsapp-from: ${TWILIO_WHATSAPP_FROM:}
-    otp-content-sid: ${TWILIO_WHATSAPP_OTP_CONTENT_SID:}
-    order-update-content-sid: ${TWILIO_WHATSAPP_ORDER_CONTENT_SID:}
-    offer-content-sid: ${TWILIO_WHATSAPP_OFFER_CONTENT_SID:}
+  whatsapp-provider: ${WHATSAPP_PROVIDER:META}
   gupshup:
     api-key: ${GUPSHUP_API_KEY:}
     app-name: ${GUPSHUP_APP_NAME:}
     source-number: ${GUPSHUP_SOURCE_NUMBER:}
-    otp-template-id: ${GUPSHUP_OTP_TEMPLATE_ID:}
+    message-endpoint: ${GUPSHUP_MESSAGE_ENDPOINT:https://api.gupshup.io/wa/api/v1/msg}
+    template-endpoint: ${GUPSHUP_TEMPLATE_ENDPOINT:https://api.gupshup.io/wa/api/v1/template/msg}
+    max-attempts: ${GUPSHUP_MAX_ATTEMPTS:3}
+    retry-delay-ms: ${GUPSHUP_RETRY_DELAY_MS:750}
+    templates:
+      otp: ${GUPSHUP_OTP_TEMPLATE_ID:}
+      order-confirmation: ${GUPSHUP_ORDER_CONFIRMATION_TEMPLATE_ID:}
+      order-dispatched: ${GUPSHUP_ORDER_DISPATCHED_TEMPLATE_ID:}
+      order-delivered: ${GUPSHUP_ORDER_DELIVERED_TEMPLATE_ID:}
+      order-cancelled: ${GUPSHUP_ORDER_CANCELLED_TEMPLATE_ID:}
+      order-returned: ${GUPSHUP_ORDER_RETURNED_TEMPLATE_ID:}
+      refund-initiated: ${GUPSHUP_REFUND_INITIATED_TEMPLATE_ID:}
+      payment-failed: ${GUPSHUP_PAYMENT_FAILED_TEMPLATE_ID:}
+      payment-success: ${GUPSHUP_PAYMENT_SUCCESS_TEMPLATE_ID:}
+      bot-welcome: ${GUPSHUP_BOT_WELCOME_TEMPLATE_ID:}
+      bot-menu: ${GUPSHUP_BOT_MENU_TEMPLATE_ID:}
+      support-escalation: ${GUPSHUP_SUPPORT_ESCALATION_TEMPLATE_ID:}
+      out-of-office: ${GUPSHUP_OUT_OF_OFFICE_TEMPLATE_ID:}
+      feedback-request: ${GUPSHUP_FEEDBACK_REQUEST_TEMPLATE_ID:}
   meta:
     access-token: ${META_ACCESS_TOKEN:}
-    page-id: ${FB_PAGE_ID:}
+    page-id: ${FB_PAGE_ID:${MARKETING_FACEBOOK_PAGE_ID:}}
+    page-access-token: ${FB_PAGE_ACCESS_TOKEN:${MARKETING_FACEBOOK_PAGE_ACCESS_TOKEN:}}
     instagram-business-account-id: ${IG_BUSINESS_ACCOUNT_ID:}
     graph-version: ${META_GRAPH_VERSION:v23.0}
+    whatsapp-phone-number-id: ${META_WHATSAPP_PHONE_NUMBER_ID:${MARKETING_WHATSAPP_PHONE_NUMBER_ID:}}
+    whatsapp-otp-template-name: ${META_WHATSAPP_OTP_TEMPLATE_NAME:}
+    whatsapp-otp-template-language: ${META_WHATSAPP_OTP_TEMPLATE_LANGUAGE:en_US}
+    whatsapp-max-attempts: ${META_WHATSAPP_MAX_ATTEMPTS:3}
+    whatsapp-retry-delay-ms: ${META_WHATSAPP_RETRY_DELAY_MS:750}
+    whatsapp-templates:
+      default-language: ${META_WHATSAPP_DEFAULT_TEMPLATE_LANGUAGE:en_US}
+      order-confirmation:
+        name: ${META_WHATSAPP_ORDER_CONFIRMATION_TEMPLATE_NAME:kp_order_confirmed_en}
+        language: ${META_WHATSAPP_ORDER_CONFIRMATION_TEMPLATE_LANGUAGE:en_US}
+      order-dispatched:
+        name: ${META_WHATSAPP_ORDER_DISPATCHED_TEMPLATE_NAME:kp_order_dispatched_en}
+        language: ${META_WHATSAPP_ORDER_DISPATCHED_TEMPLATE_LANGUAGE:en_US}
+      order-delivered:
+        name: ${META_WHATSAPP_ORDER_DELIVERED_TEMPLATE_NAME:kp_order_delivered_en}
+        language: ${META_WHATSAPP_ORDER_DELIVERED_TEMPLATE_LANGUAGE:en_US}
+      order-cancelled:
+        name: ${META_WHATSAPP_ORDER_CANCELLED_TEMPLATE_NAME:kp_order_cancelled_en}
+        language: ${META_WHATSAPP_ORDER_CANCELLED_TEMPLATE_LANGUAGE:en_US}
+      order-returned:
+        name: ${META_WHATSAPP_ORDER_RETURNED_TEMPLATE_NAME:kp_order_returned_en}
+        language: ${META_WHATSAPP_ORDER_RETURNED_TEMPLATE_LANGUAGE:en_US}
+      refund-initiated:
+        name: ${META_WHATSAPP_REFUND_INITIATED_TEMPLATE_NAME:kp_refund_initiated_en}
+        language: ${META_WHATSAPP_REFUND_INITIATED_TEMPLATE_LANGUAGE:en_US}
+      payment-failed:
+        name: ${META_WHATSAPP_PAYMENT_FAILED_TEMPLATE_NAME:kp_payment_failed_en}
+        language: ${META_WHATSAPP_PAYMENT_FAILED_TEMPLATE_LANGUAGE:en_US}
+      payment-success:
+        name: ${META_WHATSAPP_PAYMENT_SUCCESS_TEMPLATE_NAME:kp_payment_success_en}
+        language: ${META_WHATSAPP_PAYMENT_SUCCESS_TEMPLATE_LANGUAGE:en_US}
+      bot-welcome:
+        name: ${META_WHATSAPP_BOT_WELCOME_TEMPLATE_NAME:kp_bot_welcome_en}
+        language: ${META_WHATSAPP_BOT_WELCOME_TEMPLATE_LANGUAGE:en_US}
+      bot-menu:
+        name: ${META_WHATSAPP_BOT_MENU_TEMPLATE_NAME:kp_bot_menu_en}
+        language: ${META_WHATSAPP_BOT_MENU_TEMPLATE_LANGUAGE:en_US}
+      support-escalation:
+        name: ${META_WHATSAPP_SUPPORT_ESCALATION_TEMPLATE_NAME:kp_support_escalation_en}
+        language: ${META_WHATSAPP_SUPPORT_ESCALATION_TEMPLATE_LANGUAGE:en_US}
+      out-of-office:
+        name: ${META_WHATSAPP_OUT_OF_OFFICE_TEMPLATE_NAME:kp_out_of_office_en}
+        language: ${META_WHATSAPP_OUT_OF_OFFICE_TEMPLATE_LANGUAGE:en_US}
+      feedback-request:
+        name: ${META_WHATSAPP_FEEDBACK_REQUEST_TEMPLATE_NAME:kp_feedback_request_en}
+        language: ${META_WHATSAPP_FEEDBACK_REQUEST_TEMPLATE_LANGUAGE:en_US}
+    app-id: ${META_APP_ID:${FB_APP_ID:}}
+    app-secret: ${META_APP_SECRET:${FB_APP_SECRET:}}
+    exchange-token: ${META_FB_EXCHANGE_TOKEN:${FB_EXCHANGE_TOKEN:}}
+    token-refresh-secret-id: ${META_TOKEN_REFRESH_SECRET_ID:${APP_CONFIG_SECRET_ID:}}
+    token-refresh-enabled: ${META_TOKEN_REFRESH_ENABLED:true}
+    token-refresh-interval-ms: ${META_TOKEN_REFRESH_INTERVAL_MS:3888000000}
+    token-refresh-initial-delay-ms: ${META_TOKEN_REFRESH_INITIAL_DELAY_MS:60000}
   google-maps:
     api-key: ${GOOGLE_MAPS_API_KEY:}
+  google-auth:
+    client-id: ${GOOGLE_CLIENT_ID:647290985970-rhhho15u57fp07jrj75him17gfvjnhc4.apps.googleusercontent.com}
+    client-secret: ${GOOGLE_CLIENT_SECRET:${GOOGLE_OAUTH_CLIENT_SECRET:}}
+    redirect-uri: ${GOOGLE_REDIRECT_URI:${GOOGLE_OAUTH_REDIRECT_URI:}}
 
 marketing:
   ai:
     enabled: ${MARKETING_AI_ENABLED:true}
-    api-key: ${MARKETING_OPENAI_API_KEY:}
+    api-key: ${OPEN_AI_API_KEY:${MARKETING_OPENAI_API_KEY:}}
     model: ${MARKETING_OPENAI_MODEL:gpt-4.1-mini}
-    image-provider: ${MARKETING_IMAGE_PROVIDER:OPENAI}
     image-model: ${MARKETING_OPENAI_IMAGE_MODEL:gpt-image-1.5}
     image-size: ${MARKETING_OPENAI_IMAGE_SIZE:1024x1024}
     image-quality: ${MARKETING_OPENAI_IMAGE_QUALITY:medium}
-  leonardo:
-    api-key: ${MARKETING_LEONARDO_API_KEY:}
-    model-id: ${MARKETING_LEONARDO_MODEL_ID:de7d3faf-762f-48e0-b3b7-9d0ac3a3fcf3}
-    style-uuid: ${MARKETING_LEONARDO_STYLE_UUID:111dc692-d470-4eec-b791-3475abac4c46}
-    alchemy: ${MARKETING_LEONARDO_ALCHEMY:true}
-    enhance-prompt: ${MARKETING_LEONARDO_ENHANCE_PROMPT:false}
-    public-images: ${MARKETING_LEONARDO_PUBLIC_IMAGES:true}
-    width: ${MARKETING_LEONARDO_WIDTH:1024}
-    height: ${MARKETING_LEONARDO_HEIGHT:1024}
-    contrast: ${MARKETING_LEONARDO_CONTRAST:3.5}
-    poll-attempts: ${MARKETING_LEONARDO_POLL_ATTEMPTS:16}
-    poll-delay-ms: ${MARKETING_LEONARDO_POLL_DELAY_MS:1500}
   meta:
     access-token: ${MARKETING_META_ACCESS_TOKEN:${META_ACCESS_TOKEN:}}
     instagram-business-account-id: ${MARKETING_INSTAGRAM_BUSINESS_ACCOUNT_ID:${IG_BUSINESS_ACCOUNT_ID:}}
     facebook-page-id: ${MARKETING_FACEBOOK_PAGE_ID:${FB_PAGE_ID:}}
     graph-version: ${MARKETING_META_GRAPH_VERSION:${META_GRAPH_VERSION:v23.0}}
   whatsapp:
-    provider: ${MARKETING_WHATSAPP_PROVIDER:GUPSHUP}
-    phone-number-id: ${MARKETING_WHATSAPP_PHONE_NUMBER_ID:}
-  twilio:
-    account-sid: ${MARKETING_TWILIO_ACCOUNT_SID:${TWILIO_ACCOUNT_SID:}}
-    auth-token: ${MARKETING_TWILIO_AUTH_TOKEN:${TWILIO_AUTH_TOKEN:}}
-    whatsapp-from: ${MARKETING_TWILIO_WHATSAPP_FROM:${TWILIO_WHATSAPP_FROM:}}
-    offer-content-sid: ${MARKETING_TWILIO_OFFER_CONTENT_SID:${TWILIO_WHATSAPP_OFFER_CONTENT_SID:}}
-  gupshup:
-    api-key: ${MARKETING_GUPSHUP_API_KEY:${GUPSHUP_API_KEY:}}
-    app-name: ${MARKETING_GUPSHUP_APP_NAME:${GUPSHUP_APP_NAME:}}
-    source-number: ${MARKETING_GUPSHUP_SOURCE_NUMBER:${GUPSHUP_SOURCE_NUMBER:}}
-    template-id: ${MARKETING_GUPSHUP_TEMPLATE_ID:${GUPSHUP_OTP_TEMPLATE_ID:}}
+    phone-number-id: ${MARKETING_WHATSAPP_PHONE_NUMBER_ID:${META_WHATSAPP_PHONE_NUMBER_ID:}}
+
+bot:
+  enabled: ${BOT_ENABLED:true}
+  openai-enabled: ${BOT_OPENAI_ENABLED:true}
+  memory-enabled: ${BOT_MEMORY_ENABLED:true}
+  memory-top-k: ${BOT_MEMORY_TOP_K:5}
+  conversation-summary-enabled: ${BOT_CONVERSATION_SUMMARY_ENABLED:true}
+  openai:
+    api-key: ${BOT_OPENAI_API_KEY:${OPEN_AI_API_KEY:${MARKETING_OPENAI_API_KEY:}}}
+    model: ${BOT_OPENAI_MODEL:${MARKETING_OPENAI_MODEL:gpt-4.1-mini}}
+    embedding-model: ${BOT_EMBEDDING_MODEL:text-embedding-3-small}
+    embedding-dimensions: ${BOT_EMBEDDING_DIMENSIONS:1536}
+  qdrant:
+    host: ${QDRANT_HOST:localhost}
+    port: ${QDRANT_PORT:6333}
+    api-key: ${QDRANT_API_KEY:}
+    collection-customer-memory: ${QDRANT_COLLECTION_CUSTOMER_MEMORY:krishnai_customer_memory}
+    use-tls: ${QDRANT_USE_TLS:false}
+    timeout-seconds: ${QDRANT_TIMEOUT_SECONDS:8}
 
 omnichannel:
   website-base-url: ${OMNICHANNEL_WEBSITE_BASE_URL:https://kpskrishnai.com}

@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import DataTable from '../components/DataTable';
 import PageHeader from '../components/PageHeader';
 import Panel from '../components/Panel';
+import OffersPage from './OffersPage';
 import { retailService } from '../services/retailService';
 import { currency, formatDate } from '../utils/format';
 import { getStoredAuthSession } from '../utils/auth';
@@ -9,13 +11,27 @@ import { getApiErrorMessage } from '../utils/validation';
 
 const TABS = [
   { value: 'campaigns', label: 'Campaigns' },
-  { value: 'create', label: 'Create Campaign' },
+  { value: 'create', label: 'Campaign Studio' },
+  { value: 'offers', label: 'Offers & Coupons' },
   { value: 'approval', label: 'Approval Queue' },
   { value: 'schedule', label: 'Schedule View' },
   { value: 'analytics', label: 'Analytics' }
 ];
 
 const CAMPAIGN_TYPES = ['FESTIVAL', 'OFFER', 'NEW_ARRIVAL', 'SEASONAL', 'CUSTOM'];
+const CAMPAIGN_GOALS = [
+  { value: 'OFFER', label: 'Offer / coupon campaign' },
+  { value: 'GREETING', label: 'Festival greeting' },
+  { value: 'QUOTE', label: 'Quote / congratulation' },
+  { value: 'PRODUCT_STORY', label: 'Product story' },
+  { value: 'AWARENESS', label: 'Brand awareness' }
+];
+const OFFER_MODES = [
+  { value: 'NONE', label: 'No offer' },
+  { value: 'ATTACH_EXISTING', label: 'Attach existing offer' },
+  { value: 'MANUAL', label: 'Campaign-only offer' },
+  { value: 'CREATE', label: 'Create active offer too' }
+];
 const PLATFORMS = ['INSTAGRAM', 'FACEBOOK', 'WHATSAPP'];
 const LANGUAGES = ['MARATHI', 'ENGLISH', 'HINGLISH'];
 const TONES = ['LUXURY', 'FESTIVE', 'EMOTIONAL', 'PREMIUM', 'SIMPLE'];
@@ -32,10 +48,15 @@ const blankFilters = {
 const blankForm = {
   campaignName: '',
   campaignType: 'FESTIVAL',
+  campaignGoal: 'GREETING',
+  offerMode: 'NONE',
+  offerId: '',
   categoryId: '',
+  categoryCode: '',
   productId: '',
   offerTitle: '',
   landingUrl: 'https://kpskrishnai.com',
+  couponCode: '',
   discountType: 'NONE',
   discountValue: '',
   startDate: '',
@@ -69,21 +90,55 @@ function formatLocalDateLabel(value) {
 }
 
 function normalizeCampaignPayload(form) {
+  const discountType = form.offerMode === 'NONE' ? 'NONE' : form.discountType;
+  const discountValue = discountType === 'NONE' || form.discountValue === '' ? null : Number(form.discountValue);
   return {
     campaignName: form.campaignName.trim(),
     campaignType: form.campaignType,
+    campaignGoal: form.campaignGoal,
+    offerMode: form.offerMode,
+    offerId: form.offerMode === 'ATTACH_EXISTING' && form.offerId ? form.offerId : null,
     categoryId: form.categoryId || null,
     productId: form.productId || null,
-    offerTitle: form.offerTitle?.trim() || null,
+    offerTitle: form.offerMode === 'NONE' ? null : form.offerTitle?.trim() || null,
     landingUrl: form.landingUrl?.trim() || null,
-    discountType: form.discountType,
-    discountValue: form.discountType === 'NONE' || form.discountValue === '' ? null : Number(form.discountValue),
+    couponCode: form.offerMode === 'NONE' ? null : form.couponCode?.trim().toUpperCase() || null,
+    discountType,
+    discountValue,
     startDate: form.startDate || null,
     endDate: form.endDate || null,
+    inlineOffer: form.offerMode === 'CREATE' ? buildInlineOfferPayload(form, discountType, discountValue) : null,
     targetPlatforms: form.targetPlatforms,
     language: form.language,
     tone: form.tone
   };
+}
+
+function buildInlineOfferPayload(form, discountType, discountValue) {
+  if (discountType === 'NONE' || discountValue == null) {
+    return null;
+  }
+  return {
+    name: form.offerTitle?.trim() || form.campaignName.trim(),
+    type: discountType === 'FLAT' ? 'FLAT' : 'PERCENT',
+    value: discountValue,
+    couponCode: form.couponCode?.trim().toUpperCase() || null,
+    category: form.productId ? null : form.categoryCode || null,
+    productId: form.productId || null,
+    startDate: form.startDate || null,
+    endDate: form.endDate || null,
+    active: true
+  };
+}
+
+function marketingDiscountFromOfferType(type) {
+  if (type === 'FLAT') {
+    return 'FLAT';
+  }
+  if (type === 'PERCENT' || type === 'CATEGORY') {
+    return 'PERCENTAGE';
+  }
+  return 'NONE';
 }
 
 function statusTone(status) {
@@ -110,12 +165,12 @@ function buildOfferPreviewLabel(campaign) {
     return '';
   }
   if (campaign.discountType === 'PERCENTAGE' && campaign.discountValue != null && campaign.discountValue !== '') {
-    return `${campaign.discountValue}% off`;
+    return `${campaign.discountValue}% off${campaign.couponCode ? ` · ${campaign.couponCode}` : ''}`;
   }
   if (campaign.discountType === 'FLAT' && campaign.discountValue != null && campaign.discountValue !== '') {
-    return `Flat ${currency(campaign.discountValue)} off`;
+    return `Flat ${currency(campaign.discountValue)} off${campaign.couponCode ? ` · ${campaign.couponCode}` : ''}`;
   }
-  return campaign.offerTitle || '';
+  return campaign.couponCode ? `Code ${campaign.couponCode}` : campaign.offerTitle || '';
 }
 
 function escapeSvgText(value) {
@@ -184,15 +239,18 @@ function buildSuggestionPreviewDataUrl(suggestion) {
 }
 
 export default function CampaignsPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTab = searchParams.get('tab');
   const auth = getStoredAuthSession() || {};
   const canApprove = auth.role === 'ADMIN' || auth.role === 'OWNER';
-  const [activeTab, setActiveTab] = useState('campaigns');
+  const [activeTab, setActiveTab] = useState(TABS.some((tab) => tab.value === requestedTab) ? requestedTab : 'campaigns');
   const [filters, setFilters] = useState(blankFilters);
   const [campaignsPage, setCampaignsPage] = useState({ items: [], page: 0, totalPages: 0, totalItems: 0, hasNext: false, hasPrevious: false });
   const [scheduledPage, setScheduledPage] = useState({ items: [], page: 0, totalPages: 0, totalItems: 0, hasNext: false, hasPrevious: false });
   const [selectedCampaign, setSelectedCampaign] = useState(null);
   const [contentDrafts, setContentDrafts] = useState({});
   const [suggestions, setSuggestions] = useState([]);
+  const [activeOffers, setActiveOffers] = useState([]);
   const [approvalQueue, setApprovalQueue] = useState([]);
   const [analytics, setAnalytics] = useState(null);
   const [categories, setCategories] = useState([]);
@@ -205,6 +263,17 @@ export default function CampaignsPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const generationRefreshTimers = useRef({});
+
+  useEffect(() => {
+    if (requestedTab && TABS.some((tab) => tab.value === requestedTab) && requestedTab !== activeTab) {
+      setActiveTab(requestedTab);
+    }
+  }, [requestedTab, activeTab]);
+
+  const selectTab = (tab) => {
+    setActiveTab(tab);
+    setSearchParams(tab === 'campaigns' ? {} : { tab });
+  };
 
   const currentCategory = useMemo(
     () => categories.find((entry) => entry.id === form.categoryId),
@@ -305,6 +374,15 @@ export default function CampaignsPage() {
   }, []);
 
   useEffect(() => {
+    if (activeTab !== 'create') {
+      return;
+    }
+    retailService.getOffers({ page: 0, size: 100 })
+      .then((offersPage) => setActiveOffers(offersPage.items || []))
+      .catch(() => {});
+  }, [activeTab]);
+
+  useEffect(() => {
     Promise.all([
       loadCampaigns(),
       loadScheduled(),
@@ -312,11 +390,13 @@ export default function CampaignsPage() {
       loadApprovalQueue(),
       loadAnalytics(),
       retailService.getProductCategoryOptions(),
-      retailService.getProducts({ page: 0, size: 100 })
+      retailService.getProducts({ page: 0, size: 100 }),
+      retailService.getOffers({ page: 0, size: 100 }).catch(() => ({ items: [] }))
     ])
-      .then(([, , , , , categoryOptions, productPage]) => {
+      .then(([, , , , , categoryOptions, productPage, offersPage]) => {
         setCategories(categoryOptions || []);
         setProducts(productPage.items || []);
+        setActiveOffers(offersPage.items || []);
       })
       .catch((requestError) => {
         setError(getApiErrorMessage(requestError, 'Unable to load marketing automation data.'));
@@ -340,8 +420,42 @@ export default function CampaignsPage() {
   };
 
   const handleCreateCampaign = async (generateAfterCreate = false) => {
+    if (!form.campaignName.trim()) {
+      setError('Enter a campaign name before saving.');
+      return;
+    }
     if (!form.targetPlatforms.length) {
       setError('Select at least one social platform before creating a campaign.');
+      return;
+    }
+    if (form.offerMode === 'ATTACH_EXISTING' && !form.offerId) {
+      setError('Choose an existing offer or switch offer source to No offer.');
+      return;
+    }
+    if ((form.offerMode === 'MANUAL' || form.offerMode === 'CREATE') && form.discountType !== 'NONE' && form.discountValue !== '' && Number(form.discountValue) < 0) {
+      setError('Discount value cannot be negative.');
+      return;
+    }
+    if ((form.offerMode === 'MANUAL' || form.offerMode === 'CREATE') && form.discountType === 'PERCENTAGE' && Number(form.discountValue) > 100) {
+      setError('Percentage discount cannot exceed 100.');
+      return;
+    }
+    if (form.offerMode === 'CREATE') {
+      if (form.discountType === 'NONE' || form.discountValue === '') {
+        setError('Choose a discount type and value before creating an active offer.');
+        return;
+      }
+      if (!form.productId && !form.categoryCode) {
+        setError('Choose a category or product for the active offer.');
+        return;
+      }
+      if (!form.startDate || !form.endDate) {
+        setError('Start date and end date are required when creating an active offer.');
+        return;
+      }
+    }
+    if (form.endDate && form.startDate && form.endDate < form.startDate) {
+      setError('End date cannot be earlier than start date.');
       return;
     }
     setSubmitting(true);
@@ -360,9 +474,10 @@ export default function CampaignsPage() {
       await loadCampaigns(0);
       await loadScheduled(0);
       await loadApprovalQueue();
+      retailService.getOffers({ page: 0, size: 100 }).then((offersPage) => setActiveOffers(offersPage.items || [])).catch(() => {});
       if (response?.id) {
         await loadCampaignDetails(response.id);
-        setActiveTab('campaigns');
+        selectTab('campaigns');
       }
     } catch (requestError) {
       setError(getApiErrorMessage(requestError, 'Unable to create campaign.'));
@@ -571,8 +686,8 @@ export default function CampaignsPage() {
   const createPreviewUrl = useMemo(() => buildMarketingPreviewDataUrl(
     {
       campaignName: form.campaignName || 'Campaign preview',
-      offerTitle: form.offerTitle || '',
-      discountType: form.discountType,
+      offerTitle: form.offerMode === 'NONE' ? '' : form.offerTitle || '',
+      discountType: form.offerMode === 'NONE' ? 'NONE' : form.discountType,
       discountValue: form.discountValue === '' ? null : form.discountValue
     },
     {
@@ -592,6 +707,8 @@ export default function CampaignsPage() {
       ...blankForm,
       campaignName: suggestion.campaignName || suggestion.occasionName || '',
       campaignType: suggestion.campaignType || 'FESTIVAL',
+      campaignGoal: suggestion.discountType && suggestion.discountType !== 'NONE' ? 'OFFER' : 'GREETING',
+      offerMode: suggestion.discountType && suggestion.discountType !== 'NONE' ? 'MANUAL' : 'NONE',
       offerTitle: suggestion.offerTitle || '',
       landingUrl: suggestion.landingUrl || blankForm.landingUrl,
       discountType: suggestion.discountType || 'NONE',
@@ -604,9 +721,57 @@ export default function CampaignsPage() {
       language: suggestion.language || 'MARATHI',
       tone: suggestion.tone || 'FESTIVE'
     });
-    setActiveTab('create');
+    selectTab('create');
     setSuccess(`${suggestion.occasionName || suggestion.campaignName} suggestion loaded into the campaign form. You can edit it before generating drafts.`);
     setError('');
+  };
+
+  const applyExistingOffer = (offerId) => {
+    const offer = activeOffers.find((entry) => entry.id === offerId);
+    if (!offer) {
+      setForm((current) => ({ ...current, offerId, offerMode: 'ATTACH_EXISTING' }));
+      return;
+    }
+    const matchedCategory = categories.find((category) => category.code === offer.category);
+    setForm((current) => ({
+      ...current,
+      campaignGoal: 'OFFER',
+      campaignType: current.campaignType === 'CUSTOM' ? 'OFFER' : current.campaignType,
+      offerMode: 'ATTACH_EXISTING',
+      offerId,
+      offerTitle: offer.name || current.offerTitle,
+      couponCode: offer.couponCode || '',
+      discountType: marketingDiscountFromOfferType(offer.type),
+      discountValue: offer.value != null ? String(offer.value) : '',
+      categoryId: matchedCategory?.id || current.categoryId,
+      categoryCode: offer.category || matchedCategory?.code || current.categoryCode,
+      productId: offer.productId || '',
+      startDate: offer.startDate || current.startDate,
+      endDate: offer.endDate || current.endDate
+    }));
+  };
+
+  const handleCategoryChange = (categoryId) => {
+    const category = categories.find((entry) => entry.id === categoryId);
+    setForm((current) => ({
+      ...current,
+      categoryId,
+      categoryCode: category?.code || '',
+      productId: ''
+    }));
+  };
+
+  const handleOfferModeChange = (offerMode) => {
+    setForm((current) => ({
+      ...current,
+      offerMode,
+      offerId: offerMode === 'ATTACH_EXISTING' ? current.offerId : '',
+      campaignGoal: offerMode === 'NONE' ? (current.campaignType === 'FESTIVAL' ? 'GREETING' : 'AWARENESS') : 'OFFER',
+      discountType: offerMode === 'NONE' ? 'NONE' : current.discountType,
+      discountValue: offerMode === 'NONE' ? '' : current.discountValue,
+      offerTitle: offerMode === 'NONE' ? '' : current.offerTitle,
+      couponCode: offerMode === 'NONE' ? '' : current.couponCode
+    }));
   };
 
   const renderContentCard = (content) => {
@@ -740,9 +905,9 @@ export default function CampaignsPage() {
   return (
     <div className="page marketing-automation-page">
       <PageHeader
-        eyebrow="Marketing Automation"
-        title="AI drafts, approvals, scheduling, and publishing"
-        description="Create campaigns for Instagram, Facebook, and WhatsApp, review AI-generated content, route it through owner approval, and publish only when it is ready."
+        eyebrow="Campaign Studio"
+        title="Offers, AI creatives, approvals, and publishing"
+        description="Create one campaign with or without an offer, generate one shared branded creative for Instagram, Facebook, and WhatsApp, then approve and publish when it is ready."
       />
 
       <div className="marketing-tab-row">
@@ -751,7 +916,7 @@ export default function CampaignsPage() {
             key={tab.value}
             type="button"
             className={`ghost-btn compact-btn ${activeTab === tab.value ? 'marketing-tab-active' : ''}`}
-            onClick={() => setActiveTab(tab.value)}
+            onClick={() => selectTab(tab.value)}
           >
             {tab.label}
           </button>
@@ -784,6 +949,11 @@ export default function CampaignsPage() {
               columns={[
                 { key: 'campaignName', label: 'Campaign' },
                 { key: 'campaignType', label: 'Type' },
+                {
+                  key: 'campaignGoal',
+                  label: 'Goal',
+                  render: (row) => row.campaignGoal || 'AWARENESS'
+                },
                 {
                   key: 'targetPlatforms',
                   label: 'Platforms',
@@ -837,6 +1007,8 @@ export default function CampaignsPage() {
             >
               <div className="marketing-selected-campaign-meta">
                 <div><span>Offer</span><strong>{selectedCampaign.offerTitle || '—'}</strong></div>
+                <div><span>Goal</span><strong>{selectedCampaign.campaignGoal || '—'}</strong></div>
+                <div><span>Coupon</span><strong>{selectedCampaign.couponCode || '—'}</strong></div>
                 <div><span>Landing URL</span><strong>{selectedCampaign.landingUrl || '—'}</strong></div>
                 <div><span>Language</span><strong>{selectedCampaign.language}</strong></div>
                 <div><span>Tone</span><strong>{selectedCampaign.tone}</strong></div>
@@ -918,8 +1090,33 @@ export default function CampaignsPage() {
                 </select>
               </label>
               <label>
+                Campaign goal
+                <select value={form.campaignGoal} onChange={(event) => setForm((current) => ({ ...current, campaignGoal: event.target.value }))}>
+                  {CAMPAIGN_GOALS.map((goal) => <option key={goal.value} value={goal.value}>{goal.label}</option>)}
+                </select>
+              </label>
+              <label>
+                Offer source
+                <select value={form.offerMode} onChange={(event) => handleOfferModeChange(event.target.value)}>
+                  {OFFER_MODES.map((mode) => <option key={mode.value} value={mode.value}>{mode.label}</option>)}
+                </select>
+              </label>
+              {form.offerMode === 'ATTACH_EXISTING' ? (
+                <label className="marketing-wide-field">
+                  Existing active offer
+                  <select value={form.offerId} onChange={(event) => applyExistingOffer(event.target.value)}>
+                    <option value="">Choose offer</option>
+                    {activeOffers.map((offer) => (
+                      <option key={offer.id} value={offer.id}>
+                        {offer.name} {offer.couponCode ? `(${offer.couponCode})` : ''} · {offer.value}{offer.type === 'FLAT' ? ' flat' : '%'}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+              <label>
                 Category
-                <select value={form.categoryId} onChange={(event) => setForm((current) => ({ ...current, categoryId: event.target.value, productId: '' }))}>
+                <select value={form.categoryId} onChange={(event) => handleCategoryChange(event.target.value)}>
                   <option value="">All categories</option>
                   {categories.map((category) => (
                     <option key={category.id} value={category.id}>{category.displayName}</option>
@@ -937,15 +1134,33 @@ export default function CampaignsPage() {
               </label>
               <label>
                 Offer title
-                <input value={form.offerTitle} onChange={(event) => setForm((current) => ({ ...current, offerTitle: event.target.value }))} />
+                <input
+                  value={form.offerTitle}
+                  disabled={form.offerMode === 'NONE' || form.offerMode === 'ATTACH_EXISTING'}
+                  placeholder={form.offerMode === 'NONE' ? 'Not needed for non-offer campaigns' : 'Example: Wedding collection offer'}
+                  onChange={(event) => setForm((current) => ({ ...current, offerTitle: event.target.value }))}
+                />
               </label>
               <label>
                 Landing URL
                 <input value={form.landingUrl} onChange={(event) => setForm((current) => ({ ...current, landingUrl: event.target.value }))} />
               </label>
               <label>
+                Coupon code
+                <input
+                  value={form.couponCode}
+                  disabled={form.offerMode === 'NONE' || form.offerMode === 'ATTACH_EXISTING'}
+                  placeholder={form.offerMode === 'NONE' ? 'No coupon for this campaign' : 'Optional coupon code'}
+                  onChange={(event) => setForm((current) => ({ ...current, couponCode: event.target.value.toUpperCase() }))}
+                />
+              </label>
+              <label>
                 Discount type
-                <select value={form.discountType} onChange={(event) => setForm((current) => ({ ...current, discountType: event.target.value }))}>
+                <select
+                  value={form.discountType}
+                  disabled={form.offerMode === 'NONE' || form.offerMode === 'ATTACH_EXISTING'}
+                  onChange={(event) => setForm((current) => ({ ...current, discountType: event.target.value, discountValue: event.target.value === 'NONE' ? '' : current.discountValue }))}
+                >
                   <option value="NONE">NONE</option>
                   <option value="PERCENTAGE">PERCENTAGE</option>
                   <option value="FLAT">FLAT</option>
@@ -953,7 +1168,15 @@ export default function CampaignsPage() {
               </label>
               <label>
                 Discount value
-                <input type="number" min="0" step="0.01" value={form.discountValue} onChange={(event) => setForm((current) => ({ ...current, discountValue: event.target.value }))} />
+                <input
+                  type="number"
+                  min="0"
+                  max={form.discountType === 'PERCENTAGE' ? '100' : undefined}
+                  step="0.01"
+                  disabled={form.offerMode === 'NONE' || form.offerMode === 'ATTACH_EXISTING' || form.discountType === 'NONE'}
+                  value={form.discountValue}
+                  onChange={(event) => setForm((current) => ({ ...current, discountValue: event.target.value }))}
+                />
               </label>
               <label>
                 Start date
@@ -1028,6 +1251,16 @@ export default function CampaignsPage() {
         </div>
       ) : null}
 
+      {activeTab === 'offers' ? (
+        <div className="marketing-automation-stack">
+          <div className="campaign-studio-section-intro">
+            <h2>Offers & coupons</h2>
+            <p>Create reusable offers here, then attach them inside Campaign Studio when a campaign needs an actual discount or coupon.</p>
+          </div>
+          <OffersPage embedded />
+        </div>
+      ) : null}
+
       {activeTab === 'approval' ? (
         <div className="marketing-automation-stack">
           <Panel title="Approval queue" subtitle="Owner and admin users can review, edit, approve, or reject pending content here.">
@@ -1063,7 +1296,9 @@ export default function CampaignsPage() {
                     </div>
                     <div className="marketing-content-card-grid">
                       <div className="marketing-content-preview">
-                        <img src={entry.imageUrl || buildMarketingPreviewDataUrl({ campaignName: entry.campaignName, offerTitle: entry.offerTitle, discountType: entry.discountType, discountValue: entry.discountValue }, entry, null)} alt={entry.campaignName} />
+                        <div className="marketing-creative-frame">
+                          <img src={entry.imageUrl || buildMarketingPreviewDataUrl({ campaignName: entry.campaignName, offerTitle: entry.offerTitle, discountType: entry.discountType, discountValue: entry.discountValue }, entry, null)} alt={entry.campaignName} />
+                        </div>
                       </div>
                       <div className="marketing-content-fields">
                         <p><strong>Caption:</strong> {entry.captionText || '—'}</p>

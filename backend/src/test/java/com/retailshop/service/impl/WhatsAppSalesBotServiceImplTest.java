@@ -11,11 +11,15 @@ import com.retailshop.entity.OmnichannelConversation;
 import com.retailshop.entity.OmnichannelConversationMessage;
 import com.retailshop.entity.OmnichannelLead;
 import com.retailshop.entity.Product;
+import com.retailshop.repository.CustomerOrderRepository;
+import com.retailshop.repository.OfferRepository;
 import com.retailshop.repository.OmnichannelConversationMessageRepository;
 import com.retailshop.repository.OmnichannelConversationRepository;
 import com.retailshop.repository.OmnichannelLeadRepository;
 import com.retailshop.repository.ProductRepository;
+import com.retailshop.service.MarketingChannelResult;
 import com.retailshop.service.OmnichannelCommerceService;
+import com.retailshop.service.WhatsAppMessageService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -33,6 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -41,6 +46,12 @@ class WhatsAppSalesBotServiceImplTest {
 
     @Mock
     private OmnichannelCommerceService omnichannelCommerceService;
+
+    @Mock
+    private CustomerOrderRepository orderRepository;
+
+    @Mock
+    private OfferRepository offerRepository;
 
     @Mock
     private ProductRepository productRepository;
@@ -54,6 +65,9 @@ class WhatsAppSalesBotServiceImplTest {
     @Mock
     private OmnichannelConversationMessageRepository messageRepository;
 
+    @Mock
+    private WhatsAppMessageService whatsAppMessageService;
+
     private WhatsAppSalesBotServiceImpl service;
     private UUID leadId;
 
@@ -64,13 +78,20 @@ class WhatsAppSalesBotServiceImplTest {
         service = new WhatsAppSalesBotServiceImpl(
                 properties,
                 omnichannelCommerceService,
+                orderRepository,
+                offerRepository,
                 productRepository,
                 leadRepository,
                 conversationRepository,
                 messageRepository,
+                whatsAppMessageService,
                 new ObjectMapper()
         );
         leadId = UUID.randomUUID();
+        lenient().when(whatsAppMessageService.sendText(any(), any())).thenReturn(MarketingChannelResult.builder()
+                .success(false)
+                .errorMessage("WhatsApp sender is not configured")
+                .build());
     }
 
     @Test
@@ -103,8 +124,9 @@ class WhatsAppSalesBotServiceImplTest {
         assertFalse(response.isSent());
         assertEquals(1, response.getProductCount());
         assertTrue(response.getReplyText().contains("Pearl Earrings"));
-        assertTrue(response.getReplyText().contains("Buy Now"));
-        assertTrue(response.getErrorMessage().contains("Gupshup bot sender needs"));
+        assertTrue(response.getReplyText().contains("Reply BUY"));
+        assertFalse(response.getReplyText().contains("autoAdd"));
+        assertTrue(response.getErrorMessage().contains("WhatsApp sender is not configured"));
 
         ArgumentCaptor<OmnichannelProductSearchRequest> searchCaptor = ArgumentCaptor.forClass(OmnichannelProductSearchRequest.class);
         verify(omnichannelCommerceService).searchProducts(searchCaptor.capture());
@@ -119,25 +141,122 @@ class WhatsAppSalesBotServiceImplTest {
     }
 
     @Test
-    void shouldAnswerGreetingWithAvailableCategories() {
+    void shouldUnderstandMisspelledCategoryAndFallbackToCatalogSearch() {
         mockLeadCapture("Customer");
-        when(productRepository.findAll()).thenReturn(List.of(
-                product("Pearl Earrings", "Earrings"),
-                product("Matte Lipstick", "Cosmetics")
-        ));
+        Product necklace = product("Classic Pearl Necklace", "NECKALACE");
+        necklace.setQuantity(0);
+        when(productRepository.findAll()).thenReturn(List.of(necklace));
+        when(omnichannelCommerceService.searchProducts(any(OmnichannelProductSearchRequest.class))).thenReturn(
+                OmnichannelProductSearchResponse.builder()
+                        .query("neckalce")
+                        .totalMatches(0)
+                        .products(List.of())
+                        .build()
+        );
         mockOutboundConversation();
 
         var response = service.handleWebhook("""
-                {"payload":{"source":"919175834000","sender":{"name":"Customer"},"payload":{"text":"Namaste"}}}
+                {"from":"918390968506","name":"Customer","text":"show neckalce","messageId":"wamid.typo"}
+                """, null);
+
+        assertTrue(response.isAccepted());
+        assertFalse(response.isSent());
+        assertEquals(1, response.getProductCount());
+        assertTrue(response.getReplyText().contains("Classic Pearl Necklace"));
+        assertTrue(response.getReplyText().contains("Out of stock"));
+        assertTrue(response.getReplyText().contains("Reply BUY"));
+        assertFalse(response.getReplyText().contains("utm_"));
+
+        ArgumentCaptor<OmnichannelProductSearchRequest> searchCaptor = ArgumentCaptor.forClass(OmnichannelProductSearchRequest.class);
+        verify(omnichannelCommerceService).searchProducts(searchCaptor.capture());
+        assertEquals("NECKALACE", searchCaptor.getValue().getCategory());
+        assertTrue(searchCaptor.getValue().getQuery().contains("necklace"));
+        assertFalse(searchCaptor.getValue().getInStockOnly());
+    }
+
+    @Test
+    void shouldSendFirstProductImageWhenReplyHasProductVisual() {
+        mockLeadCapture("Customer");
+        when(productRepository.findAll()).thenReturn(List.of(product("Necklace SB", "NECKALACE")));
+        when(omnichannelCommerceService.searchProducts(any(OmnichannelProductSearchRequest.class))).thenReturn(
+                OmnichannelProductSearchResponse.builder()
+                        .query("necklace")
+                        .totalMatches(1)
+                        .products(List.of(OmnichannelProductCardResponse.builder()
+                                .productId(UUID.randomUUID())
+                                .name("Necklace SB")
+                                .category("NECKALACE")
+                                .price(BigDecimal.valueOf(12))
+                                .stockLabel("Available now")
+                                .shortBenefit("Ready-to-order style")
+                                .productUrl("https://kpskrishnai.com/products?productId=demo")
+                                .buyNowUrl("https://kpskrishnai.com/products?autoAdd=demo")
+                                .imageUrl("https://kpskrishnai.com/api/images/products/necklace.png")
+                                .build()))
+                        .build()
+        );
+        when(whatsAppMessageService.sendImage(any(), any(), any())).thenReturn(MarketingChannelResult.builder()
+                .success(true)
+                .responseId("image-1")
+                .build());
+        mockOutboundConversation();
+
+        var response = service.handleWebhook("""
+                {"from":"918390968506","name":"Customer","text":"show necklace","messageId":"wamid.visual"}
+                """, null);
+
+        assertTrue(response.isSent());
+        assertEquals("image-1", response.getProviderMessageId());
+
+        ArgumentCaptor<String> imageUrlCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> captionCaptor = ArgumentCaptor.forClass(String.class);
+        verify(whatsAppMessageService).sendImage(any(), imageUrlCaptor.capture(), captionCaptor.capture());
+        verify(whatsAppMessageService, never()).sendText(any(), any());
+        assertEquals("https://kpskrishnai.com/api/images/products/necklace.png", imageUrlCaptor.getValue());
+        assertTrue(captionCaptor.getValue().contains("Necklace SB"));
+        assertTrue(captionCaptor.getValue().contains("₹12"));
+        assertFalse(captionCaptor.getValue().contains("autoAdd"));
+        assertFalse(captionCaptor.getValue().contains("utm_"));
+    }
+
+    @Test
+    void shouldAnswerGreetingWithAvailableCategories() {
+        mockLeadCapture("Customer");
+        mockOutboundConversation();
+
+        var response = service.handleWebhook("""
+                {"from":"919175834000","name":"Customer","text":"Namaste","messageId":"wamid.test2"}
                 """, null);
 
         assertTrue(response.isAccepted());
         assertFalse(response.isSent());
         assertEquals(0, response.getProductCount());
-        assertTrue(response.getReplyText().contains("Available categories"));
-        assertTrue(response.getReplyText().contains("Earrings"));
-        assertTrue(response.getReplyText().contains("Cosmetics"));
+        assertTrue(response.getReplyText().contains("Shop Products"));
+        assertTrue(response.getReplyText().contains("My Orders"));
+        assertTrue(response.getReplyText().contains("Connect to Agent"));
         verify(omnichannelCommerceService, never()).searchProducts(any());
+    }
+
+    @Test
+    void shouldRouteNumericMenuChoices() {
+        mockLeadCapture("Customer");
+        mockOutboundConversation();
+
+        var categoryResponse = service.handleWebhook("""
+                {"from":"919175834000","name":"Customer","text":"2","messageId":"wamid.menu2"}
+                """, null);
+
+        assertTrue(categoryResponse.isAccepted());
+        assertTrue(categoryResponse.getReplyText().contains("Choose a category"));
+        verify(omnichannelCommerceService, never()).searchProducts(any());
+
+        var paymentResponse = service.handleWebhook("""
+                {"from":"919175834000","name":"Customer","text":"5","messageId":"wamid.menu5"}
+                """, null);
+
+        assertTrue(paymentResponse.isAccepted());
+        assertTrue(paymentResponse.getReplyText().contains("payment"));
+        assertTrue(paymentResponse.getReplyText().contains("order number"));
     }
 
     private void mockLeadCapture(String customerName) {

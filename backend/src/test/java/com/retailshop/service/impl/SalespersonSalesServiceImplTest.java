@@ -58,7 +58,7 @@ class SalespersonSalesServiceImplTest {
         websiteOrder.setStatus(OrderStatus.COMPLETED);
         websiteOrder.setSalesPersonName("Website");
         websiteOrder.setCustomer(customer("Riya"));
-        websiteOrder.setPaymentGateway("PHONEPE");
+        websiteOrder.setPaymentGateway("RAZORPAY");
         websiteOrder.setFinalAmount(BigDecimal.valueOf(499.00).setScale(2));
         websiteOrder.setCreatedAt(LocalDateTime.of(2026, 4, 29, 11, 30));
         websiteOrder.setItems(List.of(orderItem(websiteOrder, product, 2)));

@@ -1,0 +1,946 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Jewellery Web Portal Pamphlet</title>
+    <style>
+      :root {
+        --ivory: #fbf7ef;
+        --pearl: #fffdf8;
+        --champagne: #c59a43;
+        --deep-gold: #8f6722;
+        --emerald: #0f4c42;
+        --emerald-soft: #dcebe5;
+        --ink: #24201b;
+        --muted: #70695f;
+        --line: rgba(143, 103, 34, 0.22);
+        --shadow: 0 24px 70px rgba(36, 32, 27, 0.18);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background:
+          radial-gradient(circle at top left, rgba(197, 154, 67, 0.16), transparent 34rem),
+          linear-gradient(135deg, #eee6d8, #ffffff 42%, #e5efe9);
+        color: var(--ink);
+        font-family:
+          Inter, Avenir, "Segoe UI", Arial, sans-serif;
+        line-height: 1.35;
+      }
+
+      .workspace {
+        display: grid;
+        gap: 32px;
+        justify-content: center;
+        padding: 36px 18px;
+      }
+
+      .page {
+        position: relative;
+        width: 148mm;
+        height: 210mm;
+        overflow: hidden;
+        border: 1px solid rgba(143, 103, 34, 0.22);
+        background: var(--pearl);
+        box-shadow: var(--shadow);
+        isolation: isolate;
+      }
+
+      .page::before {
+        content: "";
+        position: absolute;
+        inset: 10mm;
+        border: 1px solid var(--line);
+        pointer-events: none;
+        z-index: 6;
+      }
+
+      .page::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background-image:
+          radial-gradient(circle, rgba(197, 154, 67, 0.18) 0 1px, transparent 1.2px),
+          radial-gradient(circle, rgba(15, 76, 66, 0.08) 0 1px, transparent 1.2px);
+        background-position: 0 0, 16px 16px;
+        background-size: 32px 32px;
+        opacity: 0.32;
+        pointer-events: none;
+        z-index: -2;
+      }
+
+      .ornament {
+        position: absolute;
+        border-radius: 999px;
+        pointer-events: none;
+        z-index: -1;
+      }
+
+      .ornament.gold {
+        width: 260px;
+        height: 260px;
+        background: radial-gradient(circle, rgba(197, 154, 67, 0.36), transparent 68%);
+        right: -72px;
+        top: -72px;
+      }
+
+      .ornament.green {
+        width: 310px;
+        height: 310px;
+        background: radial-gradient(circle, rgba(15, 76, 66, 0.2), transparent 65%);
+        left: -118px;
+        bottom: -116px;
+      }
+
+      .front-inner,
+      .back-inner {
+        height: 100%;
+        padding: 17mm 15mm;
+        position: relative;
+        z-index: 1;
+      }
+
+      .front-inner {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .brand-row {
+        align-items: center;
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      .brand-mark {
+        align-items: center;
+        display: flex;
+        gap: 10px;
+      }
+
+      .logo-gem {
+        align-items: center;
+        background:
+          radial-gradient(circle at 34% 28%, #ffffff, #f6e7be 36%, #c59a43 72%, #8f6722);
+        border: 1px solid rgba(143, 103, 34, 0.35);
+        border-radius: 50%;
+        box-shadow: 0 8px 20px rgba(143, 103, 34, 0.24);
+        display: grid;
+        height: 38px;
+        justify-items: center;
+        width: 38px;
+      }
+
+      .logo-gem svg {
+        height: 21px;
+        width: 21px;
+      }
+
+      .brand-name {
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 17px;
+        font-weight: 700;
+        letter-spacing: 0;
+        line-height: 1.05;
+      }
+
+      .brand-sub {
+        color: var(--muted);
+        font-size: 8px;
+        font-weight: 700;
+        margin-top: 2px;
+        text-transform: uppercase;
+      }
+
+      .badge {
+        border: 1px solid rgba(15, 76, 66, 0.16);
+        border-radius: 999px;
+        color: var(--emerald);
+        font-size: 9px;
+        font-weight: 800;
+        padding: 7px 10px;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+
+      .hero {
+        display: grid;
+        gap: 18px;
+        grid-template-columns: 1.07fr 0.93fr;
+        margin-top: 19mm;
+      }
+
+      .eyebrow {
+        color: var(--deep-gold);
+        font-size: 10px;
+        font-weight: 900;
+        letter-spacing: 0.08em;
+        margin-bottom: 10px;
+        text-transform: uppercase;
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+
+      h1 {
+        color: #211c16;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 40px;
+        letter-spacing: 0;
+        line-height: 0.96;
+      }
+
+      .lead {
+        color: #554d44;
+        font-size: 13px;
+        margin-top: 14px;
+      }
+
+      .cta {
+        align-items: center;
+        background: var(--emerald);
+        border-radius: 999px;
+        box-shadow: 0 12px 26px rgba(15, 76, 66, 0.28);
+        color: #ffffff;
+        display: inline-flex;
+        font-size: 11px;
+        font-weight: 900;
+        gap: 8px;
+        margin-top: 18px;
+        padding: 12px 16px;
+        text-transform: uppercase;
+      }
+
+      .cta svg {
+        height: 14px;
+        width: 14px;
+      }
+
+      .portal-card {
+        background:
+          linear-gradient(145deg, rgba(255, 255, 255, 0.92), rgba(252, 243, 222, 0.82)),
+          radial-gradient(circle at 20% 0%, rgba(197, 154, 67, 0.35), transparent 55%);
+        border: 1px solid rgba(143, 103, 34, 0.22);
+        border-radius: 8px;
+        box-shadow: 0 20px 52px rgba(36, 32, 27, 0.14);
+        min-height: 232px;
+        overflow: hidden;
+        padding: 15px;
+        position: relative;
+      }
+
+      .portal-top {
+        align-items: center;
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 13px;
+      }
+
+      .portal-dots {
+        display: flex;
+        gap: 4px;
+      }
+
+      .portal-dots span {
+        background: rgba(15, 76, 66, 0.3);
+        border-radius: 999px;
+        height: 6px;
+        width: 6px;
+      }
+
+      .portal-pill {
+        background: rgba(15, 76, 66, 0.1);
+        border-radius: 999px;
+        color: var(--emerald);
+        font-size: 8px;
+        font-weight: 900;
+        padding: 5px 8px;
+        text-transform: uppercase;
+      }
+
+      .product-mock {
+        display: grid;
+        gap: 8px;
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .product {
+        background: rgba(255, 255, 255, 0.72);
+        border: 1px solid rgba(143, 103, 34, 0.16);
+        border-radius: 8px;
+        min-height: 78px;
+        padding: 8px;
+      }
+
+      .product-art {
+        align-items: center;
+        background:
+          radial-gradient(circle at 50% 42%, #fff, #f7ead0 38%, rgba(197, 154, 67, 0.44) 39%, transparent 40%),
+          radial-gradient(circle at 30% 55%, #fff, #f7ead0 18%, transparent 20%),
+          radial-gradient(circle at 70% 55%, #fff, #f7ead0 18%, transparent 20%),
+          linear-gradient(145deg, #f8f1df, #ffffff);
+        border-radius: 7px;
+        display: grid;
+        height: 46px;
+        justify-items: center;
+        margin-bottom: 7px;
+      }
+
+      .product:nth-child(2) .product-art {
+        background:
+          radial-gradient(circle at 52% 42%, #fff, #f8ead3 28%, rgba(197, 154, 67, 0.5) 29%, transparent 31%),
+          conic-gradient(from 120deg, transparent, rgba(15, 76, 66, 0.28), transparent),
+          linear-gradient(145deg, #f9f4e7, #ffffff);
+      }
+
+      .product:nth-child(3) .product-art {
+        background:
+          radial-gradient(circle at 50% 36%, #fff, #f6e6c1 28%, transparent 31%),
+          radial-gradient(circle at 34% 58%, #fff, #f6e6c1 16%, transparent 18%),
+          radial-gradient(circle at 66% 58%, #fff, #f6e6c1 16%, transparent 18%),
+          linear-gradient(145deg, #f9f4e7, #ffffff);
+      }
+
+      .product:nth-child(4) .product-art {
+        background:
+          radial-gradient(circle at 38% 42%, #fff, #f7ead0 18%, transparent 20%),
+          radial-gradient(circle at 50% 42%, #fff, #f7ead0 18%, transparent 20%),
+          radial-gradient(circle at 62% 42%, #fff, #f7ead0 18%, transparent 20%),
+          linear-gradient(145deg, #f9f4e7, #ffffff);
+      }
+
+      .line {
+        background: rgba(36, 32, 27, 0.14);
+        border-radius: 999px;
+        height: 5px;
+        margin-top: 4px;
+      }
+
+      .line.short {
+        width: 58%;
+      }
+
+      .shine {
+        animation: sweep 5s ease-in-out infinite;
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.72), transparent);
+        height: 140%;
+        left: -80%;
+        position: absolute;
+        top: -20%;
+        transform: rotate(18deg);
+        width: 44%;
+      }
+
+      .front-features {
+        display: grid;
+        gap: 8px;
+        grid-template-columns: repeat(3, 1fr);
+        margin-top: 18mm;
+      }
+
+      .feature {
+        background: rgba(255, 255, 255, 0.72);
+        border: 1px solid rgba(143, 103, 34, 0.18);
+        border-radius: 8px;
+        min-height: 82px;
+        padding: 10px;
+      }
+
+      .icon {
+        align-items: center;
+        background: rgba(197, 154, 67, 0.14);
+        border-radius: 50%;
+        color: var(--deep-gold);
+        display: grid;
+        height: 26px;
+        justify-items: center;
+        margin-bottom: 8px;
+        width: 26px;
+      }
+
+      .icon svg {
+        height: 15px;
+        width: 15px;
+      }
+
+      .feature-title {
+        color: #29231b;
+        font-size: 11px;
+        font-weight: 900;
+      }
+
+      .feature-text {
+        color: var(--muted);
+        font-size: 8.5px;
+        margin-top: 3px;
+      }
+
+      .front-footer {
+        align-items: end;
+        display: grid;
+        gap: 12px;
+        grid-template-columns: 1fr auto;
+        margin-top: auto;
+        position: relative;
+      }
+
+      .journey {
+        align-items: center;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+
+      .journey span {
+        background: rgba(15, 76, 66, 0.08);
+        border: 1px solid rgba(15, 76, 66, 0.12);
+        border-radius: 999px;
+        color: var(--emerald);
+        font-size: 8px;
+        font-weight: 900;
+        padding: 6px 8px;
+      }
+
+      .qr-box {
+        align-items: center;
+        background: #fff;
+        border: 1px solid rgba(143, 103, 34, 0.28);
+        border-radius: 8px;
+        display: grid;
+        gap: 5px;
+        justify-items: center;
+        padding: 8px;
+        width: 82px;
+      }
+
+      .qr {
+        background:
+          linear-gradient(90deg, #1f1a13 7px, transparent 7px 12px, #1f1a13 12px 17px, transparent 17px),
+          linear-gradient(#1f1a13 7px, transparent 7px 12px, #1f1a13 12px 17px, transparent 17px),
+          linear-gradient(90deg, transparent 22px, #1f1a13 22px 29px, transparent 29px 35px, #1f1a13 35px 42px, transparent 42px),
+          linear-gradient(transparent 22px, #1f1a13 22px 29px, transparent 29px 35px, #1f1a13 35px 42px, transparent 42px);
+        background-color: #fff;
+        background-size: 46px 46px;
+        border: 5px solid #fff;
+        box-shadow: inset 0 0 0 2px #1f1a13;
+        height: 58px;
+        width: 58px;
+      }
+
+      .qr-text {
+        color: var(--muted);
+        font-size: 7px;
+        font-weight: 800;
+        text-align: center;
+        text-transform: uppercase;
+      }
+
+      .section-title {
+        align-items: center;
+        display: flex;
+        gap: 10px;
+        margin-bottom: 11px;
+      }
+
+      .section-title h2 {
+        color: #211c16;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 24px;
+        letter-spacing: 0;
+      }
+
+      .title-rule {
+        background: linear-gradient(90deg, var(--champagne), transparent);
+        flex: 1;
+        height: 1px;
+      }
+
+      .two-columns {
+        display: grid;
+        gap: 12px;
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .panel {
+        background: rgba(255, 255, 255, 0.75);
+        border: 1px solid rgba(143, 103, 34, 0.17);
+        border-radius: 8px;
+        padding: 12px;
+      }
+
+      .panel.emerald {
+        background: linear-gradient(145deg, rgba(15, 76, 66, 0.96), rgba(20, 92, 79, 0.92));
+        color: #ffffff;
+      }
+
+      .panel h3 {
+        font-size: 13px;
+        font-weight: 900;
+        margin-bottom: 8px;
+      }
+
+      .panel.emerald h3 {
+        color: #fff4d8;
+      }
+
+      .check-list {
+        display: grid;
+        gap: 6px;
+      }
+
+      .check {
+        display: grid;
+        gap: 6px;
+        grid-template-columns: 15px 1fr;
+      }
+
+      .check svg {
+        color: var(--champagne);
+        height: 13px;
+        margin-top: 1px;
+        width: 13px;
+      }
+
+      .check span {
+        color: #554d44;
+        font-size: 9px;
+      }
+
+      .panel.emerald .check span {
+        color: rgba(255, 255, 255, 0.86);
+      }
+
+      .feature-grid {
+        display: grid;
+        gap: 8px;
+        grid-template-columns: repeat(3, 1fr);
+        margin-top: 12px;
+      }
+
+      .mini-feature {
+        background: rgba(255, 255, 255, 0.75);
+        border: 1px solid rgba(143, 103, 34, 0.16);
+        border-radius: 8px;
+        min-height: 61px;
+        padding: 9px;
+      }
+
+      .mini-feature strong {
+        display: block;
+        font-size: 9.5px;
+        line-height: 1.15;
+      }
+
+      .mini-feature span {
+        color: var(--muted);
+        display: block;
+        font-size: 7.5px;
+        margin-top: 4px;
+      }
+
+      .workflow {
+        background: linear-gradient(145deg, rgba(252, 244, 226, 0.96), rgba(255, 255, 255, 0.9));
+        border: 1px solid rgba(143, 103, 34, 0.18);
+        border-radius: 8px;
+        margin-top: 12px;
+        padding: 12px;
+      }
+
+      .workflow-title {
+        color: var(--emerald);
+        font-size: 12px;
+        font-weight: 900;
+        margin-bottom: 8px;
+      }
+
+      .steps {
+        display: grid;
+        gap: 8px;
+        grid-template-columns: repeat(5, 1fr);
+      }
+
+      .step {
+        text-align: center;
+      }
+
+      .step-number {
+        align-items: center;
+        background: var(--emerald);
+        border-radius: 50%;
+        color: white;
+        display: grid;
+        font-size: 10px;
+        font-weight: 900;
+        height: 26px;
+        justify-items: center;
+        margin: 0 auto 5px;
+        width: 26px;
+      }
+
+      .step span {
+        color: #554d44;
+        display: block;
+        font-size: 7.5px;
+        font-weight: 800;
+      }
+
+      .back-footer {
+        align-items: center;
+        bottom: 17mm;
+        display: grid;
+        gap: 12px;
+        grid-template-columns: 1.2fr 0.8fr;
+        left: 15mm;
+        position: absolute;
+        right: 15mm;
+      }
+
+      .launch-card {
+        background: #201a12;
+        border-radius: 8px;
+        color: #ffffff;
+        padding: 13px;
+      }
+
+      .launch-card strong {
+        color: #f8d989;
+        display: block;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 19px;
+        line-height: 1.05;
+      }
+
+      .launch-card span {
+        color: rgba(255, 255, 255, 0.78);
+        display: block;
+        font-size: 9px;
+        margin-top: 6px;
+      }
+
+      .contact-lines {
+        display: grid;
+        gap: 6px;
+      }
+
+      .contact-lines div {
+        border-bottom: 1px solid rgba(143, 103, 34, 0.24);
+        color: var(--muted);
+        font-size: 8px;
+        font-weight: 800;
+        padding-bottom: 5px;
+        text-transform: uppercase;
+      }
+
+      @keyframes sweep {
+        0%,
+        36% {
+          left: -88%;
+        }
+
+        56%,
+        100% {
+          left: 122%;
+        }
+      }
+
+      @page {
+        size: A5 portrait;
+        margin: 0;
+      }
+
+      @media print {
+        * {
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+
+        body {
+          background: #fff;
+        }
+
+        .workspace {
+          display: block;
+          padding: 0;
+        }
+
+        .page {
+          border: none;
+          box-shadow: none;
+          height: 210mm;
+          page-break-after: always;
+          width: 148mm;
+        }
+
+        .shine {
+          display: none;
+        }
+
+        .portal-card,
+        .feature,
+        .mini-feature,
+        .panel,
+        .workflow,
+        .launch-card,
+        .qr-box,
+        .cta,
+        .logo-gem {
+          box-shadow: none !important;
+        }
+
+        .portal-card {
+          background: linear-gradient(145deg, #fffdf8, #fbf1d7) !important;
+        }
+
+        .feature,
+        .mini-feature,
+        .panel {
+          background: rgba(255, 255, 255, 0.9) !important;
+        }
+
+        .panel.emerald {
+          background: #0f4c42 !important;
+        }
+
+        .cta,
+        .launch-card {
+          background: #0f4c42 !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="workspace">
+      <section class="page front" aria-label="Pamphlet front side">
+        <div class="ornament gold"></div>
+        <div class="ornament green"></div>
+        <div class="front-inner">
+          <header class="brand-row">
+            <div class="brand-mark">
+              <div class="logo-gem">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M5 8.5 8.7 4h6.6L19 8.5 12 20 5 8.5Z" fill="none" stroke="#47320f" stroke-width="1.5" />
+                  <path d="M5.5 8.5h13M8.8 4 12 8.5 15.2 4M9.1 8.5 12 20l2.9-11.5" fill="none" stroke="#47320f" stroke-width="1.2" />
+                </svg>
+              </div>
+              <div>
+                <div class="brand-name">Jewellery Web Portal</div>
+                <div class="brand-sub">Retail digital growth solution</div>
+              </div>
+            </div>
+            <div class="badge">Website Only</div>
+          </header>
+
+          <div class="hero">
+            <div>
+              <div class="eyebrow">For jewellery retailers</div>
+              <h1>Launch Your Jewellery Store Online</h1>
+              <p class="lead">
+                A polished web portal for product display, customer login, shopping cart, online orders, and order tracking.
+              </p>
+              <div class="cta">
+                <span>Website + Online Orders</span>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                </svg>
+              </div>
+            </div>
+
+            <div class="portal-card" aria-label="Website preview illustration">
+              <div class="shine"></div>
+              <div class="portal-top">
+                <div class="portal-dots"><span></span><span></span><span></span></div>
+                <div class="portal-pill">Live catalogue</div>
+              </div>
+              <div class="product-mock">
+                <div class="product">
+                  <div class="product-art"></div>
+                  <div class="line"></div>
+                  <div class="line short"></div>
+                </div>
+                <div class="product">
+                  <div class="product-art"></div>
+                  <div class="line"></div>
+                  <div class="line short"></div>
+                </div>
+                <div class="product">
+                  <div class="product-art"></div>
+                  <div class="line"></div>
+                  <div class="line short"></div>
+                </div>
+                <div class="product">
+                  <div class="product-art"></div>
+                  <div class="line"></div>
+                  <div class="line short"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="front-features">
+            <article class="feature">
+              <div class="icon">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 7h16v13H4zM8 7a4 4 0 0 1 8 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+                </svg>
+              </div>
+              <div class="feature-title">Product Catalogue</div>
+              <p class="feature-text">Show categories, photos, details, prices, and offers in one clean website.</p>
+            </article>
+
+            <article class="feature">
+              <div class="icon">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 8a7 7 0 0 1 14 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+                </svg>
+              </div>
+              <div class="feature-title">Customer Account</div>
+              <p class="feature-text">Login, profile information, saved addresses, wishlist, and order history.</p>
+            </article>
+
+            <article class="feature">
+              <div class="icon">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M7 7h14l-2 8H8L6 3H3m6 16a1 1 0 1 0 0 2 1 1 0 0 0 0-2Zm9 0a1 1 0 1 0 0 2 1 1 0 0 0 0-2Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </div>
+              <div class="feature-title">Online Orders</div>
+              <p class="feature-text">Cart, checkout, order placement, order status, and customer support flow.</p>
+            </article>
+          </div>
+
+          <footer class="front-footer">
+            <div>
+              <div class="eyebrow">Customer journey</div>
+              <div class="journey">
+                <span>Browse</span>
+                <span>Wishlist</span>
+                <span>Cart</span>
+                <span>Order</span>
+                <span>Track</span>
+              </div>
+            </div>
+            <div class="qr-box">
+              <div class="qr"></div>
+              <div class="qr-text">Scan for demo</div>
+            </div>
+          </footer>
+        </div>
+      </section>
+
+      <section class="page back" aria-label="Pamphlet back side">
+        <div class="ornament gold"></div>
+        <div class="ornament green"></div>
+        <div class="back-inner">
+          <div class="section-title">
+            <h2>Web Portal Features</h2>
+            <div class="title-rule"></div>
+          </div>
+
+          <div class="two-columns">
+            <article class="panel">
+              <h3>Everything Customers Need</h3>
+              <div class="check-list">
+                <div class="check">
+                  <svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                  <span>Browse jewellery categories and product photos</span>
+                </div>
+                <div class="check">
+                  <svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                  <span>Search, filter, and view product details</span>
+                </div>
+                <div class="check">
+                  <svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                  <span>Create account and manage profile information</span>
+                </div>
+                <div class="check">
+                  <svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                  <span>Save favourites using wishlist</span>
+                </div>
+                <div class="check">
+                  <svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                  <span>Add products to cart and place orders online</span>
+                </div>
+                <div class="check">
+                  <svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                  <span>View my orders and track order status</span>
+                </div>
+              </div>
+            </article>
+
+            <article class="panel emerald">
+              <h3>Everything Business Needs</h3>
+              <div class="check-list">
+                <div class="check">
+                  <svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                  <span>Admin product management</span>
+                </div>
+                <div class="check">
+                  <svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                  <span>Update product details, photos, and offers</span>
+                </div>
+                <div class="check">
+                  <svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                  <span>Receive and manage online orders</span>
+                </div>
+                <div class="check">
+                  <svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                  <span>Track customer details and order history</span>
+                </div>
+                <div class="check">
+                  <svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                  <span>Support retail shop growth beyond walk-ins</span>
+                </div>
+                <div class="check">
+                  <svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                  <span>Promote launch offers and seasonal collections</span>
+                </div>
+              </div>
+            </article>
+          </div>
+
+          <div class="feature-grid">
+            <div class="mini-feature"><strong>Jewellery Categories</strong><span>Organized browsing for rings, earrings, necklaces, bangles, sets, and more.</span></div>
+            <div class="mini-feature"><strong>Wishlist</strong><span>Customers can save favourite items before buying.</span></div>
+            <div class="mini-feature"><strong>Shopping Cart</strong><span>A simple path from product selection to order placement.</span></div>
+            <div class="mini-feature"><strong>My Orders</strong><span>Customers can check previous and current orders.</span></div>
+            <div class="mini-feature"><strong>Track Order</strong><span>Clear order status updates after purchase.</span></div>
+            <div class="mini-feature"><strong>Support Ready</strong><span>Contact and assistance areas for customer enquiries.</span></div>
+          </div>
+
+          <section class="workflow">
+            <div class="workflow-title">Simple Retail Flow</div>
+            <div class="steps">
+              <div class="step"><div class="step-number">1</div><span>Add Products</span></div>
+              <div class="step"><div class="step-number">2</div><span>Show Online</span></div>
+              <div class="step"><div class="step-number">3</div><span>Get Orders</span></div>
+              <div class="step"><div class="step-number">4</div><span>Manage Status</span></div>
+              <div class="step"><div class="step-number">5</div><span>Grow Sales</span></div>
+            </div>
+          </section>
+
+          <footer class="back-footer">
+            <div class="launch-card">
+              <strong>Take your jewellery shop online.</strong>
+              <span>Website, catalogue, customer accounts, online orders, and order management in one web portal.</span>
+            </div>
+            <div class="contact-lines">
+              <div>Website demo:</div>
+              <div>Contact:</div>
+              <div>Email:</div>
+              <div>Powered by:</div>
+            </div>
+          </footer>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

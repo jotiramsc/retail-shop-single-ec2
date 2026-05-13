@@ -12,4 +12,8 @@ public class CustomerOtpVerifyRequest {
 
     @NotBlank
     private String otp;
+
+    private String purpose;
+
+    private String customerId;
 }

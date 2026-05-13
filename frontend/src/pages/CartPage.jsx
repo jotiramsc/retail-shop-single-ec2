@@ -18,6 +18,7 @@ import {
   storeCheckoutCouponCode
 } from '../utils/checkout';
 import { getAppliedDiscountDetails } from '../utils/offers';
+import { getApiErrorMessage } from '../utils/validation';
 
 const fallbackImage = '/assets/glowjewels/no_image.png';
 
@@ -103,7 +104,7 @@ export default function CartPage() {
           .filter(Boolean));
         setQuote(null);
       } catch (err) {
-        setError(err.response?.data?.message || 'Unable to load the cart right now.');
+        setError(getApiErrorMessage(err, 'Unable to load the cart right now.'));
       } finally {
         setLoading(false);
       }
@@ -111,6 +112,14 @@ export default function CartPage() {
 
     loadCart();
   }, [customerSession?.token]);
+
+  useEffect(() => {
+    if (!error) {
+      return undefined;
+    }
+    const timer = window.setTimeout(() => setError(''), 4200);
+    return () => window.clearTimeout(timer);
+  }, [error]);
 
   const subtotal = useMemo(
     () => Number(quote?.subtotal ?? items.reduce((sum, item) => sum + Number(item.lineTotal || Number(item.price || 0) * Number(item.quantity || 0)), 0)),
@@ -157,7 +166,7 @@ export default function CartPage() {
         )));
       }
     } catch (err) {
-      setError(err.response?.data?.message || 'Unable to update cart item.');
+      setError(getApiErrorMessage(err, 'Unable to update cart item. Please check stock and try again.'));
     }
   };
 
@@ -185,7 +194,7 @@ export default function CartPage() {
         setItems((current) => current.filter((item) => item.productId !== productId));
       }
     } catch (err) {
-      setError(err.response?.data?.message || 'Unable to remove cart item.');
+      setError(getApiErrorMessage(err, 'Unable to remove cart item. Please try again.'));
     }
   };
 
@@ -213,7 +222,7 @@ export default function CartPage() {
         </div>
 
         {loading ? <p>Loading cart…</p> : null}
-        {error ? <p className="error-text">{error}</p> : null}
+        {error ? <p className="error-text storefront-feedback error" role="alert">{error}</p> : null}
 
         {!loading && !items.length ? (
           <div className="customer-flow-panel customer-empty-state">
@@ -309,7 +318,7 @@ export default function CartPage() {
                 <strong>{currency(cartTotal)}</strong>
               </div>
               <button type="button" className="glow-account-btn customer-full-btn" onClick={proceedToCheckout}>
-                {customerSession?.token ? 'Proceed to checkout' : 'Login with OTP to checkout'}
+                {customerSession?.token ? 'Proceed to checkout' : 'Login to checkout'}
               </button>
             </aside>
           </div>

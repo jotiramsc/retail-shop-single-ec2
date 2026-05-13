@@ -38,10 +38,22 @@ public class OfferServiceImpl implements OfferService {
     @Override
     @Transactional
     public OfferResponse createOffer(OfferRequest request) {
+        return createOffer(request, true);
+    }
+
+    @Override
+    @Transactional
+    public OfferResponse createOfferSilently(OfferRequest request) {
+        return createOffer(request, false);
+    }
+
+    private OfferResponse createOffer(OfferRequest request, boolean announce) {
         Offer offer = new Offer();
         applyRequest(offer, request);
         OfferResponse response = mapToResponse(offerRepository.save(offer));
-        automationService.distributeOfferAnnouncement(buildOfferMarketingMessage(response));
+        if (announce) {
+            automationService.distributeOfferAnnouncement(buildOfferMarketingMessage(response));
+        }
         return response;
     }
 

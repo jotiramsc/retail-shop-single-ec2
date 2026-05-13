@@ -23,7 +23,7 @@ public class CustomerJwtService {
     public String issueToken(Customer customer) {
         Instant expiresAt = Instant.now().plusSeconds(appProperties.getCustomerAuth().getJwtTtlMinutes() * 60);
         String header = base64Url("{\"alg\":\"HS256\",\"typ\":\"JWT\"}");
-        String payload = base64Url("{\"sub\":\"" + customer.getId() + "\",\"mobile\":\"" + customer.getMobile()
+        String payload = base64Url("{\"sub\":\"" + customer.getId() + "\",\"mobile\":\"" + escapeJson(customer.getMobile())
                 + "\",\"exp\":" + expiresAt.getEpochSecond() + "}");
         return header + "." + payload + "." + sign(header + "." + payload);
     }
@@ -59,6 +59,10 @@ public class CustomerJwtService {
 
     private String base64Url(String value) {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(value.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private String escapeJson(String value) {
+        return value == null ? "" : value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     private String extractString(String json, String field) {

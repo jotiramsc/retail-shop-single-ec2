@@ -16,6 +16,11 @@ aws secretsmanager get-secret-value --secret-id "$APP_SECRET_ID" --query SecretS
       | "\(.key)=\(.value|tostring)"
     ' > "$APP_ENV_FILE"
 
+{
+  echo "APP_CONFIG_SECRET_ID=$APP_SECRET_ID"
+  echo "META_TOKEN_REFRESH_SECRET_ID=$APP_SECRET_ID"
+} >> "$APP_ENV_FILE"
+
 aws secretsmanager get-secret-value --secret-id "$POSTGRES_SECRET_ID" --query SecretString --output text \
   | jq -r '
       (if type == "string" then fromjson else . end)

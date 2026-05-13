@@ -57,13 +57,33 @@ public class SecurityConfig {
                                 "/customer-login",
                                 "/products",
                                 "/cart",
+                                "/wishlist",
                                 "/checkout",
                                 "/orders",
                                 "/account",
+                                "/privacy-policy",
                                 "/app",
                                 "/app/**").permitAll()
-                        .requestMatchers("/actuator/health", "/api/auth/login", "/api/auth/send-otp", "/api/auth/verify-otp").permitAll()
-                        .requestMatchers("/api/phonepe/webhook", "/api/razorpay/webhook").permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.HEAD,
+                                "/",
+                                "/index.html",
+                                "/env-config.js",
+                                "/favicon.ico",
+                                "/assets/**",
+                                "/login",
+                                "/customer-login",
+                                "/products",
+                                "/cart",
+                                "/wishlist",
+                                "/checkout",
+                                "/orders",
+                                "/account",
+                                "/privacy-policy",
+                                "/app",
+                                "/app/**").permitAll()
+                        .requestMatchers("/actuator/health", "/api/auth/login", "/api/auth/send-otp", "/api/auth/verify-otp",
+                                "/api/auth/google", "/api/auth/google/verify-mobile").permitAll()
+                        .requestMatchers("/api/razorpay/webhook").permitAll()
                         .requestMatchers("/api/whatsapp/webhook", "/api/whatsapp/webhook/**").permitAll()
                         .requestMatchers("/api/omnichannel/webhooks/**").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/images/**").permitAll()
@@ -74,7 +94,7 @@ public class SecurityConfig {
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/settings/receipt").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/product-categories/options").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/products/catalog", "/api/products/catalog/home", "/api/products/catalog/trending").permitAll()
-                        .requestMatchers("/api/cart/**", "/api/address/**", "/api/order/**", "/api/orders/**", "/api/checkout/**", "/api/customer-profile/**").hasRole("CUSTOMER")
+                        .requestMatchers("/api/cart/**", "/api/wishlist/**", "/api/address/**", "/api/order/**", "/api/orders/**", "/api/checkout/**", "/api/customer-profile/**").hasRole("CUSTOMER")
                         .anyRequest().authenticated())
                 .addFilterBefore(staffJwtFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterAfter(customerJwtFilter, StaffJwtFilter.class)
@@ -117,7 +137,7 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(Arrays.stream(allowedOrigins.split("\\s*,\\s*")).toList());
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+            configuration.setAllowedMethods(List.of("GET", "HEAD", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setExposedHeaders(List.of("Authorization"));
 

@@ -22,6 +22,7 @@ public class PublicConfigController {
         Map<String, String> config = new LinkedHashMap<>();
         config.put("API_BASE_URL", "/api");
         config.put("GOOGLE_MAPS_API_KEY", appProperties.getGoogleMaps().getApiKey());
+        config.put("GOOGLE_CLIENT_ID", appProperties.getGoogleAuth().getClientId());
         return "window.__APP_CONFIG__ = " + objectMapper.writeValueAsString(config) + ";";
     }
 }

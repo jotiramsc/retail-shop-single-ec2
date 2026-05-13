@@ -1,6 +1,7 @@
 package com.retailshop.service;
 
 import com.retailshop.dto.OrderResponse;
+import com.retailshop.dto.OrderStatusUpdateRequest;
 import com.retailshop.dto.PlaceOrderRequest;
 
 import java.util.List;
@@ -10,4 +11,6 @@ public interface OrderService {
     OrderResponse placeOrder(UUID customerId, PlaceOrderRequest request);
 
     List<OrderResponse> getOrders(UUID customerId);
+
+    OrderResponse updateOrderStatus(UUID orderId, OrderStatusUpdateRequest request);
 }

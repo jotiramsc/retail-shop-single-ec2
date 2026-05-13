@@ -12,11 +12,14 @@ import com.retailshop.dto.MarketingContentResponse;
 import com.retailshop.dto.MarketingContentUpdateRequest;
 import com.retailshop.dto.MarketingRejectRequest;
 import com.retailshop.dto.MarketingScheduleRequest;
+import com.retailshop.dto.OfferRequest;
+import com.retailshop.dto.OfferResponse;
 import com.retailshop.dto.PaginatedResponse;
 import com.retailshop.entity.ApprovalHistory;
 import com.retailshop.entity.Campaign;
 import com.retailshop.entity.CampaignAnalytics;
 import com.retailshop.entity.CampaignContent;
+import com.retailshop.entity.Offer;
 import com.retailshop.entity.Product;
 import com.retailshop.entity.ProductCategoryOption;
 import com.retailshop.entity.PublishLog;
@@ -30,6 +33,7 @@ import com.retailshop.enums.MarketingLanguage;
 import com.retailshop.enums.MarketingPlatform;
 import com.retailshop.enums.MarketingTone;
 import com.retailshop.enums.MarketingWorkflowStatus;
+import com.retailshop.enums.OfferType;
 import com.retailshop.exception.BusinessException;
 import com.retailshop.exception.ResourceNotFoundException;
 import com.retailshop.repository.ApprovalHistoryRepository;
@@ -37,12 +41,14 @@ import com.retailshop.repository.CampaignAnalyticsRepository;
 import com.retailshop.repository.CampaignContentRepository;
 import com.retailshop.repository.CampaignLogRepository;
 import com.retailshop.repository.CampaignRepository;
+import com.retailshop.repository.OfferRepository;
 import com.retailshop.repository.ProductCategoryOptionRepository;
 import com.retailshop.repository.ProductRepository;
 import com.retailshop.repository.PublishLogRepository;
 import com.retailshop.repository.ReceiptSettingsRepository;
 import com.retailshop.service.AIContentGenerationService;
 import com.retailshop.service.MarketingAutomationService;
+import com.retailshop.service.OfferService;
 import com.retailshop.service.SocialPublisher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -83,8 +89,10 @@ public class MarketingAutomationServiceImpl implements MarketingAutomationServic
     private final CampaignAnalyticsRepository campaignAnalyticsRepository;
     private final ProductRepository productRepository;
     private final ProductCategoryOptionRepository productCategoryRepository;
+    private final OfferRepository offerRepository;
     private final ReceiptSettingsRepository receiptSettingsRepository;
     private final AIContentGenerationService aiContentGenerationService;
+    private final OfferService offerService;
     private final List<SocialPublisher> publishers;
 
     @Override
@@ -468,17 +476,22 @@ public class MarketingAutomationServiceImpl implements MarketingAutomationServic
     }
 
     private void applyCampaignRequest(Campaign campaign, MarketingCampaignRequest request, String actor) {
+        OfferCampaignDetails offerDetails = resolveOfferDetails(request);
         campaign.setCampaignName(request.getCampaignName().trim());
         campaign.setName(request.getCampaignName().trim());
         campaign.setCampaignType(request.getCampaignType());
-        campaign.setCategoryId(request.getCategoryId());
-        campaign.setProductId(request.getProductId());
-        campaign.setOfferTitle(trimToNull(request.getOfferTitle()));
+        campaign.setCampaignGoal(defaultString(trimToNull(request.getCampaignGoal()), inferCampaignGoal(request, offerDetails)));
+        campaign.setOfferMode(defaultString(trimToNull(request.getOfferMode()), inferOfferMode(request, offerDetails)));
+        campaign.setLinkedOfferId(offerDetails == null ? request.getOfferId() : offerDetails.offerId());
+        campaign.setCouponCode(defaultString(trimToNull(request.getCouponCode()), offerDetails == null ? null : offerDetails.couponCode()));
+        campaign.setCategoryId(offerDetails != null && offerDetails.categoryId() != null ? offerDetails.categoryId() : request.getCategoryId());
+        campaign.setProductId(offerDetails != null && offerDetails.productId() != null ? offerDetails.productId() : request.getProductId());
+        campaign.setOfferTitle(defaultString(trimToNull(request.getOfferTitle()), offerDetails == null ? null : offerDetails.name()));
         campaign.setLinkUrl(trimToNull(request.getLandingUrl()));
-        campaign.setDiscountType(request.getDiscountType() == null ? MarketingDiscountType.NONE : request.getDiscountType());
-        campaign.setDiscountValue(normalizeDiscountValue(request.getDiscountValue()));
-        campaign.setStartDate(request.getStartDate());
-        campaign.setEndDate(request.getEndDate());
+        campaign.setDiscountType(offerDetails != null ? offerDetails.discountType() : request.getDiscountType() == null ? MarketingDiscountType.NONE : request.getDiscountType());
+        campaign.setDiscountValue(normalizeDiscountValue(offerDetails != null ? offerDetails.discountValue() : request.getDiscountValue()));
+        campaign.setStartDate(offerDetails != null && offerDetails.startDate() != null ? offerDetails.startDate() : request.getStartDate());
+        campaign.setEndDate(offerDetails != null && offerDetails.endDate() != null ? offerDetails.endDate() : request.getEndDate());
         campaign.setTargetPlatforms(joinPlatforms(request.getTargetPlatforms()));
         campaign.setChannels(joinPlatforms(request.getTargetPlatforms()));
         campaign.setType(toLegacyCampaignType(request.getTargetPlatforms()));
@@ -486,6 +499,110 @@ public class MarketingAutomationServiceImpl implements MarketingAutomationServic
         campaign.setTone(request.getTone() == null ? MarketingTone.PREMIUM : request.getTone());
         campaign.setCreatedBy(actor);
         campaign.setContent("");
+    }
+
+    private OfferCampaignDetails resolveOfferDetails(MarketingCampaignRequest request) {
+        OfferRequest inlineOffer = request.getInlineOffer();
+        if (inlineOffer != null) {
+            OfferResponse created = offerService.createOfferSilently(inlineOffer);
+            return detailsFromResponse(created);
+        }
+        if (request.getOfferId() == null) {
+            return null;
+        }
+        Offer offer = offerRepository.findById(request.getOfferId())
+                .orElseThrow(() -> new ResourceNotFoundException("Offer not found"));
+        return detailsFromOffer(offer);
+    }
+
+    private OfferCampaignDetails detailsFromResponse(OfferResponse offer) {
+        return new OfferCampaignDetails(
+                offer.getId(),
+                offer.getName(),
+                toMarketingDiscountType(offer.getType()),
+                offer.getValue(),
+                offer.getCouponCode(),
+                categoryIdFromCode(offer.getCategory()),
+                offer.getProductId(),
+                offer.getStartDate(),
+                offer.getEndDate()
+        );
+    }
+
+    private OfferCampaignDetails detailsFromOffer(Offer offer) {
+        return new OfferCampaignDetails(
+                offer.getId(),
+                offer.getName(),
+                toMarketingDiscountType(offer.getType()),
+                offer.getValue(),
+                offer.getCouponCode(),
+                categoryIdFromCode(offer.getCategory()),
+                offer.getProduct() == null ? null : offer.getProduct().getId(),
+                offer.getStartDate(),
+                offer.getEndDate()
+        );
+    }
+
+    private MarketingDiscountType toMarketingDiscountType(OfferType type) {
+        if (type == null) {
+            return MarketingDiscountType.NONE;
+        }
+        return switch (type) {
+            case FLAT -> MarketingDiscountType.FLAT;
+            case PERCENT, CATEGORY -> MarketingDiscountType.PERCENTAGE;
+        };
+    }
+
+    private UUID categoryIdFromCode(String categoryCode) {
+        if (categoryCode == null || categoryCode.isBlank()) {
+            return null;
+        }
+        return productCategoryRepository.findByCode(categoryCode.trim().toUpperCase(Locale.ROOT))
+                .map(ProductCategoryOption::getId)
+                .orElse(null);
+    }
+
+    private String inferCampaignGoal(MarketingCampaignRequest request, OfferCampaignDetails offerDetails) {
+        if (offerDetails != null || request.getOfferId() != null || request.getInlineOffer() != null
+                || request.getDiscountType() != null && request.getDiscountType() != MarketingDiscountType.NONE
+                || request.getCouponCode() != null && !request.getCouponCode().isBlank()) {
+            return "OFFER";
+        }
+        MarketingCampaignType type = request.getCampaignType();
+        if (type == MarketingCampaignType.FESTIVAL || type == MarketingCampaignType.SEASONAL) {
+            return "GREETING";
+        }
+        if (type == MarketingCampaignType.NEW_ARRIVAL) {
+            return "PRODUCT_STORY";
+        }
+        return "AWARENESS";
+    }
+
+    private String inferOfferMode(MarketingCampaignRequest request, OfferCampaignDetails offerDetails) {
+        if (request.getInlineOffer() != null) {
+            return "CREATE";
+        }
+        if (offerDetails != null || request.getOfferId() != null) {
+            return "ATTACH_EXISTING";
+        }
+        if (request.getDiscountType() != null && request.getDiscountType() != MarketingDiscountType.NONE
+                || request.getCouponCode() != null && !request.getCouponCode().isBlank()) {
+            return "MANUAL";
+        }
+        return "NONE";
+    }
+
+    private record OfferCampaignDetails(
+            UUID offerId,
+            String name,
+            MarketingDiscountType discountType,
+            BigDecimal discountValue,
+            String couponCode,
+            UUID categoryId,
+            UUID productId,
+            LocalDate startDate,
+            LocalDate endDate
+    ) {
     }
 
     private BigDecimal normalizeDiscountValue(BigDecimal value) {
@@ -534,6 +651,9 @@ public class MarketingAutomationServiceImpl implements MarketingAutomationServic
                 .id(campaign.getId())
                 .campaignName(campaign.getCampaignName())
                 .campaignType(campaign.getCampaignType())
+                .campaignGoal(campaign.getCampaignGoal())
+                .offerMode(campaign.getOfferMode())
+                .couponCode(campaign.getCouponCode())
                 .targetPlatforms(parsePlatforms(campaign.getTargetPlatforms()))
                 .status(campaign.getStatus())
                 .createdBy(campaign.getCreatedBy())
@@ -558,12 +678,16 @@ public class MarketingAutomationServiceImpl implements MarketingAutomationServic
                 .id(campaign.getId())
                 .campaignName(campaign.getCampaignName())
                 .campaignType(campaign.getCampaignType())
+                .campaignGoal(campaign.getCampaignGoal())
+                .offerMode(campaign.getOfferMode())
+                .linkedOfferId(campaign.getLinkedOfferId())
                 .categoryId(campaign.getCategoryId())
                 .productId(campaign.getProductId())
                 .categoryName(categoryName)
                 .productName(productName)
                 .offerTitle(campaign.getOfferTitle())
                 .landingUrl(campaign.getLinkUrl())
+                .couponCode(campaign.getCouponCode())
                 .discountType(campaign.getDiscountType())
                 .discountValue(campaign.getDiscountValue())
                 .startDate(campaign.getStartDate())

@@ -11,6 +11,11 @@ POSTGRES_DB="${POSTGRES_DB:-retail_shop}"
 POSTGRES_USER="${POSTGRES_USER:-retail_user}"
 : "${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD before running this script.}"
 
+QDRANT_CONTAINER_NAME="${QDRANT_CONTAINER_NAME:-retail-qdrant}"
+QDRANT_IMAGE="${QDRANT_IMAGE:-qdrant/qdrant:v1.13.4}"
+QDRANT_PORT="${QDRANT_PORT:-6333}"
+QDRANT_GRPC_PORT="${QDRANT_GRPC_PORT:-6334}"
+
 APP_IMAGE="${APP_IMAGE:-retail-shop-single:latest}"
 APP_CONTAINER_NAME="${APP_CONTAINER_NAME:-retail-shop-app}"
 APP_PREVIOUS_CONTAINER_NAME="${APP_PREVIOUS_CONTAINER_NAME:-retail-shop-app-previous}"
@@ -25,8 +30,9 @@ BACKUP_BEFORE_DEPLOY="${BACKUP_BEFORE_DEPLOY:-true}"
 HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:${HOST_PORT}/actuator/health}"
 CANDIDATE_HEALTH_URL="http://127.0.0.1:${CANDIDATE_PORT}/actuator/health"
 
-mkdir -p "$DATA_ROOT/postgres" "$DATA_ROOT/backups" "$DATA_ROOT/app"
+mkdir -p "$DATA_ROOT/postgres" "$DATA_ROOT/backups" "$DATA_ROOT/app" "$DATA_ROOT/qdrant"
 chown -R 999:999 "$DATA_ROOT/postgres"
+chown -R 1000:1000 "$DATA_ROOT/qdrant" || true
 
 docker network inspect "$DOCKER_NETWORK" >/dev/null 2>&1 || docker network create "$DOCKER_NETWORK"
 
@@ -48,6 +54,17 @@ echo "Waiting for Postgres to become ready..."
 until docker exec "$POSTGRES_CONTAINER_NAME" pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB" >/dev/null 2>&1; do
   sleep 2
 done
+
+if ! docker ps -a --format '{{.Names}}' | grep -qx "$QDRANT_CONTAINER_NAME"; then
+  docker run -d \
+    --name "$QDRANT_CONTAINER_NAME" \
+    --network "$DOCKER_NETWORK" \
+    --restart unless-stopped \
+    -v "$DATA_ROOT/qdrant:/qdrant/storage" \
+    "$QDRANT_IMAGE"
+else
+  docker start "$QDRANT_CONTAINER_NAME" >/dev/null 2>&1 || true
+fi
 
 if [ "$BACKUP_BEFORE_DEPLOY" = "true" ]; then
   "$ROOT_DIR/scripts/ec2/backup-postgres.sh"
@@ -85,6 +102,9 @@ set -- "$@" \
   -e "DB_URL=jdbc:postgresql://${POSTGRES_CONTAINER_NAME}:5432/${POSTGRES_DB}" \
   -e "DB_USERNAME=$POSTGRES_USER" \
   -e "DB_PASSWORD=$POSTGRES_PASSWORD" \
+  -e "QDRANT_HOST=$QDRANT_CONTAINER_NAME" \
+  -e "QDRANT_PORT=$QDRANT_PORT" \
+  -e "QDRANT_USE_TLS=false" \
   "$APP_IMAGE"
 
 "$@"
@@ -122,6 +142,9 @@ set -- "$@" \
   -e "DB_URL=jdbc:postgresql://${POSTGRES_CONTAINER_NAME}:5432/${POSTGRES_DB}" \
   -e "DB_USERNAME=$POSTGRES_USER" \
   -e "DB_PASSWORD=$POSTGRES_PASSWORD" \
+  -e "QDRANT_HOST=$QDRANT_CONTAINER_NAME" \
+  -e "QDRANT_PORT=$QDRANT_PORT" \
+  -e "QDRANT_USE_TLS=false" \
   "$APP_IMAGE"
 
 if ! "$@"; then

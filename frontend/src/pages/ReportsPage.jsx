@@ -10,7 +10,30 @@ import { getApiErrorMessage } from '../utils/validation';
 const today = new Date().toISOString().slice(0, 10);
 const currentMonth = today.slice(0, 7);
 const currentYear = Number(today.slice(0, 4));
+const defaultPaymentFromDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 const websiteSalesPersonOption = { id: 'WEBSITE', displayName: 'Website', username: 'website' };
+
+const paymentStatusTone = (status) => {
+  const normalized = String(status || '').toUpperCase();
+  if (['SUCCESS', 'PAID', 'LOCAL_TEST', 'RECEIVED'].includes(normalized)) {
+    return 'is-good';
+  }
+  if (normalized.includes('FAIL') || normalized.includes('INVALID') || normalized.includes('ERROR')) {
+    return 'is-bad';
+  }
+  return 'is-warm';
+};
+
+const prettyPayload = (payload) => {
+  if (!payload) {
+    return 'No payload recorded.';
+  }
+  try {
+    return JSON.stringify(JSON.parse(payload), null, 2);
+  } catch {
+    return payload;
+  }
+};
 
 export default function ReportsPage() {
   const [activeReportTab, setActiveReportTab] = useState('dashboard');
@@ -35,6 +58,18 @@ export default function ReportsPage() {
   const [salesProductId, setSalesProductId] = useState('');
   const [categoryOptions, setCategoryOptions] = useState([]);
   const [reportProducts, setReportProducts] = useState([]);
+  const [paymentFilters, setPaymentFilters] = useState({
+    fromDate: defaultPaymentFromDate,
+    toDate: today,
+    provider: 'RAZORPAY',
+    operation: '',
+    status: '',
+    search: ''
+  });
+  const [paymentPage, setPaymentPage] = useState({ items: [], page: 0, totalPages: 0, totalItems: 0, hasNext: false, hasPrevious: false });
+  const [paymentError, setPaymentError] = useState('');
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [selectedPayment, setSelectedPayment] = useState(null);
 
   const loadReports = async (fromDate = reportFromDate, lowStockPageNumber = 0, invoicePageNumber = 0) => {
     setError('');
@@ -101,6 +136,39 @@ export default function ReportsPage() {
     }
   };
 
+  const loadPaymentTransactions = async (page = 0, overrides = {}) => {
+    const nextFilters = {
+      ...paymentFilters,
+      ...overrides
+    };
+    setPaymentLoading(true);
+    setPaymentError('');
+    try {
+      const response = await retailService.getPaymentTransactions({
+        ...nextFilters,
+        page,
+        size: 12
+      });
+      setPaymentPage(response);
+      setSelectedPayment((current) => {
+        const items = response.items || [];
+        if (current) {
+          const refreshed = items.find((item) => item.id === current.id);
+          if (refreshed) {
+            return refreshed;
+          }
+        }
+        return items[0] || null;
+      });
+    } catch (requestError) {
+      setPaymentError(getApiErrorMessage(requestError, 'Unable to load Razorpay diagnostics.'));
+      setPaymentPage({ items: [], page: 0, totalPages: 0, totalItems: 0, hasNext: false, hasPrevious: false });
+      setSelectedPayment(null);
+    } finally {
+      setPaymentLoading(false);
+    }
+  };
+
   useEffect(() => {
     loadReports(reportFromDate);
     loadReportOptions();
@@ -137,6 +205,18 @@ export default function ReportsPage() {
 
     return () => window.clearTimeout(timeoutId);
   }, [reportFromDate, customerFilter, salesPersonFilter]);
+
+  useEffect(() => {
+    if (activeReportTab !== 'payments') {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      loadPaymentTransactions(0);
+    }, 220);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [activeReportTab, paymentFilters]);
 
   const loadLowStockPage = (page) => loadReports(reportFromDate, page, orderFeed.page || 0);
   const loadInvoicePage = (page) => loadReports(reportFromDate, lowStockPage.page || 0, page);
@@ -272,6 +352,15 @@ export default function ReportsPage() {
           onClick={() => setActiveReportTab('sales')}
         >
           Sales report
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeReportTab === 'payments'}
+          className={`report-tab-btn ${activeReportTab === 'payments' ? 'is-active' : ''}`}
+          onClick={() => setActiveReportTab('payments')}
+        >
+          Payments
         </button>
       </div>
 
@@ -410,6 +499,144 @@ export default function ReportsPage() {
               />
             </>
           ) : null}
+        </Panel>
+      ) : activeReportTab === 'payments' ? (
+        <Panel
+          title="Razorpay diagnostics"
+          subtitle="Inspect payment order creation, verification, status checks, and webhooks without opening server logs."
+        >
+          <div className="report-builder-grid">
+            <label className="date-field">
+              <span>From</span>
+              <input
+                type="date"
+                max={today}
+                value={paymentFilters.fromDate}
+                onChange={(e) => setPaymentFilters((filters) => ({ ...filters, fromDate: e.target.value }))}
+              />
+            </label>
+            <label className="date-field">
+              <span>To</span>
+              <input
+                type="date"
+                max={today}
+                value={paymentFilters.toDate}
+                onChange={(e) => setPaymentFilters((filters) => ({ ...filters, toDate: e.target.value }))}
+              />
+            </label>
+            <label className="date-field">
+              <span>Operation</span>
+              <select
+                value={paymentFilters.operation}
+                onChange={(e) => setPaymentFilters((filters) => ({ ...filters, operation: e.target.value }))}
+              >
+                <option value="">All operations</option>
+                <option value="CREATE_ORDER">Create order</option>
+                <option value="VERIFY_PAYMENT">Verify payment</option>
+                <option value="STATUS_CHECK">Status check</option>
+                <option value="WEBHOOK">Webhook</option>
+              </select>
+            </label>
+            <label className="date-field">
+              <span>Status</span>
+              <select
+                value={paymentFilters.status}
+                onChange={(e) => setPaymentFilters((filters) => ({ ...filters, status: e.target.value }))}
+              >
+                <option value="">All statuses</option>
+                <option value="SUCCESS">Success</option>
+                <option value="FAILED">Failed</option>
+                <option value="PENDING">Pending</option>
+                <option value="LOCAL_TEST">Local test</option>
+                <option value="RECEIVED">Webhook received</option>
+              </select>
+            </label>
+            <label className="date-field">
+              <span>Search</span>
+              <input
+                placeholder="Order id, payment id, receipt, error"
+                value={paymentFilters.search}
+                onChange={(e) => setPaymentFilters((filters) => ({ ...filters, search: e.target.value }))}
+              />
+            </label>
+            <div className="report-builder-actions">
+              <button
+                type="button"
+                className="primary-btn"
+                onClick={() => loadPaymentTransactions(0)}
+                disabled={paymentLoading}
+              >
+                {paymentLoading ? 'Refreshing...' : 'Refresh diagnostics'}
+              </button>
+            </div>
+          </div>
+
+          {paymentError ? <p className="error-text">{paymentError}</p> : null}
+
+          <div className="payment-debug-layout">
+            <DataTable
+              columns={[
+                { key: 'createdAt', label: 'Created', render: (row) => formatDate(row.createdAt) },
+                { key: 'operation', label: 'Operation' },
+                {
+                  key: 'status',
+                  label: 'Status',
+                  render: (row) => <span className={`marketing-status-badge ${paymentStatusTone(row.status)}`}>{row.status}</span>
+                },
+                { key: 'orderNumber', label: 'Order' },
+                { key: 'gatewayOrderId', label: 'Razorpay Order' },
+                { key: 'gatewayPaymentId', label: 'Payment ID' },
+                { key: 'amount', label: 'Amount', render: (row) => currency(row.amount) },
+                { key: 'gatewayStatus', label: 'Gateway status' },
+                { key: 'errorMessage', label: 'Error' },
+                {
+                  key: 'actions',
+                  label: 'Action',
+                  render: (row) => (
+                    <button
+                      type="button"
+                      className="ghost-btn compact-btn"
+                      onClick={() => setSelectedPayment(row)}
+                    >
+                      View
+                    </button>
+                  )
+                }
+              ]}
+              rows={paymentPage.items || []}
+              emptyMessage="No payment diagnostics match these filters."
+              pagination={paymentPage}
+              onPageChange={loadPaymentTransactions}
+            />
+
+            <aside className="payment-debug-detail">
+              <div className="panel-head">
+                <h3>Selected event</h3>
+                <p>{selectedPayment ? `${selectedPayment.operation} · ${formatDate(selectedPayment.createdAt)}` : 'Choose a payment row to inspect payloads.'}</p>
+              </div>
+              {selectedPayment ? (
+                <>
+                  <div className="payment-debug-meta">
+                    <span>Provider</span>
+                    <strong>{selectedPayment.provider}</strong>
+                    <span>Status</span>
+                    <strong>{selectedPayment.status}</strong>
+                    <span>Signature</span>
+                    <strong>{selectedPayment.signatureStatus || '—'}</strong>
+                    <span>Order</span>
+                    <strong>{selectedPayment.orderNumber || selectedPayment.gatewayOrderId || '—'}</strong>
+                    <span>Gateway payment</span>
+                    <strong>{selectedPayment.gatewayPaymentId || '—'}</strong>
+                  </div>
+                  {selectedPayment.errorMessage ? <p className="error-text">{selectedPayment.errorMessage}</p> : null}
+                  <h4>Request payload</h4>
+                  <pre className="payment-debug-pre">{prettyPayload(selectedPayment.requestPayload)}</pre>
+                  <h4>Response / webhook payload</h4>
+                  <pre className="payment-debug-pre">{prettyPayload(selectedPayment.responsePayload)}</pre>
+                </>
+              ) : null}
+            </aside>
+          </div>
         </Panel>
       ) : (
         <>

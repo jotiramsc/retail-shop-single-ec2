@@ -4,6 +4,7 @@ import com.retailshop.dto.CartItemResponse;
 import com.retailshop.dto.CheckoutQuoteResponse;
 import com.retailshop.dto.OrderItemResponse;
 import com.retailshop.dto.OrderResponse;
+import com.retailshop.dto.OrderStatusUpdateRequest;
 import com.retailshop.dto.PlaceOrderRequest;
 import com.retailshop.entity.Address;
 import com.retailshop.entity.Customer;
@@ -20,16 +21,16 @@ import com.retailshop.repository.CustomerRepository;
 import com.retailshop.repository.ProductRepository;
 import com.retailshop.service.CartService;
 import com.retailshop.service.CheckoutService;
+import com.retailshop.service.CustomerProfileService;
 import com.retailshop.service.OrderService;
 import com.retailshop.service.PaymentService;
+import com.retailshop.service.PaymentTransactionService;
 import com.retailshop.service.WhatsAppMessageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.UUID;
 
@@ -42,14 +43,17 @@ public class OrderServiceImpl implements OrderService {
     private final CheckoutService checkoutService;
     private final CustomerOrderRepository orderRepository;
     private final CustomerRepository customerRepository;
+    private final CustomerProfileService customerProfileService;
     private final PaymentService paymentService;
+    private final PaymentTransactionService paymentTransactionService;
     private final ProductRepository productRepository;
     private final WhatsAppMessageService whatsAppMessageService;
 
     @Override
     @Transactional
     public OrderResponse placeOrder(UUID customerId, PlaceOrderRequest request) {
-        String paymentOrderId = firstNonBlank(request.getPhonepeMerchantOrderId(), request.getRazorpayOrderId());
+        customerProfileService.ensureCheckoutReady(customerId);
+        String paymentOrderId = firstNonBlank(request.getRazorpayOrderId(), null);
         if (paymentOrderId != null) {
             CustomerOrder existing = orderRepository.findByPaymentOrderId(paymentOrderId).orElse(null);
             if (existing != null) {
@@ -73,7 +77,7 @@ public class OrderServiceImpl implements OrderService {
         }
 
         CustomerOrder order = new CustomerOrder();
-        order.setOrderNumber("ORD-" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss")));
+        order.setOrderNumber(generateOrderNumber());
         order.setCustomer(customer);
         order.setAddress(address);
         order.setSubtotal(quote.getSubtotal());
@@ -84,7 +88,7 @@ public class OrderServiceImpl implements OrderService {
         order.setCouponCode(quote.getAppliedCouponCode());
         order.setPaymentGateway(resolvePaymentGateway(request));
         order.setPaymentOrderId(paymentOrderId);
-        order.setPaymentId(firstNonBlank(request.getPhonepeTransactionId(), request.getRazorpayPaymentId()));
+        order.setPaymentId(firstNonBlank(request.getRazorpayPaymentId(), null));
         order.setPaymentStatus("PAID");
         order.setSource(OrderSource.WEBSITE);
         order.setSalesPersonUserId(null);
@@ -111,9 +115,20 @@ public class OrderServiceImpl implements OrderService {
         }
         productRepository.saveAll(order.getItems().stream().map(OrderItem::getProduct).toList());
         CustomerOrder saved = orderRepository.save(order);
+        paymentTransactionService.linkOrder(paymentOrderId, saved.getId(), saved.getOrderNumber(), customer.getId());
         cartService.clearCart(customerId);
-        whatsAppMessageService.sendOrderUpdate(saved);
+        whatsAppMessageService.sendOrderConfirmation(saved);
         return map(saved);
+    }
+
+    private String generateOrderNumber() {
+        for (int attempt = 0; attempt < 5; attempt++) {
+            String orderNumber = "KPS" + orderRepository.nextOrderNumberValue();
+            if (orderRepository.findByOrderNumberIgnoreCase(orderNumber).isEmpty()) {
+                return orderNumber;
+            }
+        }
+        throw new BusinessException("Unable to generate a unique order number");
     }
 
     @Override
@@ -123,6 +138,39 @@ public class OrderServiceImpl implements OrderService {
                 .stream()
                 .map(this::map)
                 .toList();
+    }
+
+    @Override
+    @Transactional
+    public OrderResponse updateOrderStatus(UUID orderId, OrderStatusUpdateRequest request) {
+        CustomerOrder order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+        order.setStatus(request.getStatus());
+        CustomerOrder saved = orderRepository.save(order);
+        sendStatusNotification(saved, request);
+        return map(saved);
+    }
+
+    private void sendStatusNotification(CustomerOrder order, OrderStatusUpdateRequest request) {
+        try {
+            if (request.getStatus() == OrderStatus.SHIPPED) {
+                whatsAppMessageService.sendOrderDispatched(order, request.getTrackingId(), request.getTrackingUrl());
+            } else if (request.getStatus() == OrderStatus.DELIVERED || request.getStatus() == OrderStatus.COMPLETED) {
+                whatsAppMessageService.sendOrderDelivered(order);
+            } else if (request.getStatus() == OrderStatus.CANCELLED) {
+                whatsAppMessageService.sendOrderCancelled(order);
+            } else if (request.getStatus() == OrderStatus.RETURNED) {
+                whatsAppMessageService.sendOrderReturned(order);
+            } else if (request.getStatus() == OrderStatus.REFUND_INITIATED) {
+                whatsAppMessageService.sendRefundInitiated(order, request.getRefundAmount());
+            } else if (request.getStatus() == OrderStatus.PAYMENT_FAILED) {
+                whatsAppMessageService.sendPaymentFailed(order);
+            } else {
+                whatsAppMessageService.sendOrderUpdate(order);
+            }
+        } catch (Exception ignored) {
+            // Order status is the source of truth. WhatsApp failures are visible in logs and should not roll back status changes.
+        }
     }
 
     private OrderResponse map(CustomerOrder order) {
@@ -157,13 +205,10 @@ public class OrderServiceImpl implements OrderService {
         if (request.getPaymentProvider() != null && !request.getPaymentProvider().isBlank()) {
             return request.getPaymentProvider().trim().toUpperCase();
         }
-        if (request.getPhonepeMerchantOrderId() != null && !request.getPhonepeMerchantOrderId().isBlank()) {
-            return "PHONEPE";
-        }
         if (request.getRazorpayOrderId() != null && !request.getRazorpayOrderId().isBlank()) {
             return "RAZORPAY";
         }
-        return "PHONEPE";
+        return "RAZORPAY";
     }
 
     private String firstNonBlank(String first, String second) {

@@ -6,8 +6,8 @@ import com.retailshop.config.AppProperties;
 import com.retailshop.entity.Campaign;
 import com.retailshop.service.MarketingChannelResult;
 import com.retailshop.service.SocialMediaService;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -17,28 +17,38 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class SocialMediaServiceImpl implements SocialMediaService {
 
     private final AppProperties appProperties;
     private final ObjectMapper objectMapper;
-    private final HttpClient httpClient = HttpClient.newHttpClient();
+    private final HttpClient httpClient;
+
+    @Autowired
+    public SocialMediaServiceImpl(AppProperties appProperties, ObjectMapper objectMapper) {
+        this(appProperties, objectMapper, HttpClient.newHttpClient());
+    }
+
+    SocialMediaServiceImpl(AppProperties appProperties, ObjectMapper objectMapper, HttpClient httpClient) {
+        this.appProperties = appProperties;
+        this.objectMapper = objectMapper;
+        this.httpClient = httpClient;
+    }
 
     @Override
     public MarketingChannelResult publishInstagram(Campaign campaign) {
         AppProperties.Meta meta = appProperties.getMeta();
+        String instagramToken = facebookAccessToken(meta);
         if (meta == null
-                || isBlank(meta.getAccessToken())
+                || isBlank(instagramToken)
                 || isBlank(meta.getInstagramBusinessAccountId())) {
             return MarketingChannelResult.builder()
                     .success(false)
-                    .errorMessage("Instagram publishing is not configured")
+                    .errorMessage("Instagram publishing needs IG_BUSINESS_ACCOUNT_ID and FB_PAGE_ACCESS_TOKEN")
                     .build();
         }
         if (isBlank(campaign.getMediaUrl())) {
@@ -49,12 +59,48 @@ public class SocialMediaServiceImpl implements SocialMediaService {
         }
 
         try {
+            return publishInstagramWithAccount(meta, meta.getInstagramBusinessAccountId(), instagramToken, campaign);
+        } catch (IOException exception) {
+            String resolvedAccountId = resolveInstagramAccountForRetry(meta, instagramToken, exception);
+            if (!isBlank(resolvedAccountId) && !resolvedAccountId.equals(meta.getInstagramBusinessAccountId().trim())) {
+                try {
+                    return publishInstagramWithAccount(meta, resolvedAccountId, instagramToken, campaign);
+                } catch (IOException | InterruptedException retryException) {
+                    if (retryException instanceof InterruptedException) {
+                        Thread.currentThread().interrupt();
+                    }
+                    log.warn("Instagram publish retry failed", retryException);
+                    return MarketingChannelResult.builder()
+                            .success(false)
+                            .errorMessage(failureMessage(retryException, "Unable to publish Instagram post"))
+                            .build();
+                }
+            }
+            log.warn("Instagram publish failed", exception);
+            return MarketingChannelResult.builder()
+                    .success(false)
+                    .errorMessage(failureMessage(exception, "Unable to publish Instagram post"))
+                    .build();
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            log.warn("Instagram publish failed", exception);
+            return MarketingChannelResult.builder()
+                    .success(false)
+                    .errorMessage(failureMessage(exception, "Unable to publish Instagram post"))
+                    .build();
+        }
+    }
+
+    private MarketingChannelResult publishInstagramWithAccount(AppProperties.Meta meta,
+                                                              String instagramBusinessAccountId,
+                                                              String instagramToken,
+                                                              Campaign campaign) throws IOException, InterruptedException {
             JsonNode container = executeMetaPost(
-                    buildMetaUrl(meta.getGraphVersion(), meta.getInstagramBusinessAccountId(), "media"),
+                    buildMetaUrl(meta.getGraphVersion(), instagramBusinessAccountId, "media"),
                     Map.of(
                             "image_url", campaign.getMediaUrl(),
                             "caption", buildCaption(campaign),
-                            "access_token", meta.getAccessToken().trim()
+                            "access_token", instagramToken
                     ),
                     "Unable to create Instagram media container"
             );
@@ -65,12 +111,13 @@ public class SocialMediaServiceImpl implements SocialMediaService {
                         .errorMessage("Instagram media container id was not returned")
                         .build();
             }
+            waitForInstagramContainer(meta, creationId, instagramToken);
 
             JsonNode published = executeMetaPost(
-                    buildMetaUrl(meta.getGraphVersion(), meta.getInstagramBusinessAccountId(), "media_publish"),
+                    buildMetaUrl(meta.getGraphVersion(), instagramBusinessAccountId, "media_publish"),
                     Map.of(
                             "creation_id", creationId,
-                            "access_token", meta.getAccessToken().trim()
+                            "access_token", instagramToken
                     ),
                     "Unable to publish Instagram post"
             );
@@ -78,27 +125,18 @@ public class SocialMediaServiceImpl implements SocialMediaService {
                     .success(true)
                     .responseId(published.path("id").asText(""))
                     .build();
-        } catch (IOException | InterruptedException exception) {
-            if (exception instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
-            }
-            log.warn("Instagram publish failed", exception);
-            return MarketingChannelResult.builder()
-                    .success(false)
-                    .errorMessage("Unable to publish Instagram post")
-                    .build();
-        }
     }
 
     @Override
     public MarketingChannelResult publishFacebook(Campaign campaign) {
         AppProperties.Meta meta = appProperties.getMeta();
+        String facebookToken = facebookAccessToken(meta);
         if (meta == null
-                || isBlank(meta.getAccessToken())
+                || isBlank(facebookToken)
                 || isBlank(meta.getPageId())) {
             return MarketingChannelResult.builder()
                     .success(false)
-                    .errorMessage("Facebook publishing is not configured")
+                    .errorMessage("Facebook publishing needs FB_PAGE_ID and FB_PAGE_ACCESS_TOKEN")
                     .build();
         }
         if (isBlank(campaign.getMediaUrl())) {
@@ -115,7 +153,7 @@ public class SocialMediaServiceImpl implements SocialMediaService {
                             "url", campaign.getMediaUrl(),
                             "caption", buildCaption(campaign),
                             "published", "true",
-                            "access_token", meta.getAccessToken().trim()
+                            "access_token", facebookToken
                     ),
                     "Unable to publish Facebook post"
             );
@@ -130,7 +168,7 @@ public class SocialMediaServiceImpl implements SocialMediaService {
             log.warn("Facebook publish failed", exception);
             return MarketingChannelResult.builder()
                     .success(false)
-                    .errorMessage("Unable to publish Facebook post")
+                    .errorMessage(failureMessage(exception, "Unable to publish Facebook post"))
                     .build();
         }
     }
@@ -149,6 +187,80 @@ public class SocialMediaServiceImpl implements SocialMediaService {
             throw new IOException(extractError(payload, fallbackMessage));
         }
         return payload;
+    }
+
+    private JsonNode executeMetaGet(String url, String fallbackMessage) throws IOException, InterruptedException {
+        HttpRequest request = HttpRequest.newBuilder(URI.create(url))
+                .GET()
+                .header("accept", "application/json")
+                .build();
+        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        JsonNode payload = parseJson(response.body());
+        if (response.statusCode() >= 400) {
+            throw new IOException(extractError(payload, fallbackMessage));
+        }
+        return payload;
+    }
+
+    private String resolveInstagramAccountForRetry(AppProperties.Meta meta, String token, IOException originalException) {
+        if (meta == null || isBlank(meta.getPageId()) || isBlank(token) || !looksLikeObjectPermissionFailure(originalException)) {
+            return "";
+        }
+        try {
+            JsonNode page = executeMetaGet(
+                    buildMetaObjectUrl(meta.getGraphVersion(), meta.getPageId())
+                            + "?"
+                            + toFormBody(Map.of("fields", "instagram_business_account", "access_token", token)),
+                    "Unable to resolve Instagram business account from Facebook Page"
+            );
+            String resolvedAccountId = page.path("instagram_business_account").path("id").asText("");
+            if (!isBlank(resolvedAccountId)) {
+                log.info("Resolved Instagram business account {} from Facebook Page {}", resolvedAccountId, meta.getPageId());
+            }
+            return resolvedAccountId;
+        } catch (IOException | InterruptedException exception) {
+            if (exception instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            log.warn("Unable to resolve Instagram business account from Facebook Page {}", meta.getPageId(), exception);
+            return "";
+        }
+    }
+
+    private void waitForInstagramContainer(AppProperties.Meta meta,
+                                           String creationId,
+                                           String token) throws IOException, InterruptedException {
+        IOException lastFailure = null;
+        for (int attempt = 0; attempt < 6; attempt++) {
+            if (attempt > 0) {
+                Thread.sleep(1_500L);
+            }
+            try {
+                JsonNode status = executeMetaGet(
+                        buildMetaObjectUrl(meta.getGraphVersion(), creationId)
+                                + "?"
+                                + toFormBody(Map.of("fields", "status_code,status", "access_token", token)),
+                        "Unable to check Instagram media container status"
+                );
+                String statusCode = status.path("status_code").asText("");
+                if ("FINISHED".equalsIgnoreCase(statusCode)) {
+                    return;
+                }
+                if ("ERROR".equalsIgnoreCase(statusCode) || "EXPIRED".equalsIgnoreCase(statusCode)) {
+                    String statusMessage = status.path("status").asText("Instagram media container failed");
+                    throw new IOException("Instagram media container failed: " + statusMessage);
+                }
+            } catch (IOException exception) {
+                lastFailure = exception;
+                if (looksLikeObjectPermissionFailure(exception)) {
+                    throw exception;
+                }
+            }
+        }
+        if (lastFailure != null) {
+            throw lastFailure;
+        }
+        throw new IOException("Instagram media is still processing. Please try Publish now again in a few seconds.");
     }
 
     private JsonNode parseJson(String payload) throws IOException {
@@ -172,10 +284,29 @@ public class SocialMediaServiceImpl implements SocialMediaService {
         return fallback;
     }
 
+    private String failureMessage(Exception exception, String fallback) {
+        String message = exception == null ? "" : exception.getMessage();
+        return isBlank(message) ? fallback : message;
+    }
+
     private String buildMetaUrl(String graphVersion, String accountId, String path) {
-        return "https://graph.facebook.com/" + (isBlank(graphVersion) ? "v23.0" : graphVersion.trim())
-                + "/" + accountId.trim()
+        return buildMetaObjectUrl(graphVersion, accountId)
                 + "/" + path;
+    }
+
+    private String buildMetaObjectUrl(String graphVersion, String accountId) {
+        return "https://graph.facebook.com/" + (isBlank(graphVersion) ? "v23.0" : graphVersion.trim())
+                + "/" + accountId.trim();
+    }
+
+    private String facebookAccessToken(AppProperties.Meta meta) {
+        if (meta == null) {
+            return "";
+        }
+        if (!isBlank(meta.getPageAccessToken())) {
+            return meta.getPageAccessToken().trim();
+        }
+        return isBlank(meta.getAccessToken()) ? "" : meta.getAccessToken().trim();
     }
 
     private String toFormBody(Map<String, String> formData) {
@@ -191,19 +322,45 @@ public class SocialMediaServiceImpl implements SocialMediaService {
         if (!isBlank(campaign.getContent())) {
             builder.append(campaign.getContent().trim());
         }
+        String publishLink = resolvePublishLink(campaign.getLinkUrl());
+        if (!isBlank(publishLink) && !builder.toString().contains(publishLink)) {
+            if (builder.length() > 0) {
+                builder.append("\n\n");
+            }
+            builder.append(visitNowLabel(campaign)).append(": ").append(publishLink);
+        }
         if (!isBlank(campaign.getHashtags())) {
             if (builder.length() > 0) {
                 builder.append("\n\n");
             }
             builder.append(campaign.getHashtags().trim());
         }
-        if (!isBlank(campaign.getLinkUrl())) {
-            if (builder.length() > 0) {
-                builder.append("\n");
-            }
-            builder.append(campaign.getLinkUrl().trim());
-        }
         return builder.toString().trim();
+    }
+
+    private String resolvePublishLink(String rawLink) {
+        if (isBlank(rawLink)) {
+            return "https://kpskrishnai.com";
+        }
+        String cleaned = rawLink.trim();
+        if (cleaned.startsWith("http://") || cleaned.startsWith("https://")) {
+            return cleaned;
+        }
+        return "https://kpskrishnai.com";
+    }
+
+    private String visitNowLabel(Campaign campaign) {
+        return campaign.getLanguage() != null && "MARATHI".equals(campaign.getLanguage().name())
+                ? "आता भेट द्या"
+                : "Visit now";
+    }
+
+    private boolean looksLikeObjectPermissionFailure(Exception exception) {
+        String message = exception == null ? "" : exception.getMessage();
+        return message != null
+                && (message.contains("Unsupported post request")
+                || message.contains("does not exist")
+                || message.contains("missing permissions"));
     }
 
     private boolean isBlank(String value) {

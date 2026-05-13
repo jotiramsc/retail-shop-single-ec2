@@ -13,6 +13,7 @@ import com.retailshop.service.ImageUploadService;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.lang.reflect.Method;
 import java.math.BigDecimal;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -75,7 +76,7 @@ class AIContentGenerationServiceImplTest {
 
         assertTrue(draft.captionText().contains("गुढी पाडवा"));
         assertTrue(draft.hashtags().contains("#गुढीपाडवा"));
-        assertEquals("आता कलेक्शन पाहा", draft.callToAction());
+        assertEquals("आता भेट द्या", draft.callToAction());
     }
 
     @Test
@@ -162,6 +163,68 @@ class AIContentGenerationServiceImplTest {
     }
 
     @Test
+    void shouldValidateMarathiImageOverlayHeadlineBeforeRendering() throws Exception {
+        MarketingProperties properties = new MarketingProperties();
+        properties.getAi().setEnabled(false);
+        AIContentGenerationServiceImpl service = new AIContentGenerationServiceImpl(properties, new ObjectMapper(), noOpImageUploadService);
+
+        Campaign campaign = new Campaign();
+        campaign.setCampaignName("दिवाळी");
+        campaign.setCampaignType(MarketingCampaignType.FESTIVAL);
+        campaign.setCampaignGoal("GREETING");
+        campaign.setDiscountType(MarketingDiscountType.NONE);
+        campaign.setLanguage(MarketingLanguage.MARATHI);
+        campaign.setTone(MarketingTone.FESTIVE);
+
+        String headline = invokeCreativeImageHeadline(service, campaign, null);
+
+        assertEquals("दिवाळीच्या हार्दिक शुभेच्छा", headline);
+        assertFalse(headline.contains("दिवाळी साठी"));
+        assertFalse(headline.contains("दिवाळी साठी दिवाळीच्या शुभेच्छा"));
+    }
+
+    @Test
+    void shouldAddGreetingQuoteForFestivalCreativeImages() throws Exception {
+        MarketingProperties properties = new MarketingProperties();
+        properties.getAi().setEnabled(false);
+        AIContentGenerationServiceImpl service = new AIContentGenerationServiceImpl(properties, new ObjectMapper(), noOpImageUploadService);
+
+        Campaign campaign = new Campaign();
+        campaign.setCampaignName("Women's Day greeting");
+        campaign.setCampaignType(MarketingCampaignType.FESTIVAL);
+        campaign.setCampaignGoal("GREETING");
+        campaign.setDiscountType(MarketingDiscountType.NONE);
+        campaign.setLanguage(MarketingLanguage.ENGLISH);
+        campaign.setTone(MarketingTone.FESTIVE);
+
+        String quote = invokeCreativeImageQuote(service, campaign);
+        String headline = invokeCreativeImageHeadline(service, campaign, null);
+
+        assertEquals("Happy Women's Day", quote);
+        assertEquals("Happy Women's Day", headline);
+    }
+
+    @Test
+    void shouldAddCleanMarathiGreetingQuoteForRepublicDayCreativeImages() throws Exception {
+        MarketingProperties properties = new MarketingProperties();
+        properties.getAi().setEnabled(false);
+        AIContentGenerationServiceImpl service = new AIContentGenerationServiceImpl(properties, new ObjectMapper(), noOpImageUploadService);
+
+        Campaign campaign = new Campaign();
+        campaign.setCampaignName("प्रजासत्ताक दिन");
+        campaign.setCampaignType(MarketingCampaignType.FESTIVAL);
+        campaign.setCampaignGoal("GREETING");
+        campaign.setDiscountType(MarketingDiscountType.NONE);
+        campaign.setLanguage(MarketingLanguage.MARATHI);
+        campaign.setTone(MarketingTone.FESTIVE);
+
+        String quote = invokeCreativeImageQuote(service, campaign);
+
+        assertEquals("प्रजासत्ताक दिनाच्या हार्दिक शुभेच्छा", quote);
+        assertFalse(quote.contains("साठी"));
+    }
+
+    @Test
     void shouldChangeSharedImagePromptForEachRegenerationSeed() {
         MarketingProperties properties = new MarketingProperties();
         properties.getAi().setEnabled(false);
@@ -184,6 +247,38 @@ class AIContentGenerationServiceImplTest {
         assertTrue(second.imagePrompt().contains("Visual refresh seed: secondrege"));
         assertTrue(first.imagePrompt().contains("Make this regeneration visually fresh"));
         assertTrue(second.imagePrompt().contains("Make this regeneration visually fresh"));
+    }
+
+    private String invokeCreativeImageHeadline(AIContentGenerationServiceImpl service,
+                                               Campaign campaign,
+                                               String productName) throws Exception {
+        Method detectFestivalContext = AIContentGenerationServiceImpl.class.getDeclaredMethod("detectFestivalContext", Campaign.class);
+        detectFestivalContext.setAccessible(true);
+        Object festivalContext = detectFestivalContext.invoke(service, campaign);
+
+        Method headline = AIContentGenerationServiceImpl.class.getDeclaredMethod(
+                "buildCreativeImageHeadline",
+                Campaign.class,
+                String.class,
+                Class.forName("com.retailshop.service.impl.MarketingOccasionLibrary$Occasion")
+        );
+        headline.setAccessible(true);
+        return (String) headline.invoke(service, campaign, productName, festivalContext);
+    }
+
+    private String invokeCreativeImageQuote(AIContentGenerationServiceImpl service,
+                                            Campaign campaign) throws Exception {
+        Method detectFestivalContext = AIContentGenerationServiceImpl.class.getDeclaredMethod("detectFestivalContext", Campaign.class);
+        detectFestivalContext.setAccessible(true);
+        Object festivalContext = detectFestivalContext.invoke(service, campaign);
+
+        Method quote = AIContentGenerationServiceImpl.class.getDeclaredMethod(
+                "buildCreativeImageQuote",
+                Campaign.class,
+                Class.forName("com.retailshop.service.impl.MarketingOccasionLibrary$Occasion")
+        );
+        quote.setAccessible(true);
+        return (String) quote.invoke(service, campaign, festivalContext);
     }
 
     @Test

@@ -36,7 +36,8 @@ export default function CustomerAccountMenu({ cartCount = 0 }) {
   const customerSession = getStoredCustomerSession();
   const customerName = customerSession?.name?.trim() || 'Customer';
   const isLoggedIn = Boolean(customerSession?.token);
-  const compactName = isLoggedIn ? customerName.split(/\s+/)[0] : 'Sign in';
+  const compactName = isLoggedIn ? customerName.split(/\s+/)[0] : 'Login';
+  const profileLine = customerSession?.mobile || customerSession?.email || 'Complete profile';
 
   const logout = () => {
     clearCustomerSession();
@@ -56,7 +57,7 @@ export default function CustomerAccountMenu({ cartCount = 0 }) {
           <span className="glow-account-icon"><ProfileIcon /></span>
           <span className="customer-menu-trigger-copy">
             <strong>{compactName}</strong>
-            <span>{isLoggedIn ? 'My account' : 'WhatsApp OTP'}</span>
+            <span>{isLoggedIn ? 'My account' : 'Customer account'}</span>
           </span>
         </summary>
 
@@ -65,16 +66,17 @@ export default function CustomerAccountMenu({ cartCount = 0 }) {
             <>
               <div className="customer-menu-profile">
                 <strong>{customerName}</strong>
-                <span>{customerSession?.mobile}</span>
+                <span>{profileLine}</span>
               </div>
               <Link to="/account">My Profile</Link>
+              <Link to="/wishlist">Wishlist</Link>
               <Link to="/orders">My Orders</Link>
               <Link to="/checkout">Checkout</Link>
               <button type="button" onClick={logout}>Logout</button>
             </>
           ) : (
             <>
-              <Link to="/customer-login">Login with WhatsApp OTP</Link>
+              <Link to="/customer-login">Login / Sign up</Link>
               <Link to="/cart">View Cart</Link>
             </>
           )}

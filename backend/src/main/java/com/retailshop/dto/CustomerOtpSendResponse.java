@@ -7,10 +7,12 @@ import lombok.Getter;
 @Builder
 public class CustomerOtpSendResponse {
     private boolean externalProviderConfigured;
+    private boolean otpRequired;
+    private boolean customerExists;
     private String message;
-    private String devOtp;
     private String channel;
     private String maskedMobile;
+    private String nextStep;
     private long resendCooldownSeconds;
     private long expiresInSeconds;
 }

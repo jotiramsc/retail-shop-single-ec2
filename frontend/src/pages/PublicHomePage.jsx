@@ -173,6 +173,7 @@ export default function PublicHomePage({ branding, siteVisitCount }) {
   const [error, setError] = useState('');
   const [heroDrift, setHeroDrift] = useState({ x: 0, y: 0 });
   const [cartCount, setCartCount] = useState(0);
+  const [wishlistCount, setWishlistCount] = useState(0);
   const [customerSession, setCustomerSession] = useState(() => getStoredCustomerSession());
 
   useEffect(() => {
@@ -199,20 +200,29 @@ export default function PublicHomePage({ branding, siteVisitCount }) {
 
   useEffect(() => {
     if (customerSession?.token) {
-      retailService.getCart()
-        .then((cart) => setCartCount((cart.items || []).reduce((total, item) => total + Number(item.quantity || 0), 0)))
+      Promise.all([
+        retailService.getCart(),
+        retailService.getWishlist()
+      ])
+        .then(([cart, wishlist]) => {
+          setCartCount((cart.items || []).reduce((total, item) => total + Number(item.quantity || 0), 0));
+          setWishlistCount((wishlist || []).length);
+        })
         .catch((err) => {
           if (isCustomerAuthError(err)) {
             clearCustomerSession();
             setCustomerSession(null);
             setCartCount(getGuestCartCount());
+            setWishlistCount(0);
             return;
           }
           setCartCount(0);
+          setWishlistCount(0);
         });
       return;
     }
     setCartCount(getGuestCartCount());
+    setWishlistCount(0);
   }, [customerSession?.token]);
 
   const visibleProducts = useMemo(() => products, [products]);
@@ -332,7 +342,13 @@ export default function PublicHomePage({ branding, siteVisitCount }) {
 
   return (
     <main className={siteClassName}>
-      <StorefrontHeader logo={logo} shopName={shopName} navLinks={headerLinks} cartCount={cartCount} />
+      <StorefrontHeader
+        logo={logo}
+        shopName={shopName}
+        navLinks={headerLinks}
+        cartCount={cartCount}
+        wishlistCount={wishlistCount}
+      />
 
       <section className="glow-hero" onMouseMove={handleHeroMove} onMouseLeave={handleHeroLeave}>
         <div className="glow-hero-rings glow-hero-rings-right" />
@@ -626,6 +642,7 @@ export default function PublicHomePage({ branding, siteVisitCount }) {
           {categoryGroups.map((category) => (
             <a key={category.id} href={`#${category.id}`}>{category.name}</a>
           ))}
+          <Link to="/privacy-policy">Privacy Policy</Link>
           <Link to="/login">Staff Login</Link>
         </div>
       </footer>

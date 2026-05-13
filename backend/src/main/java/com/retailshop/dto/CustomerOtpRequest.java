@@ -9,4 +9,8 @@ import lombok.Setter;
 public class CustomerOtpRequest {
     @NotBlank
     private String mobile;
+
+    private String purpose;
+
+    private String customerId;
 }

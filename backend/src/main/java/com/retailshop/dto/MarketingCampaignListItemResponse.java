@@ -17,6 +17,9 @@ public class MarketingCampaignListItemResponse {
     private UUID id;
     private String campaignName;
     private MarketingCampaignType campaignType;
+    private String campaignGoal;
+    private String offerMode;
+    private String couponCode;
     private List<MarketingPlatform> targetPlatforms;
     private MarketingWorkflowStatus status;
     private String createdBy;

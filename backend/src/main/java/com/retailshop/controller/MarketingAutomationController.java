@@ -170,6 +170,7 @@ public class MarketingAutomationController {
                 "ROLE_ADMIN".equals(authority.getAuthority())
                         || "ROLE_OWNER".equals(authority.getAuthority())
                         || "PERM_CAMPAIGNS".equals(authority.getAuthority())
+                        || "PERM_OFFERS".equals(authority.getAuthority())
                         || "PERM_MARKETING_AUTOMATION".equals(authority.getAuthority()))) {
             throw new org.springframework.security.access.AccessDeniedException("Marketing access is required");
         }

@@ -99,24 +99,46 @@ code {
 }
 
 .app-shell {
+  position: relative;
+  isolation: isolate;
   display: grid;
-  grid-template-columns: 320px 1fr;
+  grid-template-columns: minmax(0, 320px) minmax(0, 1fr);
   min-height: 100vh;
+  overflow-x: hidden;
+  background:
+    linear-gradient(135deg, rgba(17, 54, 45, 0.98) 0%, rgba(33, 86, 73, 0.94) 38%, rgba(241, 232, 219, 0.96) 100%);
+}
+
+.app-shell::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(120deg, rgba(255, 255, 255, 0.08), transparent 34%),
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.055) 0 1px, transparent 1px 28px);
+  opacity: 0.8;
 }
 
 .sidebar {
   position: sticky;
+  isolation: isolate;
+  z-index: 4;
   top: 0;
+  width: 320px;
+  max-width: 100%;
   height: 100vh;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 2rem 1.4rem;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   color: #fbf1df;
   background:
-    radial-gradient(circle at top, rgba(247, 228, 191, 0.12), transparent 22%),
-    linear-gradient(180deg, #183328 0%, #13271f 55%, #0f211b 100%);
+    linear-gradient(180deg, rgba(21, 55, 46, 0.96) 0%, rgba(17, 43, 35, 0.94) 55%, rgba(9, 29, 23, 0.98) 100%),
+    url("/assets/glowjewels/maharashtrian_jewelry_flatlay.png") center/cover;
   border-right: 1px solid rgba(247, 228, 191, 0.08);
 }
 
@@ -128,12 +150,17 @@ code {
 }
 
 .sidebar::before {
-  inset: 1rem 1rem auto;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(247, 228, 191, 0.5), transparent);
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(circle at 20% 10%, rgba(247, 228, 191, 0.2), transparent 28%),
+    linear-gradient(120deg, rgba(255, 255, 255, 0.08), transparent 38%),
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0 1px, transparent 1px 30px);
+  opacity: 0.72;
 }
 
 .sidebar::after {
+  z-index: 0;
   right: 1.25rem;
   bottom: 8rem;
   width: 92px;
@@ -143,6 +170,11 @@ code {
     radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.18), transparent 28%),
     radial-gradient(circle at center, rgba(247, 228, 191, 0.1), transparent 62%);
   border: 1px solid rgba(247, 228, 191, 0.1);
+}
+
+.sidebar > * {
+  position: relative;
+  z-index: 1;
 }
 
 .sidebar h1,
@@ -156,25 +188,60 @@ code {
 
 .sidebar h1 {
   margin: 0;
-  font-size: 2.35rem;
+  font-size: 2.2rem;
   line-height: 0.95;
-  max-width: 220px;
+  max-width: 210px;
+}
+
+.sidebar-brand-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
 }
 
 .brand-lockup {
   display: grid;
-  grid-template-columns: 72px minmax(0, 1fr);
-  gap: 0.85rem;
+  grid-template-columns: 100px minmax(0, 1fr);
+  gap: 1rem;
   align-items: center;
 }
 
 .brand-logo {
-  width: 72px;
-  height: 72px;
-  object-fit: cover;
-  border-radius: 22px;
+  width: 100px;
+  height: 100px;
+  object-fit: contain;
+  padding: 0.45rem;
+  border-radius: 26px;
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(247, 228, 191, 0.18);
+}
+
+.sidebar-menu-toggle {
+  display: none;
+  flex: 0 0 auto;
+  min-height: 42px;
+  padding: 0.6rem 0.95rem;
+  border: 1px solid rgba(247, 228, 191, 0.2);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff8eb;
+  font-weight: 800;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+}
+
+.sidebar-menu-toggle-bars {
+  width: 18px;
+  display: grid;
+  gap: 4px;
+}
+
+.sidebar-menu-toggle-bars span {
+  display: block;
+  height: 2px;
+  border-radius: 999px;
+  background: currentColor;
 }
 
 .sidebar-kicker,
@@ -204,6 +271,9 @@ code {
 }
 
 .nav-item {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
   text-decoration: none;
   color: #f5ead8;
   padding: 0.95rem 1rem;
@@ -241,8 +311,19 @@ code {
 }
 
 .content {
+  position: relative;
+  z-index: 2;
+  min-width: 0;
+  max-width: 100%;
+  margin: 1rem 1rem 1rem 0;
   padding: 2rem;
   overflow-y: auto;
+  overflow-x: hidden;
+  border-radius: 30px 0 0 30px;
+  background: rgba(255, 251, 245, 0.9);
+  border: 1px solid rgba(247, 228, 191, 0.22);
+  box-shadow: 0 30px 70px rgba(7, 24, 19, 0.18);
+  backdrop-filter: blur(18px);
 }
 
 .embedded-site-shell {
@@ -307,6 +388,9 @@ code {
 .page {
   display: grid;
   gap: 1.5rem;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
   animation: fadeUp 420ms ease;
 }
 
@@ -318,44 +402,59 @@ code {
   min-height: 100vh;
   display: grid;
   place-items: center;
-  padding: 2rem;
+  padding: 36px 18px;
   background:
-    radial-gradient(circle at top right, rgba(32, 71, 60, 0.12), transparent 24%),
-    radial-gradient(circle at bottom left, rgba(189, 141, 67, 0.16), transparent 26%);
+    radial-gradient(circle at 12% 12%, rgba(33, 78, 66, 0.12), transparent 30%),
+    linear-gradient(135deg, #e5ded3 0%, #f4efe8 50%, #ddd5ca 100%);
 }
 
 .login-card {
-  width: min(520px, 100%);
-  padding: 2.2rem;
-  border-radius: 32px;
+  width: min(740px, 100%);
+  padding: 0;
+  border-radius: 42px;
   border: 1px solid rgba(128, 94, 46, 0.12);
-  background:
-    linear-gradient(160deg, rgba(255, 252, 246, 0.96), rgba(251, 244, 233, 0.92));
-  box-shadow: var(--shadow);
+  background: transparent;
+  box-shadow: 0 30px 90px rgba(26, 35, 30, 0.24);
   position: relative;
   overflow: hidden;
 }
 
-.login-card::after {
-  content: '';
-  position: absolute;
-  right: -2rem;
-  top: -2rem;
-  width: 180px;
-  height: 180px;
-  border-radius: 50%;
+.login-forest {
+  min-height: 320px;
+  padding: clamp(30px, 6vw, 56px);
+  color: #fff;
   background:
-    radial-gradient(circle at center, rgba(189, 141, 67, 0.18), transparent 60%);
+    linear-gradient(135deg, rgba(27, 70, 59, 0.96), rgba(55, 120, 101, 0.9)),
+    url("/assets/glowjewels/maharashtrian_jewelry_flatlay.png") center/cover;
 }
 
 .login-card h1 {
-  margin: 0.2rem 0 0.75rem;
-  font-size: 3rem;
+  margin: 0.2rem 0 0;
+  font-size: clamp(2.65rem, 7vw, 4.2rem);
+  line-height: 0.98;
+}
+
+.login-forest h1 {
+  color: #fff8eb;
+}
+
+.login-card h2 {
+  margin: 0;
+  font-family: 'Cormorant Garamond', serif;
+  font-size: clamp(2.1rem, 4vw, 3.15rem);
+  line-height: 0.95;
   color: #2b1d17;
 }
 
-.login-copy {
-  color: var(--muted);
+.login-forest .sidebar-kicker {
+  color: rgba(247, 228, 191, 0.82);
+}
+
+.login-forest .login-copy {
+  margin: 1.35rem 0 0;
+  max-width: 520px;
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 700;
 }
 
 .login-brand-row {
@@ -370,20 +469,46 @@ code {
   height: 72px;
   object-fit: cover;
   border-radius: 22px;
-  border: 1px solid rgba(128, 94, 46, 0.14);
+  border: 1px solid rgba(247, 228, 191, 0.22);
   background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 18px 38px rgba(7, 24, 19, 0.18);
 }
 
 .login-hero-grid {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) 170px;
   gap: 1rem;
-  margin-top: 1rem;
+  margin-top: 1.4rem;
   padding: 1rem;
   border-radius: 24px;
   background:
-    linear-gradient(135deg, rgba(23, 47, 40, 0.96), rgba(37, 63, 54, 0.92));
+    linear-gradient(135deg, rgba(12, 38, 31, 0.58), rgba(255, 255, 255, 0.1));
+  border: 1px solid rgba(247, 228, 191, 0.14);
   color: #f8efdf;
+  backdrop-filter: blur(10px);
+}
+
+.login-sheet {
+  margin-top: -56px;
+  padding: clamp(30px, 6vw, 56px);
+  border-radius: 42px 42px 0 0;
+  background: #fff;
+}
+
+.login-sheet-head {
+  display: grid;
+  gap: 0.4rem;
+  margin-bottom: 1.4rem;
+}
+
+.login-sheet-head .sidebar-kicker {
+  color: #c78342;
+}
+
+.login-sheet-head span {
+  color: #8e8378;
+  font-weight: 700;
 }
 
 .login-hero-copy {
@@ -457,22 +582,56 @@ code {
 }
 
 .page-header {
+  position: relative;
+  isolation: isolate;
   display: flex;
   justify-content: space-between;
   gap: 1.25rem;
   align-items: end;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  padding: clamp(1.25rem, 2.2vw, 2rem);
+  border-radius: 28px;
+  border: 1px solid rgba(247, 228, 191, 0.18);
+  background:
+    linear-gradient(135deg, rgba(27, 70, 59, 0.96), rgba(55, 120, 101, 0.86)),
+    url("/assets/glowjewels/maharashtrian_jewelry_flatlay.png") center/cover;
+  box-shadow: 0 24px 54px rgba(17, 54, 45, 0.18);
+}
+
+.page-header::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 82% 18%, rgba(247, 228, 191, 0.2), transparent 28%),
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0 1px, transparent 1px 28px);
+  opacity: 0.7;
+}
+
+.page-header > * {
+  position: relative;
+  z-index: 1;
+}
+
+.page-header .eyebrow {
+  color: rgba(247, 228, 191, 0.86);
 }
 
 .page-header h2 {
   margin: 0.15rem 0 0.4rem;
   font-size: clamp(2.5rem, 4vw, 4.2rem);
   line-height: 0.98;
-  color: #241713;
+  color: #fff8eb;
+  text-shadow: 0 12px 28px rgba(7, 24, 19, 0.2);
 }
 
 .page-description {
   max-width: 760px;
-  color: var(--muted);
+  color: rgba(255, 248, 235, 0.78);
 }
 
 .metric-grid,
@@ -480,10 +639,12 @@ code {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1rem;
+  min-width: 0;
 }
 
 .metric-card,
 .panel {
+  min-width: 0;
   border: 1px solid var(--border);
   background: var(--surface);
   backdrop-filter: blur(16px);
@@ -862,7 +1023,9 @@ code {
   gap: 1rem;
   padding: 1rem;
   border-radius: 24px;
-  background: linear-gradient(135deg, rgba(23, 47, 40, 0.96), rgba(37, 63, 54, 0.92));
+  background:
+    linear-gradient(135deg, rgba(23, 61, 52, 0.96), rgba(45, 96, 81, 0.9)),
+    url("/assets/glowjewels/maharashtrian_jewelry_flatlay.png") center/cover;
   color: #f8efdf;
 }
 
@@ -995,6 +1158,63 @@ code {
 
 .report-metric-grid {
   margin-top: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+
+.payment-debug-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.65fr);
+  gap: 1rem;
+  align-items: start;
+  margin-top: 1rem;
+}
+
+.payment-debug-layout .table-wrap {
+  min-width: 0;
+  overflow: auto;
+}
+
+.payment-debug-detail {
+  min-width: 0;
+  border: 1px solid rgba(128, 94, 46, 0.12);
+  background: rgba(255, 250, 244, 0.9);
+  border-radius: 24px;
+  padding: 1rem;
+  box-shadow: 0 14px 32px rgba(71, 52, 35, 0.08);
+}
+
+.payment-debug-meta {
+  display: grid;
+  grid-template-columns: minmax(90px, 0.45fr) minmax(0, 1fr);
+  gap: 0.45rem 0.8rem;
+  margin: 0.9rem 0;
+  font-size: 0.92rem;
+}
+
+.payment-debug-meta span {
+  color: var(--muted);
+}
+
+.payment-debug-meta strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.payment-debug-detail h4 {
+  margin: 1rem 0 0.45rem;
+}
+
+.payment-debug-pre {
+  max-height: 260px;
+  overflow: auto;
+  margin: 0;
+  padding: 0.85rem;
+  border-radius: 16px;
+  border: 1px solid rgba(128, 94, 46, 0.12);
+  background: rgba(32, 71, 60, 0.06);
+  color: #241815;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .billing-summary-grid {
@@ -2540,24 +2760,62 @@ th {
 
 @media (max-width: 1100px) {
   .app-shell {
-    grid-template-columns: 1fr;
+    display: block;
+    min-height: 100vh;
   }
 
   .sidebar {
-    position: relative;
+    position: sticky;
+    top: 0;
+    width: 100%;
     height: auto;
-    padding-bottom: 1.4rem;
+    max-height: 100vh;
+    padding: 0.95rem 1rem;
+    border-right: 0;
+    border-bottom: 1px solid rgba(247, 228, 191, 0.16);
+    box-shadow: 0 18px 40px rgba(7, 24, 19, 0.2);
   }
 
   .nav-list {
-    grid-auto-flow: column;
-    grid-auto-columns: minmax(140px, 1fr);
-    overflow-x: auto;
-    padding-bottom: 0.25rem;
+    grid-auto-flow: unset;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-height: 0;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition: max-height 0.24s ease, opacity 0.18s ease, margin 0.18s ease;
+  }
+
+  .sidebar.is-open .nav-list {
+    max-height: min(52vh, 520px);
+    margin: 0.9rem 0;
+    padding-right: 0.2rem;
+    overflow-y: auto;
+    opacity: 1;
+  }
+
+  .sidebar-menu-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .sidebar-footer {
+    display: none;
+    padding-top: 0.85rem;
+    border-top: 1px solid rgba(247, 228, 191, 0.12);
+  }
+
+  .sidebar.is-open .sidebar-footer {
+    display: block;
   }
 
   .content {
     padding: 1.25rem;
+    margin: 0;
+    border-radius: 0;
+    min-height: calc(100vh - 132px);
   }
 
   .metric-grid,
@@ -2641,16 +2899,20 @@ th {
   }
 
   .sidebar {
-    padding: 1rem 0.95rem 1.2rem;
+    padding: 0.8rem;
   }
 
   .sidebar h1 {
     max-width: none;
-    font-size: 2rem;
+    font-size: 1.55rem;
+    line-height: 1;
   }
 
   .sidebar-copy {
     max-width: none;
+    margin: 0.65rem 0 0;
+    font-size: 0.92rem;
+    line-height: 1.45;
   }
 
   .page {
@@ -2688,11 +2950,15 @@ th {
     border-radius: 22px;
   }
 
-  .brand-lockup,
   .login-brand-row,
   .settings-preview-brand,
   .login-hero-grid {
     grid-template-columns: 1fr;
+  }
+
+  .brand-lockup {
+    grid-template-columns: 82px minmax(0, 1fr);
+    gap: 0.75rem;
   }
 
   .floating-staff-menu {
@@ -2702,10 +2968,15 @@ th {
     left: 0.95rem;
   }
 
-  .brand-logo,
+  .brand-logo {
+    width: 82px;
+    height: 82px;
+    border-radius: 22px;
+  }
+
   .login-brand-logo {
-    width: 64px;
-    height: 64px;
+    width: 100px;
+    height: 100px;
   }
 
   .panel {
@@ -3008,16 +3279,18 @@ th {
   display: grid;
   justify-items: center;
   gap: 0.45rem;
-  min-width: 68px;
+  min-width: 118px;
 }
 
 .glow-brand-logo {
-  width: 46px;
-  height: 46px;
-  object-fit: cover;
-  border-radius: 999px;
+  width: 104px;
+  height: 104px;
+  object-fit: contain;
+  padding: 0.35rem;
+  border-radius: 28px;
   background: rgba(255, 255, 255, 0.8);
   border: 1px solid rgba(201, 131, 69, 0.16);
+  box-shadow: 0 14px 32px rgba(76, 52, 37, 0.1);
 }
 
 .glow-brand-line {
@@ -3034,10 +3307,10 @@ th {
 .glow-brand strong {
   display: block;
   font-family: 'Manrope', sans-serif;
-  font-size: 1.1rem;
+  font-size: 1.18rem;
   line-height: 1;
   letter-spacing: -0.03em;
-  max-width: 150px;
+  max-width: 180px;
   font-weight: 800;
 }
 
@@ -3130,6 +3403,10 @@ th {
 
 .glow-icon-badge.bronze {
   background: #cc8848;
+}
+
+.glow-icon-badge.emerald {
+  background: #1f6a52;
 }
 
 .glow-account-btn {
@@ -4222,6 +4499,31 @@ th {
   overflow: hidden;
 }
 
+.product-wishlist-btn {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  width: 42px;
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.62);
+  border-radius: 50%;
+  background: rgba(255, 251, 247, 0.88);
+  color: rgba(115, 78, 58, 0.95);
+  box-shadow: 0 14px 30px rgba(52, 35, 25, 0.16);
+  backdrop-filter: blur(10px);
+  cursor: pointer;
+}
+
+.product-wishlist-btn:hover,
+.product-wishlist-btn.is-saved {
+  color: #fff;
+  background: #1f6a52;
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
 .glow-product-card-media img {
   width: 100%;
   aspect-ratio: 1 / 1;
@@ -4277,12 +4579,59 @@ th {
   gap: 0.75rem;
   align-items: center;
   margin-top: 0.95rem;
+  flex-wrap: wrap;
+}
+
+.glow-product-card-actions .primary-btn {
+  flex: 1 1 132px;
+  justify-content: center;
 }
 
 .glow-product-card-actions span {
   color: rgba(122, 92, 74, 0.82);
   font-size: 0.8rem;
   font-weight: 700;
+  min-width: 110px;
+  text-align: right;
+}
+
+.storefront-feedback {
+  position: fixed;
+  top: clamp(14px, 3vw, 28px);
+  left: 50%;
+  z-index: 2000;
+  width: fit-content;
+  max-width: min(520px, calc(100vw - 32px));
+  margin: 0;
+  padding: 0.9rem 1.1rem;
+  border-radius: 16px;
+  background: rgba(234, 248, 240, 0.96);
+  border: 1px solid rgba(31, 106, 82, 0.18);
+  box-shadow: 0 18px 44px rgba(26, 62, 48, 0.18);
+  backdrop-filter: blur(16px);
+  animation: storefrontToast 4.2s ease both;
+  pointer-events: none;
+}
+
+.storefront-feedback.error {
+  background: rgba(255, 244, 240, 0.96);
+  border-color: rgba(178, 74, 46, 0.22);
+}
+
+@keyframes storefrontToast {
+  0% {
+    opacity: 0;
+    transform: translate3d(-50%, -16px, 0) scale(0.98);
+  }
+  10%,
+  82% {
+    opacity: 1;
+    transform: translate3d(-50%, 0, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(-50%, -10px, 0) scale(0.98);
+  }
 }
 
 .glow-products-empty {
@@ -4618,6 +4967,165 @@ th {
   margin: 0 auto;
 }
 
+.customer-google-panel {
+  display: grid;
+  justify-items: center;
+  gap: 0.65rem;
+  margin: 1rem 0;
+}
+
+.customer-google-button {
+  min-height: 44px;
+}
+
+.customer-auth-note {
+  color: rgba(122, 92, 74, 0.78);
+  line-height: 1.65;
+  margin: -0.35rem 0 1rem;
+}
+
+.customer-login-mode {
+  margin-bottom: 1rem;
+}
+
+.customer-method-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.customer-method-card {
+  display: grid;
+  gap: 0.35rem;
+  min-height: 106px;
+  padding: 1rem;
+  text-align: left;
+  border-radius: 18px;
+  border: 1px solid rgba(184, 115, 58, 0.18);
+  background: rgba(255, 251, 247, 0.82);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.customer-method-card strong {
+  color: var(--emerald);
+}
+
+.customer-method-card span {
+  color: rgba(122, 92, 74, 0.82);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.customer-method-card.is-active {
+  border-color: rgba(178, 122, 44, 0.72);
+  background: linear-gradient(135deg, rgba(247, 228, 191, 0.78), rgba(255, 251, 247, 0.94));
+  box-shadow: 0 14px 28px rgba(91, 62, 27, 0.11);
+}
+
+.customer-auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0.9rem 0;
+  color: rgba(122, 92, 74, 0.72);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.customer-auth-divider::before,
+.customer-auth-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: rgba(184, 115, 58, 0.14);
+}
+
+.customer-auth-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.customer-auth-tabs button {
+  border: 1px solid rgba(184, 115, 58, 0.16);
+  border-radius: 999px;
+  padding: 0.75rem 0.85rem;
+  background: rgba(255, 251, 247, 0.9);
+  color: rgba(92, 68, 58, 0.84);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.customer-auth-tabs button.is-active {
+  background: #b27a2c;
+  color: #fffaf2;
+  border-color: #b27a2c;
+}
+
+@media (max-width: 640px) {
+  .customer-method-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.customer-profile-alert,
+.customer-mobile-verification {
+  display: grid;
+  gap: 0.55rem;
+  margin-bottom: 1rem;
+  padding: 1rem;
+  border: 1px solid rgba(184, 115, 58, 0.18);
+  border-radius: 18px;
+  background: rgba(201, 131, 69, 0.08);
+}
+
+.customer-profile-alert.is-complete {
+  background: rgba(22, 92, 65, 0.08);
+  border-color: rgba(22, 92, 65, 0.18);
+}
+
+.customer-mobile-verification.is-verified {
+  background: rgba(22, 92, 65, 0.08);
+  border-color: rgba(22, 92, 65, 0.18);
+}
+
+.customer-mobile-verification > div:first-child {
+  display: flex;
+  gap: 0.45rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.customer-profile-alert span,
+.customer-mobile-verification span {
+  color: rgba(122, 92, 74, 0.82);
+}
+
+.customer-mobile-otp-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.customer-mobile-otp-actions input {
+  width: 120px;
+}
+
+.customer-dev-otp.compact {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+}
+
+.customer-dev-otp.compact span {
+  font-size: 1.1rem;
+  letter-spacing: 0.16em;
+}
+
 .customer-otp-banner {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
@@ -4765,10 +5273,25 @@ th {
 
 .marketing-suggestion-preview,
 .marketing-form-preview-media {
+  position: relative;
   overflow: hidden;
   border-radius: 20px;
   border: 1px solid rgba(184, 115, 58, 0.14);
   background: rgba(255, 249, 243, 0.92);
+}
+
+.marketing-suggestion-preview::after,
+.marketing-form-preview-media::after,
+.marketing-creative-frame::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    linear-gradient(135deg, rgba(18, 61, 50, 0.34), rgba(18, 61, 50, 0.08) 44%, rgba(10, 31, 25, 0.4)),
+    radial-gradient(circle at 18% 16%, rgba(247, 228, 191, 0.22), transparent 28%);
+  mix-blend-mode: multiply;
 }
 
 .marketing-suggestion-preview {
@@ -4865,6 +5388,36 @@ th {
   gap: 0.35rem;
   color: rgba(82, 58, 44, 0.86);
   font-weight: 600;
+}
+
+.marketing-wide-field {
+  grid-column: 1 / -1;
+}
+
+.campaign-studio-section-intro {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.25rem 0.1rem;
+}
+
+.campaign-studio-section-intro h2,
+.campaign-studio-section-intro p {
+  margin: 0;
+}
+
+.campaign-studio-section-intro h2 {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: clamp(2rem, 4vw, 3.4rem);
+  color: #2a1b15;
+}
+
+.campaign-studio-section-intro p {
+  color: rgba(82, 58, 44, 0.86);
+}
+
+.offers-embedded-stack {
+  display: grid;
+  gap: 1.25rem;
 }
 
 .marketing-platform-selectors {
@@ -4979,6 +5532,19 @@ th {
   gap: 1rem;
 }
 
+.marketing-analytics-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 620px), 1fr));
+  align-items: start;
+}
+
+.marketing-analytics-grid > div {
+  min-width: 0;
+}
+
+.marketing-analytics-grid .table-wrap {
+  margin-top: 0.55rem;
+}
+
 .marketing-creative-frame {
   position: relative;
   overflow: hidden;
@@ -5005,7 +5571,7 @@ th {
   position: absolute;
   top: 0.85rem;
   left: 0.85rem;
-  z-index: 2;
+  z-index: 3;
   display: inline-flex;
   align-items: center;
   min-height: 2rem;
@@ -5115,6 +5681,10 @@ th {
 
 .customer-form-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.customer-address-form-grid {
+  grid-template-columns: 1fr;
 }
 
 .customer-order-head,
@@ -5540,5 +6110,685 @@ th {
 
   .marketing-content-card-head {
     flex-direction: column;
+  }
+}
+
+.customer-auth-modern-page {
+  min-height: 100vh;
+  padding: 36px 18px;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at 12% 12%, rgba(33, 78, 66, 0.12), transparent 30%),
+    linear-gradient(135deg, #e5ded3 0%, #f4efe8 50%, #ddd5ca 100%);
+}
+
+.customer-auth-phone-shell {
+  width: min(740px, 100%);
+  border-radius: 42px;
+  overflow: hidden;
+  box-shadow: 0 30px 90px rgba(26, 35, 30, 0.24);
+}
+
+.customer-auth-forest {
+  min-height: 280px;
+  padding: clamp(30px, 6vw, 56px);
+  color: #fff;
+  background:
+    linear-gradient(135deg, rgba(27, 70, 59, 0.96), rgba(55, 120, 101, 0.9)),
+    url("/assets/glowjewels/maharashtrian_jewelry_flatlay.png") center/cover;
+}
+
+.customer-auth-back {
+  display: inline-flex;
+  margin-bottom: 46px;
+  color: rgba(255, 255, 255, 0.82);
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.customer-auth-forest .glow-kicker {
+  color: rgba(255, 255, 255, 0.58);
+  letter-spacing: 0.22em;
+}
+
+.customer-auth-forest h1 {
+  margin: 22px 0 18px;
+  font-size: clamp(2.6rem, 8vw, 4.6rem);
+  line-height: 1;
+  color: #fff;
+}
+
+.customer-auth-forest span {
+  display: block;
+  max-width: 540px;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: clamp(1.05rem, 2.4vw, 1.35rem);
+  line-height: 1.55;
+  font-weight: 700;
+}
+
+.customer-auth-sheet {
+  margin-top: -58px;
+  padding: clamp(30px, 6vw, 56px);
+  border-radius: 42px 42px 0 0;
+  background: #fff;
+}
+
+.customer-auth-sheet .customer-login-mode {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0;
+  margin: 0 0 28px;
+  border-bottom: 2px solid #e7ded3;
+}
+
+.customer-auth-sheet .customer-login-mode button {
+  height: 58px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #bdb7af;
+  font-size: 1.2rem;
+  font-weight: 900;
+  box-shadow: none;
+}
+
+.customer-auth-sheet .customer-login-mode button.is-active {
+  color: #183d34;
+  border-bottom: 4px solid #2f6759;
+}
+
+.customer-auth-title-row {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.customer-auth-title-row h2 {
+  margin: 0;
+  color: #1b2f29;
+  font-size: clamp(1.45rem, 3vw, 2rem);
+}
+
+.customer-auth-title-row span {
+  color: #a79d93;
+  font-weight: 800;
+}
+
+.customer-auth-method-list {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.customer-auth-method-card,
+.customer-auth-account-pill {
+  width: 100%;
+  min-height: 96px;
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) 36px;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  border-radius: 24px;
+  border: 2px solid #e6ded4;
+  background: #fff;
+  text-align: left;
+}
+
+.customer-auth-method-card {
+  cursor: pointer;
+}
+
+.customer-auth-method-card.is-active {
+  border-color: #2f6759;
+  background: #f1faf6;
+  box-shadow: inset 0 0 0 2px rgba(47, 103, 89, 0.12);
+}
+
+.customer-auth-method-card strong,
+.customer-auth-account-pill strong {
+  display: block;
+  color: #101412;
+  font-size: 1.18rem;
+  line-height: 1.15;
+}
+
+.customer-auth-method-card small,
+.customer-auth-account-pill small {
+  display: block;
+  margin-top: 6px;
+  color: #9f9a95;
+  font-size: 0.98rem;
+  font-weight: 800;
+}
+
+.customer-auth-method-card em,
+.customer-auth-account-pill em {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #2f6759;
+  border: 2px solid currentColor;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.customer-auth-method-icon,
+.customer-auth-account-pill > span {
+  width: 64px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+  border-radius: 22px;
+  background: #e5ffe6;
+  color: #2f6759;
+  font-weight: 900;
+}
+
+.customer-auth-method-icon.google-dot,
+.customer-auth-account-pill > span {
+  background: #edf2ff;
+  color: #1b74e4;
+}
+
+.customer-google-panel-modern {
+  justify-content: center;
+  padding: 6px 0 20px;
+}
+
+.customer-auth-action-form {
+  margin-top: 18px;
+}
+
+.customer-auth-primary-action {
+  width: 100%;
+  min-height: 70px;
+  justify-content: center;
+  border-radius: 24px;
+  background: #143c32;
+  color: #fff;
+  font-size: 1.25rem;
+  box-shadow: 0 16px 34px rgba(20, 60, 50, 0.18);
+}
+
+.customer-auth-primary-action:disabled {
+  opacity: 0.6;
+}
+
+.customer-auth-inline-actions,
+.customer-auth-footer {
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.customer-auth-text-btn {
+  border: 0;
+  background: transparent;
+  color: #2f6759;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.customer-auth-account-pill {
+  margin-bottom: 18px;
+  background: #fbf7f1;
+}
+
+.customer-auth-signed-in {
+  max-width: 620px;
+  margin: 8vh auto;
+}
+
+.wishlist-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.privacy-policy-page {
+  min-height: 100vh;
+  padding: 48px max(24px, calc((100vw - 1120px) / 2)) 72px;
+}
+
+.privacy-policy-hero {
+  display: grid;
+  grid-template-columns: minmax(220px, 320px) minmax(0, 1fr);
+  gap: 40px;
+  align-items: start;
+  margin-bottom: 28px;
+}
+
+.privacy-policy-brand {
+  position: sticky;
+  top: 32px;
+  align-items: flex-start;
+  padding: 22px;
+  border: 1px solid rgba(201, 131, 69, 0.16);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow: 0 18px 44px rgba(76, 52, 37, 0.08);
+}
+
+.privacy-policy-brand .glow-brand-logo {
+  width: 58px;
+  height: 58px;
+}
+
+.privacy-policy-brand strong {
+  max-width: 210px;
+}
+
+.privacy-policy-hero-copy {
+  padding: 54px;
+  border-radius: 8px;
+  color: #fff7ea;
+  background:
+    linear-gradient(135deg, rgba(13, 46, 36, 0.96), rgba(45, 94, 78, 0.88)),
+    url('/assets/glowjewels/maharashtrian_jewelry_flatlay.png') center / cover;
+  box-shadow: 0 24px 60px rgba(28, 46, 35, 0.18);
+}
+
+.privacy-policy-hero-copy .glow-kicker {
+  color: #f3dcb4;
+}
+
+.privacy-policy-hero-copy h1 {
+  margin: 0;
+  max-width: 760px;
+  font-size: clamp(3rem, 8vw, 6.4rem);
+  line-height: 0.95;
+}
+
+.privacy-policy-hero-copy p {
+  max-width: 720px;
+  color: rgba(255, 247, 234, 0.88);
+  font-size: 1.08rem;
+  line-height: 1.75;
+}
+
+.privacy-policy-updated {
+  margin-bottom: 0;
+  font-weight: 800;
+}
+
+.privacy-policy-card {
+  margin: 16px 0 0 auto;
+  max-width: 760px;
+  padding: 30px;
+  border: 1px solid rgba(201, 131, 69, 0.15);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 16px 42px rgba(76, 52, 37, 0.07);
+}
+
+.privacy-policy-card h2 {
+  margin: 0 0 12px;
+  font-family: 'Cormorant Garamond', serif;
+  color: #2b1b18;
+  font-size: clamp(1.8rem, 3vw, 2.6rem);
+  line-height: 1;
+}
+
+.privacy-policy-card p {
+  margin: 0 0 12px;
+  color: rgba(92, 68, 58, 0.92);
+  line-height: 1.75;
+}
+
+.privacy-policy-card p:last-child {
+  margin-bottom: 0;
+}
+
+.privacy-policy-contact div {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid rgba(201, 131, 69, 0.12);
+}
+
+.privacy-policy-contact span {
+  color: #8b5c24;
+  font-weight: 900;
+}
+
+.privacy-policy-contact a {
+  color: #143c32;
+  font-weight: 900;
+}
+
+.privacy-policy-contact div p {
+  margin: 0;
+}
+
+@media (max-width: 900px) {
+  .customer-auth-modern-page {
+    padding: 0;
+  }
+
+  .privacy-policy-page {
+    padding: 0 18px 42px;
+  }
+
+  .privacy-policy-hero {
+    display: block;
+  }
+
+  .privacy-policy-brand {
+    position: static;
+    margin: 16px 0;
+  }
+
+  .privacy-policy-hero-copy {
+    padding: 34px 24px;
+  }
+
+  .privacy-policy-card {
+    max-width: none;
+    padding: 24px;
+  }
+
+  .privacy-policy-contact div {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .customer-auth-phone-shell {
+    min-height: 100vh;
+    border-radius: 0;
+  }
+
+  .customer-auth-forest {
+    min-height: 330px;
+  }
+
+  .customer-auth-sheet {
+    min-height: calc(100vh - 270px);
+  }
+
+  .customer-auth-method-card,
+  .customer-auth-account-pill {
+    grid-template-columns: 56px minmax(0, 1fr) 32px;
+    padding: 14px;
+  }
+
+  .customer-auth-method-icon,
+  .customer-auth-account-pill > span {
+    width: 56px;
+    height: 56px;
+    border-radius: 20px;
+  }
+}
+
+@media (max-width: 1100px) {
+  .app-shell {
+    display: block;
+    min-height: 100dvh;
+    background:
+      linear-gradient(135deg, rgba(16, 55, 45, 0.98), rgba(47, 103, 89, 0.92) 48%, rgba(248, 244, 236, 0.98) 48%);
+  }
+
+  .sidebar {
+    position: sticky;
+    top: 0;
+    z-index: 60;
+    width: 100%;
+    min-height: 0;
+    height: auto;
+    max-height: 100dvh;
+    padding: 0.85rem 1rem;
+    border-right: 0;
+    border-bottom: 1px solid rgba(247, 228, 191, 0.16);
+    box-shadow: 0 18px 42px rgba(7, 24, 19, 0.22);
+  }
+
+  .sidebar::after {
+    display: none;
+  }
+
+  .sidebar-brand-row {
+    align-items: center;
+  }
+
+  .brand-lockup {
+    grid-template-columns: 76px minmax(0, 1fr);
+    gap: 0.8rem;
+  }
+
+  .brand-logo {
+    width: 76px;
+    height: 76px;
+    border-radius: 22px;
+  }
+
+  .sidebar h1 {
+    max-width: none;
+    font-size: clamp(1.5rem, 6vw, 2.05rem);
+    line-height: 0.95;
+  }
+
+  .sidebar-kicker {
+    font-size: 0.68rem;
+    letter-spacing: 0.16em;
+  }
+
+  .sidebar:not(.is-open) .sidebar-copy {
+    display: none;
+  }
+
+  .sidebar-copy {
+    max-width: none;
+    margin: 0.7rem 0 0;
+    font-size: 0.95rem;
+    line-height: 1.45;
+  }
+
+  .sidebar-menu-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.55rem;
+  }
+
+  .nav-list {
+    grid-auto-flow: unset;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-height: 0;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition: max-height 0.24s ease, opacity 0.18s ease, margin 0.18s ease;
+  }
+
+  .sidebar.is-open .nav-list {
+    max-height: min(48dvh, 520px);
+    margin: 0.95rem 0;
+    overflow-y: auto;
+    opacity: 1;
+  }
+
+  .nav-item {
+    min-height: 58px;
+    display: flex;
+    align-items: center;
+    border-radius: 18px;
+  }
+
+  .sidebar-footer {
+    display: none;
+    padding-top: 0.85rem;
+    border-top: 1px solid rgba(247, 228, 191, 0.12);
+  }
+
+  .sidebar.is-open .sidebar-footer {
+    display: block;
+  }
+
+  .content {
+    margin: 0;
+    padding: 1rem;
+    min-height: auto;
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+    overflow: visible;
+  }
+}
+
+@media (max-width: 720px) {
+  .sidebar {
+    padding: 0.7rem 0.8rem;
+  }
+
+  .brand-lockup {
+    grid-template-columns: 64px minmax(0, 1fr);
+    gap: 0.65rem;
+  }
+
+  .brand-logo {
+    width: 64px;
+    height: 64px;
+    border-radius: 18px;
+    padding: 0.35rem;
+  }
+
+  .sidebar h1 {
+    font-size: 1.35rem;
+  }
+
+  .sidebar-menu-toggle {
+    min-height: 40px;
+    padding: 0.55rem 0.75rem;
+  }
+
+  .nav-list,
+  .sidebar.is-open .nav-list {
+    grid-template-columns: 1fr;
+  }
+
+  .nav-item {
+    min-height: 52px;
+    padding: 0.82rem 0.95rem;
+  }
+
+  .page-header,
+  .panel,
+  .metric-card,
+  .customer-card,
+  .marketing-content-card,
+  .marketing-form-preview-card {
+    border-radius: 20px;
+  }
+
+  .page-header {
+    padding: 1.3rem;
+  }
+
+  .page-header h2 {
+    font-size: clamp(2.05rem, 11vw, 3rem);
+    line-height: 0.98;
+  }
+
+  .table-wrap {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@media (max-width: 860px) {
+  .glow-header-inner {
+    grid-template-columns: 1fr;
+    gap: 0.9rem;
+  }
+
+  .glow-brand {
+    align-items: center;
+  }
+
+  .glow-brand-mark {
+    min-width: 104px;
+  }
+
+  .glow-brand-logo {
+    width: 96px;
+    height: 96px;
+    border-radius: 26px;
+  }
+
+  .glow-brand-line {
+    width: 70px;
+  }
+
+  .glow-brand strong {
+    max-width: none;
+    font-size: 1.14rem;
+  }
+
+  .glow-nav {
+    gap: 0.65rem;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 0.25rem;
+  }
+
+  .glow-nav a {
+    white-space: nowrap;
+  }
+
+  .glow-header-actions,
+  .customer-site-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .customer-menu {
+    flex: 1 1 auto;
+  }
+
+  .customer-menu-trigger {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .customer-menu-popover {
+    left: 0;
+    right: 0;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .glow-header,
+  .glow-hero,
+  .glow-bento,
+  .glow-featured,
+  .glow-testimonials,
+  .glow-brand-story,
+  .glow-editors-picks,
+  .glow-footer,
+  .glow-products-hero,
+  .glow-products-layout {
+    width: calc(100% - 1rem);
+  }
+
+  .glow-brand-logo {
+    width: 92px;
+    height: 92px;
+  }
+
+  .glow-icon-btn {
+    width: 42px;
+    height: 42px;
   }
 }

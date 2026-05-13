@@ -14,8 +14,6 @@ public class PlaceOrderRequest {
 
     private String couponCode;
     private String paymentProvider;
-    private String phonepeMerchantOrderId;
-    private String phonepeTransactionId;
     private String razorpayOrderId;
     private String razorpayPaymentId;
     private String razorpaySignature;

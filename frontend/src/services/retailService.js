@@ -16,6 +16,9 @@ export const retailService = {
   login: (payload) => api.post('/auth/login', payload).then((res) => res.data),
   sendOtp: (payload) => api.post('/auth/send-otp', payload).then((res) => res.data),
   verifyOtp: (payload) => api.post('/auth/verify-otp', payload).then((res) => res.data),
+  verifyProfileMobileOtp: (payload) => api.post('/customer-profile/mobile/verify-otp', payload).then((res) => res.data),
+  loginWithGoogle: (payload) => api.post('/auth/google', payload).then((res) => res.data),
+  verifyGoogleMobileOtp: (payload) => api.post('/auth/google/verify-mobile', payload).then((res) => res.data),
   recordSiteVisit: (payload) => api.post('/site-interactions/visit', payload || {}).then((res) => res.data),
   getSiteInteractionReport: (days = 30) => api.get(`/site-interactions/report?days=${days}`).then((res) => res.data),
   uploadImage: ({ file, category }) => {
@@ -34,10 +37,26 @@ export const retailService = {
   mergeCart: (payload) => api.post('/cart/merge', payload).then((res) => res.data),
   updateCart: (payload) => api.put('/cart/update', payload).then((res) => res.data),
   removeFromCart: (productId) => api.delete(`/cart/remove?productId=${productId}`).then((res) => res.data),
+  getWishlist: () => api.get('/wishlist').then((res) => res.data),
+  addToWishlist: (payload) => api.post('/wishlist', payload).then((res) => res.data),
+  removeFromWishlist: (productId) => api.delete(`/wishlist?productId=${productId}`).then((res) => res.data),
+  moveWishlistToCart: (payload) => api.post('/wishlist/move-to-cart', payload).then((res) => res.data),
   getApplicableOffers: (couponCode) => api.get(`/offers/applicable${couponCode ? `?couponCode=${encodeURIComponent(couponCode)}` : ''}`).then((res) => res.data),
   applyCoupon: (payload) => api.post('/checkout/apply-coupon', payload).then((res) => res.data),
   createPaymentOrder: (payload) => api.post('/checkout/payment-order', payload || {}).then((res) => res.data),
   getPaymentStatus: (merchantOrderId) => api.get(`/checkout/payment-status?merchantOrderId=${encodeURIComponent(merchantOrderId)}`).then((res) => res.data),
+  getPaymentTransactions: ({ fromDate, toDate, provider, operation, status, search, page = 0, size = 12 } = {}) => {
+    const params = new URLSearchParams();
+    params.set('page', page);
+    params.set('size', size);
+    if (fromDate) params.set('fromDate', fromDate);
+    if (toDate) params.set('toDate', toDate);
+    if (provider) params.set('provider', provider);
+    if (operation) params.set('operation', operation);
+    if (status) params.set('status', status);
+    if (search) params.set('search', search);
+    return api.get(`/payments/transactions?${params.toString()}`).then((res) => res.data);
+  },
   addAddress: (payload) => api.post('/address', payload).then((res) => res.data),
   getAddresses: () => api.get('/address').then((res) => res.data),
   deleteAddress: (id) => api.delete(`/address/${id}`).then((res) => res.data),

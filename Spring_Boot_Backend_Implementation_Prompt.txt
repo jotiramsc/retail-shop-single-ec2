@@ -1,0 +1,629 @@
+SPRING BOOT BACKEND IMPLEMENTATION PROMPT
+Calibo Feature Engineering Studio
+
+You are a senior backend engineer. Implement only the backend for the Calibo Feature Engineering Studio using Spring Boot.
+
+Do not implement React, frontend screens, canvas UI, or Node.js services. The backend must expose REST APIs, persist data, simulate pipeline execution, generate Python code, parse Python decorators, manage pipeline versions, support templates, and implement a Feature Store.
+
+Use existing backend classes, entities, repositories, DTOs, controllers, services, utilities, and configuration wherever available. Extend the current structure instead of rewriting working code. Keep the implementation clean, modular, testable, and production-minded while still supporting local prototype execution.
+
+Recommended backend stack:
+- Java 17 or Java 21
+- Spring Boot 3.x
+- Spring Web
+- Spring Data JPA
+- Bean Validation
+- SQLite, PostgreSQL, H2, or the existing configured database
+- Flyway or Liquibase for schema migrations
+- Jackson for JSON handling
+- JUnit 5
+- Mockito
+- Spring Boot Test
+
+
+PART 1: CREATE ARCHITECTURE DIAGRAMS AND HTML FLOW PAGES
+
+Create backend-served static HTML documentation pages under:
+
+src/main/resources/static/docs/
+
+The HTML pages must describe the backend architecture, request flow, execution flow, and all required backend components. Use Mermaid.js inside each HTML page for diagrams.
+
+Required HTML pages:
+
+1. architecture.html
+
+Create a backend architecture diagram showing:
+- API clients
+- Spring REST controllers
+- DTO/request/response layer
+- Service layer
+- Repository layer
+- Database tables
+- Pipeline execution engine
+- Pipeline validation service
+- DAG/topological sort service
+- Code generation service
+- Python decorator parser/import service
+- Feature Store service
+- Template service
+- Versioning service
+- Execution cache service
+- Error handling layer
+
+Example Mermaid diagram:
+
+graph TD
+  Client[API Client] --> Controllers[Spring REST Controllers]
+  Controllers --> PipelineController[Pipeline Controller]
+  Controllers --> ExecutionController[Execution Controller]
+  Controllers --> FeatureController[Feature Store Controller]
+  Controllers --> TemplateController[Template Controller]
+  PipelineController --> PipelineService[Pipeline Service]
+  PipelineService --> VersionService[Pipeline Version Service]
+  PipelineService --> CodeGenerator[Python Code Generator]
+  PipelineService --> PythonParser[Python Decorator Parser]
+  PipelineService --> GraphValidator[DAG Validation Service]
+  ExecutionController --> ExecutionService[Execution Service]
+  ExecutionService --> TopologicalSort[Topological Sort Service]
+  ExecutionService --> CacheService[Execution Cache Service]
+  ExecutionService --> ExecutionSimulator[Node Execution Simulator]
+  FeatureController --> FeatureStoreService[Feature Store Service]
+  TemplateController --> TemplateService[Template Service]
+  PipelineService --> Repositories[JPA Repositories]
+  ExecutionService --> Repositories
+  FeatureStoreService --> Repositories
+  TemplateService --> Repositories
+  Repositories --> DB[(Database)]
+
+2. pipeline-flow.html
+
+Create a pipeline lifecycle flow page showing:
+- Create pipeline
+- Load node types
+- Add/update nodes
+- Add/update edges
+- Validate node and edge payload
+- Save pipeline
+- Create pipeline version
+- Generate Python code
+- Import Python code
+- Execute pipeline
+- Store execution history
+
+3. execution-flow.html
+
+Create an execution flow page showing:
+- Receive execute request
+- Load pipeline
+- Validate pipeline exists
+- Validate nodes and edges
+- Reject cyclic graphs
+- Sort nodes topologically
+- Create execution record
+- For each node, calculate config hash
+- For each node, calculate input hash
+- Check cache
+- Mark node as skipped or running
+- Simulate node execution
+- Save node metadata
+- Mark execution completed or failed
+
+4. feature-store-flow.html
+
+Create a Feature Store flow page showing:
+- Create feature metadata
+- Publish feature from pipeline node
+- Increment feature version
+- Save schema and data path
+- Link feature to source pipeline
+- Link feature to source node
+- Link feature to execution
+- Browse/search feature catalog
+- Retrieve feature version history
+
+The documentation pages must be accessible from the running Spring Boot app, for example:
+- /docs/architecture.html
+- /docs/pipeline-flow.html
+- /docs/execution-flow.html
+- /docs/feature-store-flow.html
+
+
+PART 2: CORE FUNCTIONALITIES IMPLEMENTATION USING EXISTING CLASSES
+
+Implement the core backend functionality using existing classes wherever possible. If a required class does not exist, create it in the appropriate package while matching the existing project structure and naming conventions.
+
+1. Pipeline APIs
+
+Create or complete the following REST endpoints:
+
+GET    /api/pipelines
+GET    /api/pipelines/{id}
+POST   /api/pipelines
+PUT    /api/pipelines/{id}
+DELETE /api/pipelines/{id}
+
+Pipeline entity must store:
+- id
+- name
+- description
+- nodesJson
+- edgesJson
+- currentVersion
+- createdAt
+- updatedAt
+
+Behavior:
+- Creating a pipeline creates version 1.
+- Updating a pipeline creates a new pipeline version.
+- Deleting a pipeline should either soft-delete or safely delete related records based on the existing project pattern.
+- Nodes and edges should be stored as JSON strings or JSON columns depending on database support.
+- Request and response payloads should use DTOs, not entities directly.
+
+2. Pipeline Versioning
+
+Create or complete the following endpoints:
+
+GET  /api/pipelines/{id}/versions
+POST /api/pipelines/{id}/revert/{versionId}
+
+PipelineVersion entity must store:
+- id
+- pipelineId
+- versionNumber
+- nodesJson
+- edgesJson
+- createdAt
+
+Behavior:
+- Version numbers increment per pipeline.
+- Reverting restores the selected version's nodes and edges.
+- Reverting should create a new current version unless the existing design explicitly requires in-place rollback.
+- Version history should be returned in descending or ascending order consistently.
+
+3. Node Types
+
+Create or complete this endpoint:
+
+GET /api/node-types
+
+Return node types grouped into 7 categories:
+- Data Sources
+- Feature Engineering
+- Text Processing
+- Data Quality
+- Data Splitting
+- ML
+- Output
+
+Support at least these 22 node types:
+- CSV/Parquet File
+- Database Table
+- Unstructured Files
+- Imputation
+- Encoding
+- Scaling
+- Transformation
+- Feature Creation
+- Feature Selection
+- Outlier Handling
+- Dimensionality Reduction
+- Aggregation
+- Feature Crossing
+- Text Processing
+- Text Classification
+- Data Profiling
+- Schema Validation
+- Train/Test Split
+- Train/Test/Validate Split
+- Train Model
+- Evaluate Model
+- Score/Predict
+- Export Dataset
+- Publish to Feature Store
+
+If the existing spec counts 22 but the implementation includes more because of separate output nodes, keep all useful node types and make sure tests match the final agreed count.
+
+Each node type should include:
+- id
+- label
+- category
+- description
+- input handles
+- output handles
+- config schema
+- default config
+- python function mapping
+
+4. Pipeline Templates
+
+Create or complete these endpoints:
+
+GET  /api/templates
+POST /api/templates/{templateId}/create
+
+Implement five templates:
+- Tabular Classification
+- Tabular Regression
+- NLP Text Classification
+- Feature Store Pipeline
+- Unstructured to Embeddings
+
+Creating a template should create a new pipeline with:
+- predefined nodes
+- predefined edges
+- sensible default configs
+- canvas positions
+- valid DAG structure
+
+Template flows:
+
+Tabular Classification:
+CSV -> Profile -> Impute -> Encode -> Scale -> Train/Test Split -> Train -> Evaluate
+
+Tabular Regression:
+CSV -> Impute -> Outliers -> Log Transform -> Scale -> Train/Val/Test Split -> Train -> Evaluate
+
+NLP Text Classification:
+CSV -> Clean Text -> TF-IDF -> Split -> Train -> Evaluate
+
+Feature Store Pipeline:
+DB Table -> Impute -> Encode -> Create Features + Aggregate -> Validate -> Publish
+
+Unstructured to Embeddings:
+Unstructured Files -> Clean Text -> Embeddings -> Export
+
+5. Python Code Generation
+
+Create or complete this endpoint:
+
+GET /api/pipelines/{id}/code
+
+Generate a Python script where every pipeline node becomes a decorated function.
+
+Example output format:
+
+@node(
+  id="node_id",
+  type="node_type",
+  label="Node Label",
+  x=100,
+  y=200,
+  inputs=["upstream_node_id"],
+  config={...}
+)
+def node_function(input_0):
+    return some_python_operation(input_0)
+
+Requirements:
+- Emit nodes in topological order.
+- Preserve node IDs, node types, labels, positions, configs, and connections.
+- Include required imports.
+- Include a main block that calls pipeline.run().
+- Generate readable Python.
+- Keep code generation logic inside a dedicated service, for example PythonCodeGeneratorService.
+
+6. Python Decorator Import
+
+Create or complete this endpoint:
+
+POST /api/pipelines/import-python
+
+The request should accept Python file content and reconstruct:
+- nodes
+- edges
+- node ids
+- node types
+- labels
+- canvas x/y positions
+- configs
+- upstream inputs
+
+Implementation notes:
+- Use a dedicated parser service, for example PythonDecoratorParserService.
+- Regex parsing is acceptable for the prototype.
+- Isolate parser logic behind an interface so AST parsing can replace it later.
+- Return a pipeline definition that can be saved or displayed by a client.
+- Validate duplicate node IDs and invalid input references.
+
+
+PART 3: OTHER REQUIRED ADVANCED FUNCTIONALITIES
+
+Implement these advanced backend features.
+
+1. Pipeline Execution
+
+Create or complete this endpoint:
+
+POST /api/pipelines/{id}/execute
+
+Execution behavior:
+- Validate that the pipeline exists.
+- Validate nodes and edges.
+- Reject cyclic graphs.
+- Sort nodes topologically.
+- Create an execution record.
+- Execute nodes in graph order.
+- Simulate realistic execution for each node.
+- Persist node-level execution metadata.
+- Return execution summary.
+
+Execution statuses:
+- PENDING
+- RUNNING
+- COMPLETED
+- FAILED
+- SKIPPED
+
+Execution entity must store:
+- id
+- pipelineId
+- status
+- startedAt
+- completedAt
+- durationMs
+- createdBy, if user context exists
+
+2. Execution History
+
+Create or complete these endpoints:
+
+GET /api/pipelines/{id}/executions
+GET /api/executions/{executionId}
+GET /api/executions/{executionId}/nodes
+GET /api/executions/{executionId}/nodes/{nodeId}
+
+ExecutionNode entity must store:
+- id
+- executionId
+- nodeId
+- nodeLabel
+- nodeType
+- status
+- outputPath
+- rowCount
+- columnCount
+- fileSize
+- durationMs
+- configHash
+- inputHash
+- outputHash
+- skipped
+- skipReason
+- errorMessage
+- startedAt
+- completedAt
+
+Keep the latest 50 executions per pipeline unless the existing retention configuration says otherwise.
+
+3. Execution Caching
+
+Implement cache logic with a dedicated service.
+
+For each node:
+- configHash = SHA-256 or MD5 hash of normalized node config JSON
+- inputHash = hash derived from upstream node output hashes
+- outputHash = hash representing the simulated output
+
+Cache behavior:
+- If configHash and inputHash match the last successful execution, mark node as SKIPPED.
+- If an upstream node changes, downstream nodes must re-execute.
+- If only a leaf node changes, only that leaf node should re-execute.
+- Store cache records in a node_cache table or equivalent entity.
+
+NodeCache entity should store:
+- id
+- pipelineId
+- nodeId
+- configHash
+- inputHash
+- outputHash
+- executionId
+- updatedAt
+
+4. Feature Store
+
+Create or complete these endpoints:
+
+GET  /api/features
+GET  /api/features/{id}
+POST /api/features
+POST /api/features/{id}/publish
+GET  /api/features/{id}/versions
+
+Feature entity must store:
+- id
+- name
+- description
+- tagsJson
+- owner
+- sourcePipelineId
+- sourceNodeId
+- latestVersion
+- createdAt
+- updatedAt
+
+FeatureVersion entity must store:
+- id
+- featureId
+- versionNumber
+- schemaJson
+- dataPath
+- sourcePipelineId
+- sourceNodeId
+- executionId
+- createdAt
+
+Behavior:
+- Creating a feature creates feature metadata.
+- Publishing a feature creates a new version.
+- Publishing an existing feature increments the version number.
+- Feature search should support name and tag filtering.
+- Feature lineage should link back to source pipeline, source node, and execution.
+
+5. Database Schema
+
+Add or extend database migrations for:
+- pipelines
+- pipeline_versions
+- executions
+- execution_nodes
+- node_cache
+- features
+- feature_versions
+
+Use Flyway or Liquibase if already configured. If not configured, follow the existing database initialization pattern.
+
+6. Validation
+
+Use Bean Validation and service-level validation.
+
+Validate:
+- Pipeline name is required.
+- Nodes JSON is valid.
+- Edges JSON is valid.
+- Pipeline graph is a DAG.
+- Referenced node IDs exist.
+- Edges reference valid source and target handles where applicable.
+- Template ID exists.
+- Feature name is required and valid.
+- Required node config fields exist where applicable.
+- Python import content is not empty.
+
+7. Error Handling
+
+Use a global exception handler, for example @RestControllerAdvice.
+
+All API errors should use this response shape:
+
+{
+  "error": true,
+  "message": "Human readable message",
+  "details": {}
+}
+
+Use proper HTTP status codes:
+- 400 for validation errors
+- 404 for missing resources
+- 409 for conflicts such as cyclic DAGs
+- 500 for unexpected errors
+
+8. Health And Observability
+
+Add or verify:
+- GET /api/health or Spring Actuator health endpoint
+- request logging where appropriate
+- meaningful service-level logs for pipeline execution
+- clear error logs without leaking sensitive payloads
+
+
+PART 4: TEST CASES AND REQUIRED FUNCTIONALITY VERIFICATION
+
+Add backend tests for all required behavior.
+
+1. Pipeline API Tests
+
+Test:
+- Create pipeline
+- List pipelines
+- Get pipeline by ID
+- Update pipeline
+- Delete pipeline
+- Pipeline create produces version 1
+- Pipeline update increments version
+
+2. Versioning Tests
+
+Test:
+- Multiple saves increment version numbers
+- Version history returns correct versions
+- Revert restores nodes and edges
+- Revert creates or updates current version according to the chosen implementation rule
+
+3. Node Type Tests
+
+Test:
+- GET /api/node-types returns all 7 categories
+- Response includes all required node types
+- Each node type has required metadata
+- Each node type has valid config schema/default config
+
+4. Template Tests
+
+Test:
+- GET /api/templates returns five templates
+- Creating from each template creates a valid pipeline
+- Template pipelines contain valid nodes and edges
+- Template graph is a DAG
+
+5. Code Generation Tests
+
+Test:
+- Generated Python includes @node decorators
+- Nodes are generated in topological order
+- Config JSON is serialized correctly
+- Inputs reflect graph edges
+- Generated code includes imports and pipeline.run()
+
+6. Python Import Tests
+
+Test:
+- Parses decorated Python content
+- Reconstructs nodes
+- Reconstructs edges
+- Preserves positions
+- Preserves configs
+- Rejects duplicate node IDs
+- Rejects invalid input references
+
+7. Execution Tests
+
+Test:
+- Executes a simple valid pipeline
+- Rejects cyclic pipeline
+- Runs nodes in topological order
+- Creates execution record
+- Creates execution node records
+- Stores output metadata
+- Marks failed node correctly if simulation failure is triggered
+
+8. Cache Tests
+
+Test:
+- Second unchanged execution skips unchanged nodes
+- Changing an upstream node re-runs downstream nodes
+- Changing a leaf node re-runs only that node
+- Cache table is updated after successful execution
+
+9. Feature Store Tests
+
+Test:
+- Create feature
+- Publish feature version
+- Publish next version of existing feature
+- Retrieve feature details
+- Retrieve feature version history
+- Search feature by name
+- Search feature by tag
+- Feature lineage stores source pipeline and source node
+
+10. Error Handling Tests
+
+Test:
+- Invalid pipeline ID returns 404
+- Invalid template ID returns 404
+- Invalid JSON returns 400
+- Cyclic DAG returns 409
+- Invalid feature payload returns 400
+- Empty Python import content returns 400
+
+Final verification requirements:
+- mvn clean install succeeds
+- mvn test succeeds
+- Spring Boot application starts successfully
+- Backend runs on the configured port
+- /api/health or /actuator/health returns healthy status
+- Static docs render at /docs/architecture.html
+- Mermaid diagrams load correctly in the HTML documentation pages
+- All REST APIs return JSON responses
+- No frontend implementation is included in this backend task

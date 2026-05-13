@@ -9,24 +9,32 @@ fi
 ROOT_DIR="$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)"
 DATA_ROOT="${DATA_ROOT:-/mnt/retail-data}"
 DOCKER_NETWORK="${DOCKER_NETWORK:-retail-shop-net}"
-DEFAULT_USER="${SUDO_USER:-ubuntu}"
+DEFAULT_USER="${SUDO_USER:-ec2-user}"
 
-apt-get update
-apt-get install -y ca-certificates curl gnupg lsb-release
+if command -v dnf >/dev/null 2>&1; then
+  dnf install -y docker jq git tar gzip
+elif command -v apt-get >/dev/null 2>&1; then
+  DEFAULT_USER="${SUDO_USER:-ubuntu}"
+  apt-get update
+  apt-get install -y ca-certificates curl gnupg lsb-release
 
-install -m 0755 -d /etc/apt/keyrings
-if [ ! -f /etc/apt/keyrings/docker.asc ]; then
-  curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-  chmod a+r /etc/apt/keyrings/docker.asc
+  install -m 0755 -d /etc/apt/keyrings
+  if [ ! -f /etc/apt/keyrings/docker.asc ]; then
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+    chmod a+r /etc/apt/keyrings/docker.asc
+  fi
+
+  ARCH="$(dpkg --print-architecture)"
+  CODENAME="$(. /etc/os-release && echo "$VERSION_CODENAME")"
+  echo "deb [arch=$ARCH signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $CODENAME stable" \
+    > /etc/apt/sources.list.d/docker.list
+
+  apt-get update
+  apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+else
+  echo "Unsupported Linux distribution. Install Docker manually and rerun this script."
+  exit 1
 fi
-
-ARCH="$(dpkg --print-architecture)"
-CODENAME="$(. /etc/os-release && echo "$VERSION_CODENAME")"
-echo "deb [arch=$ARCH signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $CODENAME stable" \
-  > /etc/apt/sources.list.d/docker.list
-
-apt-get update
-apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
 systemctl enable --now docker
 usermod -aG docker "$DEFAULT_USER" || true

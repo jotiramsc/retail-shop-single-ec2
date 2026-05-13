@@ -1,5 +1,6 @@
 package com.retailshop.service.impl;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.retailshop.config.AppProperties;
 import com.retailshop.dto.CustomerOtpRequest;
 import com.retailshop.entity.CustomerOtp;
@@ -56,7 +57,8 @@ class CustomerAuthServiceImplTest {
                 customerJwtService,
                 customerRepository,
                 customerOtpRepository,
-                otpDeliveryService
+                otpDeliveryService,
+                new ObjectMapper()
         );
     }
 
@@ -64,6 +66,7 @@ class CustomerAuthServiceImplTest {
     void shouldReturnCooldownAndExpiryMetadataForWhatsAppOtp() {
         CustomerOtpRequest request = new CustomerOtpRequest();
         request.setMobile("+91 98765 43210");
+        request.setPurpose("SIGNUP");
 
         when(customerOtpRepository.findById("9876543210")).thenReturn(Optional.empty());
         when(customerOtpRepository.save(any(CustomerOtp.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -76,12 +79,12 @@ class CustomerAuthServiceImplTest {
         var response = customerAuthService.sendOtp(request);
 
         assertTrue(response.isExternalProviderConfigured());
+        assertTrue(response.isOtpRequired());
+        assertFalse(response.isCustomerExists());
         assertEquals("WHATSAPP", response.getChannel());
         assertEquals("+91 ••••••3210", response.getMaskedMobile());
         assertEquals(30L, response.getResendCooldownSeconds());
         assertEquals(300L, response.getExpiresInSeconds());
-        assertFalse(response.getDevOtp().isBlank());
-
         ArgumentCaptor<CustomerOtp> otpCaptor = ArgumentCaptor.forClass(CustomerOtp.class);
         verify(customerOtpRepository).save(otpCaptor.capture());
         CustomerOtp savedOtp = otpCaptor.getValue();
@@ -90,30 +93,30 @@ class CustomerAuthServiceImplTest {
     }
 
     @Test
-    void shouldFallbackToOnScreenOtpWhenProviderFails() {
+    void shouldRejectOtpRequestWhenConfiguredProviderFails() {
         CustomerOtpRequest request = new CustomerOtpRequest();
         request.setMobile("+91 98765 43210");
+        request.setPurpose("SIGNUP");
 
         when(customerOtpRepository.findById("9876543210")).thenReturn(Optional.empty());
         when(customerOtpRepository.save(any(CustomerOtp.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(otpDeliveryService.isConfigured()).thenReturn(true);
         when(otpDeliveryService.sendOtp(eq("9876543210"), any(), eq(5L))).thenReturn(
-                MarketingChannelResult.builder().success(false).errorMessage("Gupshup send failed").build()
+                MarketingChannelResult.builder().success(false).errorMessage("Meta send failed").build()
         );
         when(otpDeliveryService.getChannel()).thenReturn("WHATSAPP");
 
-        var response = customerAuthService.sendOtp(request);
+        BusinessException exception = assertThrows(BusinessException.class, () -> customerAuthService.sendOtp(request));
 
-        assertFalse(response.isExternalProviderConfigured());
-        assertTrue(response.getMessage().contains("Gupshup send failed"));
-        assertEquals("WHATSAPP", response.getChannel());
-        assertFalse(response.getDevOtp().isBlank());
+        assertTrue(exception.getMessage().contains("Meta send failed"));
+        assertTrue(exception.getMessage().contains("Please try again"));
     }
 
     @Test
     void shouldRejectOtpRequestDuringCooldownWindow() {
         CustomerOtpRequest request = new CustomerOtpRequest();
         request.setMobile("9876543210");
+        request.setPurpose("SIGNUP");
 
         CustomerOtp existing = new CustomerOtp();
         existing.setMobile("9876543210");

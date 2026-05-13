@@ -5,7 +5,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.retailshop.config.MarketingProperties;
 import com.retailshop.dto.ImageUploadResponse;
 import com.retailshop.entity.Campaign;
+import com.retailshop.entity.ReceiptSettings;
 import com.retailshop.enums.MarketingPlatform;
+import com.retailshop.repository.ReceiptSettingsRepository;
 import com.retailshop.service.AIContentGenerationService;
 import com.retailshop.service.ImageUploadService;
 import lombok.extern.slf4j.Slf4j;
@@ -55,24 +57,43 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
     private final MarketingProperties marketingProperties;
     private final ObjectMapper objectMapper;
     private final ImageUploadService imageUploadService;
+    private final ReceiptSettingsRepository receiptSettingsRepository;
     private final HttpClient httpClient;
 
     @Autowired
     public AIContentGenerationServiceImpl(MarketingProperties marketingProperties,
                                           ObjectMapper objectMapper,
-                                          ImageUploadService imageUploadService) {
+                                          ImageUploadService imageUploadService,
+                                          ReceiptSettingsRepository receiptSettingsRepository) {
         this(marketingProperties, objectMapper, imageUploadService, HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(20))
-                .build());
+                .build(), receiptSettingsRepository);
+    }
+
+    AIContentGenerationServiceImpl(MarketingProperties marketingProperties,
+                                   ObjectMapper objectMapper,
+                                   ImageUploadService imageUploadService) {
+        this(marketingProperties, objectMapper, imageUploadService, HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(20))
+                .build(), null);
     }
 
     AIContentGenerationServiceImpl(MarketingProperties marketingProperties,
                                    ObjectMapper objectMapper,
                                    ImageUploadService imageUploadService,
                                    HttpClient httpClient) {
+        this(marketingProperties, objectMapper, imageUploadService, httpClient, null);
+    }
+
+    AIContentGenerationServiceImpl(MarketingProperties marketingProperties,
+                                   ObjectMapper objectMapper,
+                                   ImageUploadService imageUploadService,
+                                   HttpClient httpClient,
+                                   ReceiptSettingsRepository receiptSettingsRepository) {
         this.marketingProperties = marketingProperties;
         this.objectMapper = objectMapper;
         this.imageUploadService = imageUploadService;
+        this.receiptSettingsRepository = receiptSettingsRepository;
         this.httpClient = httpClient;
     }
 
@@ -128,6 +149,8 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
                 Keep Facebook captions slightly longer, warm, persuasive, and ready for a real campaign.
                 Avoid dull phrasing like "खास ऑफर उपलब्ध", "आजच खरेदी करा" as the whole caption, or plain title repetition.
                 Do not use static-sounding templates; make every caption feel like polished campaign copy.
+                Do not write or request the shop name as image text. The website may overlay the real logo separately.
+                Avoid CTA wording like "Share this message" or "हा संदेश शेअर करा"; use a visit-now shopping CTA instead.
                 This is a jewellery and cosmetics shopee. Use words like jewellery, necklace, bangles, earrings, cosmetics, gifting, styling, and collection where relevant.
                 Avoid wording that implies a precious-metal shop.
                 Use at most one tasteful emoji in Marathi captions, only where it adds charm.
@@ -214,11 +237,7 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
         }
 
         try {
-            GeneratedImagePayload imagePayload = switch (defaultString(marketingProperties.getAi().getImageProvider(), "OPENAI").toUpperCase(Locale.ROOT)) {
-                case "OPENAI" -> generateOpenAiImagePayload(imagePrompt);
-                case "LEONARDO" -> generateLeonardoImagePayload(imagePrompt);
-                default -> null;
-            };
+            GeneratedImagePayload imagePayload = generateOpenAiImagePayload(imagePrompt);
             if (imagePayload == null) {
                 return fallbackPreview;
             }
@@ -285,31 +304,163 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
         graphics.setPaint(new GradientPaint(0, size * 0.62f, new Color(0, 0, 0, 0), 0, size, new Color(0, 0, 0, 192)));
         graphics.fillRect(0, (int) (size * 0.62), size, (int) (size * 0.38));
 
-        String brand = defaultString(trimToNull(shopName), "Krishnai Pearl Shopee");
-        Font brandFont = containsDevanagari(brand)
-                ? preferredFont(Font.BOLD, Math.max(46, size / 14), "Noto Serif Devanagari", "Noto Sans Devanagari", Font.SERIF)
-                : preferredFont(Font.BOLD, Math.max(46, size / 14), "DejaVu Serif", "Liberation Serif", Font.SERIF);
-        Font headlineFont = preferredFont(Font.BOLD, Math.max(34, size / 24), "Noto Sans Devanagari", "Nirmala UI", "SansSerif");
-        Font ctaFont = preferredFont(Font.BOLD, Math.max(22, size / 40), "Noto Sans Devanagari", "Nirmala UI", "SansSerif");
+        drawShopLogo(graphics, margin, margin, Math.max(88, size / 10));
 
-        drawWrappedText(graphics, brand, brandFont, new Color(0, 0, 0, 130), margin + 3, margin + 3, size - (margin * 2), 2, TextAlign.CENTER);
-        drawWrappedText(graphics, brand, brandFont, ivory, margin, margin, size - (margin * 2), 2, TextAlign.CENTER);
+        boolean allowMarathiOverlay = !"MARATHI".equals(resolveLanguage(campaign)) || supportsDevanagariOverlay();
+        Font headlineFont = allowMarathiOverlay
+                ? preferredFont(Font.BOLD, Math.max(34, size / 24), "Noto Sans Devanagari", "Nirmala UI", "SansSerif")
+                : preferredFont(Font.BOLD, Math.max(34, size / 24), "DejaVu Sans", "Liberation Sans", "SansSerif");
+        Font ctaFont = allowMarathiOverlay
+                ? preferredFont(Font.BOLD, Math.max(22, size / 40), "Noto Sans Devanagari", "Nirmala UI", "SansSerif")
+                : preferredFont(Font.BOLD, Math.max(22, size / 40), "DejaVu Sans", "Liberation Sans", "SansSerif");
 
-        drawOfferBadge(graphics, campaign, size, margin, warmGold);
+        drawOfferBadge(graphics, campaign, size, margin, warmGold, allowMarathiOverlay);
+
+        String imageQuote = buildCreativeImageQuote(campaign, festivalContext);
+        if (!allowMarathiOverlay && containsDevanagari(imageQuote)) {
+            imageQuote = buildEnglishImageQuote(campaign, festivalContext);
+        }
+        if (!isBlank(imageQuote)) {
+            Font quoteFont = containsDevanagari(imageQuote)
+                    ? preferredFont(Font.BOLD, Math.max(46, size / 18), "Noto Serif Devanagari", "Noto Sans Devanagari", "SansSerif")
+                    : preferredFont(Font.BOLD, Math.max(52, size / 17), "DejaVu Serif", "Liberation Serif", Font.SERIF);
+            int quoteY = Math.max(margin + Math.max(152, size / 7), (int) (size * 0.28));
+            drawWrappedText(graphics, imageQuote, quoteFont, new Color(0, 0, 0, 178), margin + 3, quoteY + 3, size - (margin * 2), 2, TextAlign.CENTER);
+            drawWrappedText(graphics, imageQuote, quoteFont, ivory, margin, quoteY, size - (margin * 2), 2, TextAlign.CENTER);
+        }
 
         String headline = buildCreativeImageHeadline(campaign, productName, festivalContext);
+        if (!isBlank(imageQuote) && comparableText(headline).equals(comparableText(imageQuote))) {
+            headline = buildCreativeImageSecondaryLine(campaign, festivalContext);
+        }
+        if (!allowMarathiOverlay && containsDevanagari(headline)) {
+            headline = buildEnglishImageHeadline(campaign, productName, festivalContext);
+        }
         int bottomY = size - margin - Math.max(116, size / 8);
         drawWrappedText(graphics, headline, headlineFont, new Color(0, 0, 0, 170), margin + 3, bottomY + 3, size - (margin * 2), 2, TextAlign.CENTER);
         drawWrappedText(graphics, headline, headlineFont, warmGold, margin, bottomY, size - (margin * 2), 2, TextAlign.CENTER);
 
         String cta = defaultString(trimToNull(buildMockCta(campaign, platform, festivalContext)),
                 resolveLanguage(campaign).equals("MARATHI") ? "आजच भेट द्या" : "Visit today");
+        if (!allowMarathiOverlay && containsDevanagari(cta)) {
+            cta = buildEnglishImageCta(campaign, platform);
+        }
         int ctaY = size - margin - Math.max(34, size / 32);
         drawRoundedTextBar(graphics, cta, ctaFont, deepShadow, ivory, margin, ctaY, size - (margin * 2));
     }
 
-    private void drawOfferBadge(Graphics2D graphics, Campaign campaign, int size, int margin, Color warmGold) {
+    private String buildCreativeImageQuote(Campaign campaign,
+                                           MarketingOccasionLibrary.Occasion festivalContext) {
+        if (!isNoOfferCampaign(campaign)) {
+            return null;
+        }
+        return switch (campaignGoal(campaign)) {
+            case "GREETING" -> "MARATHI".equals(resolveLanguage(campaign))
+                    ? buildMarathiGreetingHeadline(festivalContext)
+                    : buildEnglishGreetingHeadline(campaign, festivalContext);
+            case "QUOTE" -> "MARATHI".equals(resolveLanguage(campaign))
+                    ? "सौंदर्य छोट्या तपशीलांतून खुलतं"
+                    : "Beauty lives in the little details";
+            default -> null;
+        };
+    }
+
+    private String buildEnglishImageQuote(Campaign campaign,
+                                          MarketingOccasionLibrary.Occasion festivalContext) {
+        if (!isNoOfferCampaign(campaign)) {
+            return null;
+        }
+        return switch (campaignGoal(campaign)) {
+            case "GREETING" -> buildEnglishGreetingHeadline(campaign, festivalContext);
+            case "QUOTE" -> "Beauty lives in the little details";
+            default -> null;
+        };
+    }
+
+    private String buildCreativeImageSecondaryLine(Campaign campaign,
+                                                   MarketingOccasionLibrary.Occasion festivalContext) {
+        if ("MARATHI".equals(resolveLanguage(campaign))) {
+            return switch (campaignGoal(campaign)) {
+                case "GREETING" -> festivalContext == null ? "आनंदाचा हा क्षण साजरा करा" : "आनंद आणि शुभेच्छा साजऱ्या करा";
+                case "QUOTE" -> "तुमच्या सुंदर क्षणांसाठी";
+                default -> "कलेक्शन पाहा";
+            };
+        }
+        return switch (campaignGoal(campaign)) {
+            case "GREETING" -> "Celebrate the moment";
+            case "QUOTE" -> "For your beautiful everyday moments";
+            default -> "Explore the collection";
+        };
+    }
+
+    private void drawShopLogo(Graphics2D graphics, int x, int y, int size) {
+        BufferedImage logo = loadLogoImage();
+        if (logo == null) {
+            return;
+        }
+        int padding = Math.max(10, size / 12);
+        graphics.setColor(new Color(255, 250, 239, 232));
+        graphics.fillRoundRect(x, y, size, size, Math.max(18, size / 5), Math.max(18, size / 5));
+        graphics.setColor(new Color(246, 213, 154, 150));
+        graphics.setStroke(new java.awt.BasicStroke(Math.max(2f, size / 52f)));
+        graphics.drawRoundRect(x, y, size, size, Math.max(18, size / 5), Math.max(18, size / 5));
+        graphics.drawImage(logo, x + padding, y + padding, size - (padding * 2), size - (padding * 2), null);
+    }
+
+    private BufferedImage loadLogoImage() {
+        String logoUrl = resolveLogoUrl();
+        if (isBlank(logoUrl)) {
+            return null;
+        }
+        try {
+            if (logoUrl.startsWith("data:image/")) {
+                int commaIndex = logoUrl.indexOf(',');
+                if (commaIndex < 0) {
+                    return null;
+                }
+                String metadata = logoUrl.substring(0, commaIndex);
+                String data = logoUrl.substring(commaIndex + 1);
+                byte[] bytes = metadata.contains(";base64")
+                        ? Base64.getDecoder().decode(data)
+                        : java.net.URLDecoder.decode(data, StandardCharsets.UTF_8).getBytes(StandardCharsets.UTF_8);
+                return ImageIO.read(new ByteArrayInputStream(bytes));
+            }
+            if (logoUrl.startsWith("http://") || logoUrl.startsWith("https://")) {
+                HttpResponse<byte[]> response = httpClient.send(
+                        HttpRequest.newBuilder(URI.create(logoUrl)).GET().build(),
+                        HttpResponse.BodyHandlers.ofByteArray()
+                );
+                if (response.statusCode() < 400 && response.body() != null && response.body().length > 0) {
+                    return ImageIO.read(new ByteArrayInputStream(response.body()));
+                }
+            }
+        } catch (Exception exception) {
+            log.debug("Unable to load logo for campaign creative overlay", exception);
+        }
+        return null;
+    }
+
+    private String resolveLogoUrl() {
+        if (receiptSettingsRepository == null) {
+            return null;
+        }
+        try {
+            return receiptSettingsRepository.findAll().stream()
+                    .findFirst()
+                    .map(ReceiptSettings::getLogoUrl)
+                    .filter(value -> value != null && !value.isBlank())
+                    .orElse(null);
+        } catch (Exception exception) {
+            log.debug("Unable to resolve logo URL for campaign creative", exception);
+            return null;
+        }
+    }
+
+    private void drawOfferBadge(Graphics2D graphics, Campaign campaign, int size, int margin, Color warmGold, boolean allowMarathiOverlay) {
         String badge = trimToNull(buildCreativeOfferBadge(campaign));
+        if (!allowMarathiOverlay && containsDevanagari(badge)) {
+            badge = buildEnglishOfferBadge(campaign);
+        }
         if (badge == null) {
             return;
         }
@@ -402,6 +553,30 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
         return new Font(Font.SANS_SERIF, style, size);
     }
 
+    private boolean supportsDevanagariOverlay() {
+        String sample = "मराठी ज्वेलरी कलेक्शन सूट";
+        List<String> devanagariFamilies = List.of(
+                "Noto Sans Devanagari",
+                "Noto Serif Devanagari",
+                "Nirmala UI",
+                "Lohit Devanagari",
+                "Mangal",
+                "Kokila",
+                "Aparajita"
+        );
+        Set<String> availableFamilies = availableFontFamilies();
+        for (String familyName : devanagariFamilies) {
+            if (!availableFamilies.contains(familyName.toLowerCase(Locale.ROOT))) {
+                continue;
+            }
+            Font font = new Font(familyName, Font.PLAIN, 28);
+            if (font.canDisplayUpTo(sample) < 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private boolean containsDevanagari(String value) {
         if (value == null) {
             return false;
@@ -430,6 +605,13 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
         String language = resolveLanguage(campaign);
         String offerLine = buildOfferLine(campaign, festivalContext);
         if ("MARATHI".equals(language)) {
+            if (isNoOfferCampaign(campaign)) {
+                return ensureMarathiHeadlineQuality(
+                        buildNoOfferMarathiImageHeadline(campaign, productName, festivalContext),
+                        campaign,
+                        festivalContext
+                );
+            }
             if (isOccasion(festivalContext, "mothers-day")) {
                 return buildMarathiMothersDayOfferLine(campaign);
             }
@@ -439,17 +621,98 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
             String subject = defaultString(resolveShowcaseSubject(campaign, productName, festivalContext), "निवडक कलेक्शन");
             String headline;
             if (festivalContext != null) {
-                headline = "%s साठी %s".formatted(festivalDisplayName(festivalContext), defaultString(offerLine, subject));
+                String line = defaultString(offerLine, subject);
+                headline = mentionsOccasion(line, festivalContext)
+                        ? line
+                        : "%s %s".formatted(marathiOccasionDative(festivalContext), line);
             } else {
                 headline = defaultString(offerLine, subject + " आजच पाहा");
             }
             return ensureMarathiHeadlineQuality(headline, campaign, festivalContext);
+        }
+        if (isNoOfferCampaign(campaign)) {
+            return buildEnglishImageHeadline(campaign, productName, festivalContext);
         }
         String subject = defaultString(resolveShowcaseSubject(campaign, productName, festivalContext), "curated collection");
         if (festivalContext != null) {
             return "%s picks for %s".formatted(defaultString(offerLine, subject), festivalContext.englishName());
         }
         return defaultString(offerLine, "Explore " + subject);
+    }
+
+    private String buildNoOfferMarathiImageHeadline(Campaign campaign,
+                                                    String productName,
+                                                    MarketingOccasionLibrary.Occasion festivalContext) {
+        String subject = defaultString(resolveShowcaseSubject(campaign, productName, festivalContext), "निवडक कलेक्शन");
+        return switch (campaignGoal(campaign)) {
+            case "GREETING" -> festivalContext == null
+                    ? "मनःपूर्वक शुभेच्छा"
+                    : buildMarathiGreetingHeadline(festivalContext);
+            case "QUOTE" -> "सौंदर्य छोट्या तपशीलांतून खुलतं";
+            case "PRODUCT_STORY" -> "कलेक्शनची खास गोष्ट";
+            default -> subject + " पाहा";
+        };
+    }
+
+    private String buildMarathiGreetingHeadline(MarketingOccasionLibrary.Occasion festivalContext) {
+        if (festivalContext == null) {
+            return "मनःपूर्वक शुभेच्छा";
+        }
+        return switch (festivalContext.key()) {
+            case "republic-day" -> "प्रजासत्ताक दिनाच्या हार्दिक शुभेच्छा";
+            case "independence-day" -> "स्वातंत्र्य दिनाच्या हार्दिक शुभेच्छा";
+            case "womens-day" -> "महिला दिनाच्या हार्दिक शुभेच्छा";
+            case "mothers-day" -> "मातृ दिनाच्या हार्दिक शुभेच्छा";
+            case "fathers-day" -> "पितृ दिनाच्या हार्दिक शुभेच्छा";
+            case "maharashtra-day" -> "महाराष्ट्र दिनाच्या हार्दिक शुभेच्छा";
+            default -> marathiOccasionPossessive(festivalContext) + " हार्दिक शुभेच्छा";
+        };
+    }
+
+    private String buildEnglishGreetingHeadline(Campaign campaign,
+                                                MarketingOccasionLibrary.Occasion festivalContext) {
+        if (festivalContext != null) {
+            return switch (festivalContext.key()) {
+                case "womens-day" -> "Happy Women's Day";
+                case "republic-day" -> "Happy Republic Day";
+                case "independence-day" -> "Happy Independence Day";
+                case "mothers-day" -> "Happy Mother's Day";
+                case "fathers-day" -> "Happy Father's Day";
+                case "maharashtra-day" -> "Happy Maharashtra Day";
+                default -> "Happy " + festivalContext.englishName();
+            };
+        }
+        return defaultString(normalizeOfferTitle(campaign.getCampaignName(), null), "Warm wishes");
+    }
+
+    private String buildEnglishImageHeadline(Campaign campaign,
+                                             String productName,
+                                             MarketingOccasionLibrary.Occasion festivalContext) {
+        String subject = defaultString(normalizeOfferTitle(productName, festivalContext),
+                defaultString(normalizeOfferTitle(campaign.getOfferProduct(), festivalContext),
+                        defaultString(normalizeOfferTitle(campaign.getOfferTitle(), festivalContext), "curated collection")));
+        if (isNoOfferCampaign(campaign)) {
+            return switch (campaignGoal(campaign)) {
+                case "GREETING" -> festivalContext == null
+                        ? defaultString(normalizeOfferTitle(campaign.getCampaignName(), festivalContext), "Warm wishes")
+                        : buildEnglishGreetingHeadline(campaign, festivalContext);
+                case "QUOTE" -> defaultString(normalizeOfferTitle(campaign.getCampaignName(), festivalContext), "A beautiful thought for today");
+                case "PRODUCT_STORY" -> "The story behind " + subject;
+                default -> "Explore " + subject;
+            };
+        }
+        return buildEnglishOfferBadge(campaign);
+    }
+
+    private String buildEnglishImageCta(Campaign campaign, MarketingPlatform platform) {
+        if (isNoOfferCampaign(campaign)) {
+            return switch (campaignGoal(campaign)) {
+                case "GREETING", "QUOTE" -> "Visit now";
+                case "PRODUCT_STORY" -> "Explore the story";
+                default -> "Explore collection";
+            };
+        }
+        return platform == MarketingPlatform.WHATSAPP ? "Shop now" : "Explore collection";
     }
 
     private String clipTextToWidth(String text, FontMetrics metrics, int maxWidth) {
@@ -516,108 +779,6 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
         return new GeneratedImagePayload(Base64.getDecoder().decode(base64Image), "image/png", null);
     }
 
-    private GeneratedImagePayload generateLeonardoImagePayload(String imagePrompt) throws IOException, InterruptedException {
-        MarketingProperties.Leonardo leonardo = marketingProperties.getLeonardo();
-        if (leonardo == null || isBlank(leonardo.getApiKey())) {
-            return null;
-        }
-
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("modelId", defaultString(leonardo.getModelId(), "de7d3faf-762f-48e0-b3b7-9d0ac3a3fcf3"));
-        payload.put("contrast", leonardo.getContrast());
-        payload.put("prompt", imagePrompt);
-        payload.put("num_images", 1);
-        payload.put("width", leonardo.getWidth());
-        payload.put("height", leonardo.getHeight());
-        payload.put("alchemy", leonardo.isAlchemy());
-        payload.put("styleUUID", defaultString(leonardo.getStyleUuid(), "111dc692-d470-4eec-b791-3475abac4c46"));
-        payload.put("enhancePrompt", leonardo.isEnhancePrompt());
-        payload.put("public", leonardo.isPublicImages());
-
-        HttpRequest request = HttpRequest.newBuilder(URI.create("https://cloud.leonardo.ai/api/rest/v1/generations"))
-                .header("accept", "application/json")
-                .header("authorization", "Bearer " + leonardo.getApiKey().trim())
-                .header("content-type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(payload)))
-                .build();
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-        if (response.statusCode() >= 400) {
-            throw new IOException("Leonardo image generation failed with status " + response.statusCode() + ": " + extractApiErrorMessage(response.body()));
-        }
-
-        JsonNode root = objectMapper.readTree(response.body());
-        String generationId = trimToNull(root.path("sdGenerationJob").path("generationId").asText(""));
-        if (generationId == null) {
-            throw new IOException("Leonardo image generation returned no generation ID");
-        }
-
-        return pollLeonardoImage(leonardo.getApiKey().trim(), generationId, Math.max(leonardo.getPollAttempts(), 1), Math.max(leonardo.getPollDelayMs(), 250));
-    }
-
-    private GeneratedImagePayload pollLeonardoImage(String apiKey,
-                                                    String generationId,
-                                                    int attempts,
-                                                    long delayMs) throws IOException, InterruptedException {
-        String lastStatus = "PENDING";
-        for (int attempt = 0; attempt < attempts; attempt++) {
-            HttpRequest statusRequest = HttpRequest.newBuilder(URI.create("https://cloud.leonardo.ai/api/rest/v1/generations/" + generationId))
-                    .header("accept", "application/json")
-                    .header("authorization", "Bearer " + apiKey)
-                    .GET()
-                    .build();
-            HttpResponse<String> statusResponse = httpClient.send(statusRequest, HttpResponse.BodyHandlers.ofString());
-            if (statusResponse.statusCode() >= 400) {
-                throw new IOException("Leonardo generation status check failed with status " + statusResponse.statusCode() + ": " + extractApiErrorMessage(statusResponse.body()));
-            }
-
-            JsonNode generationNode = objectMapper.readTree(statusResponse.body()).path("generations_by_pk");
-            lastStatus = defaultString(trimToNull(generationNode.path("status").asText("")), lastStatus);
-            if ("COMPLETE".equalsIgnoreCase(lastStatus)) {
-                JsonNode imageNode = generationNode.path("generated_images").path(0);
-                String imageUrl = trimToNull(imageNode.path("url").asText(""));
-                if (imageUrl == null) {
-                    throw new IOException("Leonardo completed without an image URL");
-                }
-                return downloadRemoteImageWithFallback(imageUrl, 5, 1500);
-            }
-            if ("FAILED".equalsIgnoreCase(lastStatus)) {
-                throw new IOException("Leonardo generation failed for " + generationId);
-            }
-            Thread.sleep(delayMs);
-        }
-        throw new IOException("Leonardo generation did not complete in time. Last status: " + lastStatus);
-    }
-
-    private GeneratedImagePayload downloadRemoteImageWithFallback(String imageUrl,
-                                                                  int maxAttempts,
-                                                                  long delayMs) throws IOException, InterruptedException {
-        IOException lastException = null;
-        for (int attempt = 0; attempt < Math.max(maxAttempts, 1); attempt++) {
-            try {
-                HttpResponse<byte[]> imageResponse = httpClient.send(
-                        HttpRequest.newBuilder(URI.create(imageUrl)).GET().build(),
-                        HttpResponse.BodyHandlers.ofByteArray()
-                );
-                if (imageResponse.statusCode() >= 400 || imageResponse.body() == null || imageResponse.body().length == 0) {
-                    throw new IOException("Image download failed with status " + imageResponse.statusCode());
-                }
-                String contentType = defaultString(imageResponse.headers().firstValue("content-type").orElse("image/png"), "image/png");
-                contentType = contentType.split(";", 2)[0].trim();
-                if (!contentType.startsWith("image/")) {
-                    contentType = "image/png";
-                }
-                return new GeneratedImagePayload(imageResponse.body(), contentType, imageUrl);
-            } catch (IOException exception) {
-                lastException = exception;
-                if (attempt < maxAttempts - 1) {
-                    Thread.sleep(Math.max(delayMs, 250));
-                }
-            }
-        }
-        log.warn("Using Leonardo source URL directly because the generated image could not be downloaded yet: {}", imageUrl, lastException);
-        return new GeneratedImagePayload(null, null, imageUrl);
-    }
-
     private String extractApiErrorMessage(String responseBody) {
         try {
             JsonNode root = objectMapper.readTree(responseBody);
@@ -639,9 +800,12 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
                 Shop name: %s
                 Platform: %s
                 Campaign type: %s
+                Campaign goal: %s
+                Offer mode: %s
                 Category: %s
                 Product: %s
                 Offer title: %s
+                Coupon code: %s
                 Discount type: %s
                 Discount value: %s
                 Language: %s
@@ -649,6 +813,7 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
                 Start date: %s
                 End date: %s
                 Festival context inferred from the title: %s
+                Campaign goal instruction: %s
 
                 Generate:
                 - Instagram: short premium caption, 8-15 hashtags, luxury CTA
@@ -656,13 +821,18 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
                 - WhatsApp: short direct message for the template body line only, no full message body and no hashtag overload
                 - If language is MARATHI, keep caption, CTA, and selling line fully in Marathi
                 - If a festival is inferred, mention it naturally and accurately instead of generic festive wording
+                - If offer mode is NONE and discount type is NONE, create a greeting, quote, product story, or awareness campaign; do not mention discount, sale, coupon, or offer
+                - If a coupon code is present, mention the exact coupon code once and do not invent another code
                 - Use local Maharashtra-friendly retail phrasing for Marathi campaigns
                 - Caption/message must start with an eye-catching hook or quote-style sentence, then the offer, then a simple action line
+                - Caption/message should focus on the campaign message and offer; do not repeat the shop name unless it is required for clarity
+                - CTA must invite the customer to visit now; never say "Share this message" or "हा संदेश शेअर करा"
                 - Avoid repeating campaign name or offer title as-is; turn it into attractive ad copy
                 - For Marathi, use phrases like ज्वेलरी, नेकलेस, बांगड्या, इयररिंग्स, गिफ्ट, सौंदर्य, कलेक्शन when relevant
                 - Avoid precious-metal-shop wording
                 - Image prompt must be platform-neutral and suitable for one square creative reused on Instagram, Facebook, and WhatsApp
                 - Image prompt must ask for a clean product/background visual only; all text will be overlaid later by the website
+                - Image prompt must not ask to write the shop name, brand name, or social CTA on the image
                 - Image prompt must explicitly say: no text, no letters, no numbers, no logo, no watermark, no discount badge, no typography
                 - Do not invent fake logos, seals, brand marks, watermarks, placeholder text, or extra unreadable label blocks
                 """.formatted(
@@ -670,17 +840,31 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
                 safe(shopName),
                 platform.name(),
                 safe(campaign.getCampaignType() != null ? campaign.getCampaignType().name() : ""),
+                safe(campaign.getCampaignGoal()),
+                safe(campaign.getOfferMode()),
                 safe(categoryName),
                 safe(productName),
                 safe(campaign.getOfferTitle()),
+                safe(campaign.getCouponCode()),
                 safe(campaign.getDiscountType() != null ? campaign.getDiscountType().name() : ""),
                 safe(campaign.getDiscountValue() != null ? campaign.getDiscountValue().toPlainString() : ""),
                 safe(campaign.getLanguage() != null ? campaign.getLanguage().name() : ""),
                 safe(campaign.getTone() != null ? campaign.getTone().name() : ""),
                 safe(campaign.getStartDate() != null ? campaign.getStartDate().toString() : ""),
                 safe(campaign.getEndDate() != null ? campaign.getEndDate().toString() : ""),
-                describeFestivalContext(festivalContext)
+                describeFestivalContext(festivalContext),
+                campaignGoalInstruction(campaign)
         );
+    }
+
+    private String campaignGoalInstruction(Campaign campaign) {
+        return switch (campaignGoal(campaign)) {
+            case "OFFER" -> "Create a conversion campaign around the real offer/coupon. Mention discount only if discount fields are present.";
+            case "GREETING" -> "Create a warm greeting campaign. Lead with wishes or celebration feeling; avoid sales pressure and avoid discount language unless an offer is attached.";
+            case "QUOTE" -> "Create a quote or congratulation campaign. Lead with a polished short quote/message; keep it meaningful and brand-safe; avoid forced product selling unless a product is selected.";
+            case "PRODUCT_STORY" -> "Create a product-story campaign. Explain why the selected product/category is useful, giftable, stylish, or occasion-ready.";
+            default -> "Create a brand-awareness campaign about trust, selection, easy shopping, and customer confidence.";
+        };
     }
 
     private String buildMockCaption(Campaign campaign,
@@ -691,6 +875,9 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
         String productOrCampaign = resolveShowcaseSubject(campaign, productName, festivalContext);
         String offerLine = buildOfferLine(campaign, festivalContext);
         String language = resolveLanguage(campaign);
+        if (isNoOfferCampaign(campaign)) {
+            return buildNoOfferGoalCaption(campaign, shopName, productOrCampaign, platform, festivalContext);
+        }
         if ("MARATHI".equals(language)) {
             if (isOccasion(festivalContext, "mothers-day")) {
                 return buildMarathiMothersDayCaption(campaign, shopName, platform);
@@ -708,6 +895,51 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
             case INSTAGRAM -> buildEnglishInstagramCaption(campaign, shopName, productOrCampaign, offerLine, festivalContext);
             case FACEBOOK -> buildEnglishFacebookCaption(campaign, shopName, productOrCampaign, offerLine, festivalContext);
             case WHATSAPP -> buildMockWhatsAppLine(campaign, productOrCampaign, offerLine, festivalContext);
+        };
+    }
+
+    private String buildNoOfferGoalCaption(Campaign campaign,
+                                           String shopName,
+                                           String productOrCampaign,
+                                           MarketingPlatform platform,
+                                           MarketingOccasionLibrary.Occasion festivalContext) {
+        String goal = campaignGoal(campaign);
+        String language = resolveLanguage(campaign);
+        String subject = defaultString(productOrCampaign, "MARATHI".equals(language) ? "आमचे निवडक डिझाइन्स" : "our curated collection");
+        String theme = defaultString(normalizeOfferTitle(campaign.getCampaignName(), festivalContext),
+                festivalContext == null ? subject : festivalContext.englishName());
+        if ("MARATHI".equals(language)) {
+            String festival = festivalContext == null ? "आजच्या सुंदर क्षणांसाठी" : festivalDisplayName(festivalContext) + " निमित्त";
+            return switch (goal) {
+                case "GREETING" -> "%s मनःपूर्वक शुभेच्छा. %s मधून तुमचा खास लुक अधिक सुंदर करा."
+                        .formatted(festival, subject);
+                case "QUOTE" -> "\"सौंदर्य छोट्या तपशीलांतून खुलतं.\" %s - %s तुमच्यासाठी खास निवड."
+                        .formatted(theme, subject);
+                case "PRODUCT_STORY" -> "%s मधील प्रत्येक डिझाइन तुमच्या रोजच्या आणि खास क्षणांना नवा स्पर्श देते. कलेक्शन शांतपणे पाहा आणि आवडती निवड करा."
+                        .formatted(subject);
+                default -> "सुंदर निवड, सहज खरेदी आणि विश्वासू सेवा. %s आजच पाहा."
+                        .formatted(subject);
+            };
+        }
+        if ("HINGLISH".equals(language)) {
+            return switch (goal) {
+                case "GREETING" -> "%s ki heartfelt wishes. %s se apna look aur special banao."
+                        .formatted(festivalContext == null ? theme : festivalContext.englishName(), subject);
+                case "QUOTE" -> "\"Beauty lives in the little details.\" %s for your everyday confidence."
+                        .formatted(subject);
+                case "PRODUCT_STORY" -> "%s is styled for easy gifting, daily wear, and celebration-ready looks. Explore at your pace."
+                        .formatted(subject);
+                default -> "Curated retail picks, simple shopping, and trusted service for every occasion.";
+            };
+        }
+        return switch (goal) {
+            case "GREETING" -> "Warm wishes for %s. Explore %s made for beautiful everyday and festive moments."
+                    .formatted(festivalContext == null ? theme : festivalContext.englishName(), subject);
+            case "QUOTE" -> "\"Beauty lives in the little details.\" %s for your everyday confidence."
+                    .formatted(subject);
+            case "PRODUCT_STORY" -> "%s is styled for easy gifting, daily wear, and celebration-ready looks. Explore at your pace."
+                    .formatted(subject);
+            default -> "Curated retail picks, simple shopping, and trusted service for every occasion.";
         };
     }
 
@@ -735,6 +967,28 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
 
     private String buildMockCta(Campaign campaign, MarketingPlatform platform, MarketingOccasionLibrary.Occasion festivalContext) {
         String language = resolveLanguage(campaign);
+        if (isNoOfferCampaign(campaign)) {
+            String goal = campaignGoal(campaign);
+            if ("MARATHI".equals(language)) {
+                return switch (goal) {
+                    case "GREETING", "QUOTE" -> "आता भेट द्या";
+                    case "PRODUCT_STORY" -> "कलेक्शनची गोष्ट पाहा";
+                    default -> "कलेक्शन पाहा";
+                };
+            }
+            if ("HINGLISH".equals(language)) {
+                return switch (goal) {
+                    case "GREETING", "QUOTE" -> "Visit now";
+                    case "PRODUCT_STORY" -> "Explore the story";
+                    default -> "Explore collection";
+                };
+            }
+            return switch (goal) {
+                case "GREETING", "QUOTE" -> "Visit now";
+                case "PRODUCT_STORY" -> "Explore the story";
+                default -> "Explore collection";
+            };
+        }
         if ("MARATHI".equals(language)) {
             if (isOccasion(festivalContext, "mothers-day")) {
                 return platform == MarketingPlatform.WHATSAPP ? "आईसाठी भेट निवडा" : "आईसाठी कलेक्शन पाहा";
@@ -759,12 +1013,11 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
                                                  String shopName,
                                                  MarketingPlatform platform) {
         String offerLine = buildMarathiMothersDayOfferLine(campaign);
-        String brand = defaultString(trimToNull(shopName), "Krishnai Pearl Shopee");
         return switch (platform) {
             case INSTAGRAM -> "आईच्या प्रेमासाठी एक सुंदर भेट. %s. तुमची आवडती निवड आजच पाहा."
                     .formatted(offerLine);
-            case FACEBOOK -> "आईने नेहमी आपली काळजी घेतली; आता तिच्यासाठी एक सुंदर भेट निवडा. %s. %s मधील निवडक कलेक्शनमधून तिच्या आवडीची भेट आजच निवडा."
-                    .formatted(offerLine, brand);
+            case FACEBOOK -> "आईने नेहमी आपली काळजी घेतली; आता तिच्यासाठी एक सुंदर भेट निवडा. %s. निवडक कलेक्शनमधून तिच्या आवडीची भेट आजच निवडा."
+                    .formatted(offerLine);
             case WHATSAPP -> "आईसाठी एक सुंदर भेट निवडा. %s. आजच कलेक्शन पाहा."
                     .formatted(offerLine);
         };
@@ -774,12 +1027,11 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
                                                     String shopName,
                                                     MarketingPlatform platform) {
         String offerLine = buildMarathiWeddingSeasonOfferLine(campaign);
-        String brand = defaultString(trimToNull(shopName), "Krishnai Pearl Shopee");
         return switch (platform) {
             case INSTAGRAM -> "लग्नसराईचा खास लुक पूर्ण करा. %s. नेकलेस, बांगड्या आणि इयररिंग्समधून तुमची आवडती निवड आजच करा."
                     .formatted(offerLine);
-            case FACEBOOK -> "लग्नाचा खास दिवस अधिक सुंदर बनवा. %s. %s मधील ब्रायडल ज्वेलरी आणि गिफ्ट कलेक्शनमधून तुमच्या आवडीची निवड करा."
-                    .formatted(offerLine, brand);
+            case FACEBOOK -> "लग्नाचा खास दिवस अधिक सुंदर बनवा. %s. ब्रायडल ज्वेलरी आणि गिफ्ट कलेक्शनमधून तुमच्या आवडीची निवड करा."
+                    .formatted(offerLine);
             case WHATSAPP -> "%s. तुमच्या खास दिवसासाठी सुंदर ज्वेलरी आणि गिफ्ट कलेक्शन आजच पाहा."
                     .formatted(offerLine);
         };
@@ -798,16 +1050,27 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
         int compositionVariant = visualVariant(campaign, festivalContext, resolvedVisualSeed + "|composition", 4);
         String scenePrompt = buildFestivalScenePrompt(subject, festivalContext, sceneVariant);
         String variationPrompt = buildVisualVariationPrompt(festivalContext, compositionVariant);
-        return "Premium square 1:1 social-commerce campaign background for %s. Occasion: %s. Product focus: %s. Tone: %s. Visual refresh seed: %s, for composition only, do not display it. Scene direction: %s. Composition variation: %s. Make this regeneration visually fresh and noticeably different from earlier drafts by changing the camera angle, layout, props, background depth, and product placement. Make the image clearly relatable to the occasion, with Indian retail context and natural festival props, not just a product catalogue display. Show jewellery, cosmetics, or gift products as part of the festival story. Use a refined palette that matches the occasion, with realistic light, depth, and premium styling. Leave clean negative space at the top and bottom for later text overlay. Avoid repeating the same necklace-on-silk flat lay, generic jewellery tray, plain studio product display, same gift-box handoff pose, or unrelated decorative background. No text, no letters, no numbers, no logo, no watermark, no discount badge, no typography, no fake brand mark, no placeholder label blocks. Do not include readable words on banners, cards, posters, balloons, shop signs, wall decor, or product labels; all copy will be added later by the website. Do not use wording or visuals that imply a precious-metal shop."
+        return "Premium square 1:1 social-commerce campaign background for an Indian retail campaign. Occasion: %s. Product focus: %s. Tone: %s. Campaign goal: %s. Goal visual direction: %s. Visual refresh seed: %s, for composition only, do not display it. Scene direction: %s. Composition variation: %s. Make this regeneration visually fresh and noticeably different from earlier drafts by changing the camera angle, layout, props, background depth, and product placement. Make the image clearly relatable to the occasion, with Indian retail context and natural festival props, not just a product catalogue display. Show jewellery, cosmetics, or gift products as part of the festival story. Use a refined palette that matches the occasion, with realistic light, depth, and premium styling. Leave clean negative space at the top and bottom for later text overlay. Avoid repeating the same necklace-on-silk flat lay, generic jewellery tray, plain studio product display, same gift-box handoff pose, or unrelated decorative background. If the campaign goal is GREETING or QUOTE, make the image feel like a greeting card or meaningful social post background, not a sale poster. No text, no letters, no numbers, no logo, no watermark, no discount badge, no typography, no fake brand mark, no placeholder label blocks. Do not include readable words on banners, cards, posters, balloons, shop signs, wall decor, or product labels; all copy will be added later by the website. Do not use wording or visuals that imply a precious-metal shop."
                 .formatted(
-                        defaultString(shopName, "retail brand"),
                         occasionName,
                         subject,
                         defaultString(campaign.getTone() != null ? campaign.getTone().name().toLowerCase(Locale.ROOT) : null, "premium"),
+                        campaignGoal(campaign),
+                        campaignGoalVisualDirection(campaign),
                         visualSeedLabel(resolvedVisualSeed),
                         scenePrompt,
                         variationPrompt
                 );
+    }
+
+    private String campaignGoalVisualDirection(Campaign campaign) {
+        return switch (campaignGoal(campaign)) {
+            case "OFFER" -> "clear retail offer mood with product prominence, clean space for discount and CTA overlays";
+            case "GREETING" -> "warm occasion greeting mood with human emotion, festival props, and soft negative space for wishes";
+            case "QUOTE" -> "minimal premium composition with meaningful atmosphere and calm negative space for a quote";
+            case "PRODUCT_STORY" -> "show the product/category in use, being selected, gifted, styled, or prepared for an occasion";
+            default -> "brand-awareness lifestyle scene showing trust, retail warmth, and curated selection";
+        };
     }
 
     private String buildFestivalScenePrompt(String subject,
@@ -961,53 +1224,75 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
         String language = resolveLanguage(campaign);
         if (campaign.getDiscountType() == null || campaign.getDiscountType().name().equals("NONE")) {
             String cleanedOfferTitle = normalizeOfferTitle(campaign.getOfferTitle(), festivalContext);
-            return defaultString(cleanedOfferTitle, "MARATHI".equals(language) ? defaultString(festivalDisplayName(festivalContext), "खास निवड") : defaultString(festivalContext == null ? null : festivalContext.englishName(), "Special picks"));
+            String noDiscountLine = defaultString(cleanedOfferTitle, "MARATHI".equals(language)
+                    ? defaultString(festivalContext == null ? null : festivalDisplayName(festivalContext) + "च्या शुभेच्छा", "खास निवड")
+                    : defaultString(festivalContext == null ? null : festivalContext.englishName() + " wishes", "Special picks"));
+            return appendCouponSuffix(campaign, noDiscountLine, language);
         }
         String offerSubject = resolveOfferSubject(campaign, festivalContext, language);
         BigDecimal value = campaign.getDiscountValue() == null ? BigDecimal.ZERO : campaign.getDiscountValue();
         if ("MARATHI".equals(language)) {
-            return switch (campaign.getDiscountType()) {
+            String line = switch (campaign.getDiscountType()) {
                 case PERCENTAGE -> "%sवर %s%% पर्यंत सूट".formatted(marathiDiscountObject(offerSubject, festivalContext), value.stripTrailingZeros().toPlainString());
                 case FLAT -> "%sवर ₹%s पर्यंत सूट".formatted(marathiDiscountObject(offerSubject, festivalContext), value.stripTrailingZeros().toPlainString());
                 case NONE -> offerSubject;
             };
+            return appendCouponSuffix(campaign, line, language);
         }
         if ("HINGLISH".equals(language)) {
-            return switch (campaign.getDiscountType()) {
+            String line = switch (campaign.getDiscountType()) {
                 case PERCENTAGE -> "%s par %s%% tak off".formatted(offerSubject, value.stripTrailingZeros().toPlainString());
                 case FLAT -> "%s par flat %s off".formatted(offerSubject, value.stripTrailingZeros().toPlainString());
                 case NONE -> offerSubject;
             };
+            return appendCouponSuffix(campaign, line, language);
         }
-        return switch (campaign.getDiscountType()) {
+        String line = switch (campaign.getDiscountType()) {
             case PERCENTAGE -> "%s - save %s%%".formatted(offerSubject, value.stripTrailingZeros().toPlainString());
             case FLAT -> "%s - flat %s off".formatted(offerSubject, value.stripTrailingZeros().toPlainString());
             case NONE -> offerSubject;
         };
+        return appendCouponSuffix(campaign, line, language);
+    }
+
+    private String appendCouponSuffix(Campaign campaign, String line, String language) {
+        String coupon = trimToNull(campaign.getCouponCode());
+        if (coupon == null) {
+            return line;
+        }
+        if ("MARATHI".equals(language)) {
+            return line + " - कूपन कोड " + coupon;
+        }
+        if ("HINGLISH".equals(language)) {
+            return line + " - coupon code " + coupon;
+        }
+        return line + " - use code " + coupon;
     }
 
     private String buildMarathiMothersDayOfferLine(Campaign campaign) {
         if (campaign.getDiscountType() == null || campaign.getDiscountType().name().equals("NONE")) {
-            return "आईसाठी खास भेटवस्तू";
+            return appendCouponSuffix(campaign, "आईसाठी खास भेटवस्तू", "MARATHI");
         }
         BigDecimal value = campaign.getDiscountValue() == null ? BigDecimal.ZERO : campaign.getDiscountValue();
-        return switch (campaign.getDiscountType()) {
+        String line = switch (campaign.getDiscountType()) {
             case PERCENTAGE -> "आईसाठी खास भेटवस्तूंवर %s%% पर्यंत सूट".formatted(value.stripTrailingZeros().toPlainString());
             case FLAT -> "आईसाठी खास भेटवस्तूंवर ₹%s पर्यंत सूट".formatted(value.stripTrailingZeros().toPlainString());
             case NONE -> "आईसाठी खास भेटवस्तू";
         };
+        return appendCouponSuffix(campaign, line, "MARATHI");
     }
 
     private String buildMarathiWeddingSeasonOfferLine(Campaign campaign) {
         if (campaign.getDiscountType() == null || campaign.getDiscountType().name().equals("NONE")) {
-            return "लग्नसराईसाठी ब्रायडल आणि गिफ्ट कलेक्शन";
+            return appendCouponSuffix(campaign, "लग्नसराईसाठी ब्रायडल आणि गिफ्ट कलेक्शन", "MARATHI");
         }
         BigDecimal value = campaign.getDiscountValue() == null ? BigDecimal.ZERO : campaign.getDiscountValue();
-        return switch (campaign.getDiscountType()) {
+        String line = switch (campaign.getDiscountType()) {
             case PERCENTAGE -> "लग्नसराईसाठी ब्रायडल आणि गिफ्ट कलेक्शनवर %s%% पर्यंत सूट".formatted(value.stripTrailingZeros().toPlainString());
             case FLAT -> "लग्नसराईसाठी ब्रायडल आणि गिफ्ट कलेक्शनवर ₹%s पर्यंत सूट".formatted(value.stripTrailingZeros().toPlainString());
             case NONE -> "लग्नसराईसाठी ब्रायडल आणि गिफ्ट कलेक्शन";
         };
+        return appendCouponSuffix(campaign, line, "MARATHI");
     }
 
     private String marathiDiscountObject(String offerSubject, MarketingOccasionLibrary.Occasion festivalContext) {
@@ -1071,13 +1356,12 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
     private String buildCreativePreview(Campaign campaign, String shopName, String productName, MarketingPlatform platform) {
         String title = defaultString(trimToNull(campaign.getCampaignName()), "Marketing Draft");
         String subtitle = defaultString(trimToNull(productName), defaultString(trimToNull(campaign.getOfferTitle()), platform.name()));
-        String badge = defaultString(trimToNull(shopName), "Retail");
         String offerBadge = buildCreativeOfferBadge(campaign);
         MarketingOccasionLibrary.Occasion festivalContext = detectFestivalContext(campaign);
         String caption = buildMockCaption(campaign, shopName, productName, platform, festivalContext);
         String captionLines = svgTextBlock(caption, 92, 860, 48, 56, 3, "#fff8ec", 42, "700");
-        String shopLines = svgTextBlock(badge, 96, 168, 42, 46, 2, "#fff6df", 38, "700");
         String contact = defaultString(trimToNull(campaign.getLinkUrl()), "https://kpskrishnai.com");
+        String logoMarkup = buildSvgLogoMarkup(resolveLogoUrl());
         String svg = """
                 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1200" viewBox="0 0 1200 1200">
                   <defs>
@@ -1092,7 +1376,7 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
                   </defs>
                   <rect width="1200" height="1200" fill="url(#bg)"/>
                   <circle cx="900" cy="300" r="320" fill="url(#glow)"/>
-                  <rect x="80" y="90" rx="34" ry="34" width="470" height="132" fill="#1b3b34" fill-opacity="0.78" stroke="#f6d59a" stroke-opacity="0.35"/>
+                  <rect x="80" y="90" rx="34" ry="34" width="132" height="132" fill="#1b3b34" fill-opacity="0.78" stroke="#f6d59a" stroke-opacity="0.35"/>
                   %s
                   <text x="96" y="430" fill="#ffffff" font-family="Georgia, serif" font-size="110" font-weight="700">%s</text>
                   <text x="96" y="520" fill="#f4d8a6" font-family="Arial, Helvetica, sans-serif" font-size="46">%s</text>
@@ -1102,8 +1386,18 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
                   %s
                   <text x="92" y="1114" fill="#f6d59a" font-family="Arial, Helvetica, sans-serif" font-size="30" letter-spacing="3">%s</text>
                 </svg>
-                """.formatted(shopLines, escapeSvg(title), escapeSvg(subtitle), escapeSvg(offerBadge), captionLines, escapeSvg(contact));
+                """.formatted(logoMarkup, escapeSvg(title), escapeSvg(subtitle), escapeSvg(offerBadge), captionLines, escapeSvg(contact));
         return "data:image/svg+xml;base64," + Base64.getEncoder().encodeToString(svg.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private String buildSvgLogoMarkup(String logoUrl) {
+        if (isBlank(logoUrl)) {
+            return "";
+        }
+        return """
+                  <rect x="104" y="112" rx="24" ry="24" width="92" height="92" fill="#fffaf0" fill-opacity="0.96" stroke="#f6d59a" stroke-opacity="0.52"/>
+                  <image href="%s" x="116" y="124" width="68" height="68" preserveAspectRatio="xMidYMid meet"/>
+                """.formatted(escapeSvgAttribute(logoUrl));
     }
 
     private String svgTextBlock(String value,
@@ -1175,6 +1469,10 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
                 .replace(">", "&gt;");
     }
 
+    private String escapeSvgAttribute(String value) {
+        return escapeSvg(value).replace("\"", "&quot;");
+    }
+
     private String trimToNull(String value) {
         if (value == null || value.isBlank()) {
             return null;
@@ -1196,6 +1494,29 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
 
     private String resolveLanguage(Campaign campaign) {
         return campaign.getLanguage() == null ? "MARATHI" : campaign.getLanguage().name();
+    }
+
+    private String campaignGoal(Campaign campaign) {
+        String goal = safe(campaign.getCampaignGoal()).toUpperCase(Locale.ROOT);
+        if (!goal.isBlank()) {
+            return goal;
+        }
+        if (campaign.getCampaignType() != null) {
+            return switch (campaign.getCampaignType()) {
+                case OFFER -> "OFFER";
+                case FESTIVAL, SEASONAL -> "GREETING";
+                case NEW_ARRIVAL -> "PRODUCT_STORY";
+                default -> "AWARENESS";
+            };
+        }
+        return "AWARENESS";
+    }
+
+    private boolean isNoOfferCampaign(Campaign campaign) {
+        boolean noDiscount = campaign.getDiscountType() == null || campaign.getDiscountType().name().equals("NONE");
+        boolean noCoupon = isBlank(campaign.getCouponCode());
+        String offerMode = safe(campaign.getOfferMode()).toUpperCase(Locale.ROOT);
+        return noDiscount && noCoupon && (offerMode.isBlank() || offerMode.equals("NONE"));
     }
 
     private int captionVariant(Campaign campaign, MarketingPlatform platform, int count) {
@@ -1259,14 +1580,13 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
         }
         String subject = defaultString(productOrCampaign, "तुमच्या खास खरेदीसाठी");
         String offer = defaultString(offerLine, "निवडक कलेक्शनवर खास सूट");
-        String brand = defaultString(trimToNull(shopName), "आमच्या दुकानातून");
         return switch (variant) {
-            case 1 -> "\"दररोजच्या लुकला थोडी खास ओळख द्या.\" %s कडून %s मध्ये %s. आवडलेले डिझाइन्स पाहण्यासाठी %s."
-                    .formatted(brand, subject, offer, visitLine);
+            case 1 -> "\"दररोजच्या लुकला थोडी खास ओळख द्या.\" %s मध्ये %s. आवडलेले डिझाइन्स पाहण्यासाठी %s."
+                    .formatted(subject, offer, visitLine);
             case 2 -> "तुमच्या स्टाईलची पुढची सुंदर गोष्ट इथून सुरू होते. %s मधील %s. %s."
                     .formatted(subject, offer, visitLine);
-            default -> "\"छोटीशी निवड, मोठा कॉन्फिडन्स.\" %s कडून %s साठी %s. %s."
-                    .formatted(brand, subject, offer, visitLine);
+            default -> "\"छोटीशी निवड, मोठा कॉन्फिडन्स.\" %s साठी %s. %s."
+                    .formatted(subject, offer, visitLine);
         };
     }
 
@@ -1280,8 +1600,8 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
         String subject = defaultString(productOrCampaign, "curated jewellery and beauty picks");
         String offer = defaultString(offerLine, "limited-time festive picks");
         return switch (variant) {
-            case 1 -> "\"A small detail can change the whole look.\" %s is here with %s. Explore %s at %s."
-                    .formatted(occasion, offer, subject, defaultString(shopName, "our shop"));
+            case 1 -> "\"A small detail can change the whole look.\" %s is here with %s. Explore %s today."
+                    .formatted(occasion, offer, subject);
             case 2 -> "Your festive look deserves a finishing touch. %s. Shop %s before the favorites sell out."
                     .formatted(offer, subject);
             default -> "\"Wear the moment, not just the outfit.\" %s brings %s for %s."
@@ -1298,14 +1618,13 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
         String occasion = festivalContext == null ? "this season" : festivalContext.englishName();
         String subject = defaultString(productOrCampaign, "curated jewellery and beauty picks");
         String offer = defaultString(offerLine, "limited-time picks");
-        String brand = defaultString(shopName, "our shop");
         return switch (variant) {
-            case 1 -> "\"The right accessory makes every celebration feel personal.\" For %s, %s brings %s with %s. Visit the shop or website today."
-                    .formatted(occasion, brand, subject, offer);
-            case 2 -> "Some styles are made for compliments. Discover %s at %s and make %s feel extra special with %s."
-                    .formatted(subject, brand, occasion, offer);
-            default -> "\"Your best look should be easy to choose.\" %s has fresh %s for %s. %s. Visit us today."
-                    .formatted(brand, subject, occasion, offer);
+            case 1 -> "\"The right accessory makes every celebration feel personal.\" For %s, explore %s with %s. Visit the website today."
+                    .formatted(occasion, subject, offer);
+            case 2 -> "Some styles are made for compliments. Discover %s and make %s feel extra special with %s."
+                    .formatted(subject, occasion, offer);
+            default -> "\"Your best look should be easy to choose.\" Fresh %s for %s. %s. Visit now."
+                    .formatted(subject, occasion, offer);
         };
     }
 
@@ -1422,11 +1741,52 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
         if (!"MARATHI".equals(resolveLanguage(campaign))) {
             return headline;
         }
-        String cleaned = normalizeMarathiMarketingText(headline);
-        if (isOccasion(festivalContext, "mothers-day") || hasBadMarathiCopy(cleaned)) {
+        String cleaned = normalizeMarathiOverlayText(headline, campaign, festivalContext);
+        if (isOccasion(festivalContext, "mothers-day")) {
             return buildMarathiMothersDayOfferLine(campaign);
         }
+        if (isOccasion(festivalContext, "wedding-season")) {
+            return buildMarathiWeddingSeasonOfferLine(campaign);
+        }
+        if (hasBadMarathiCopy(cleaned) || hasAwkwardMarathiOverlayText(cleaned, festivalContext)) {
+            return buildSafeMarathiOverlayFallback(campaign, festivalContext);
+        }
         return cleaned;
+    }
+
+    private String normalizeMarathiOverlayText(String value,
+                                               Campaign campaign,
+                                               MarketingOccasionLibrary.Occasion festivalContext) {
+        String cleaned = normalizeMarathiMarketingText(value);
+        if (festivalContext == null) {
+            return cleaned;
+        }
+        String festival = festivalDisplayName(festivalContext);
+        String possessive = marathiOccasionPossessive(festivalContext);
+        String dative = marathiOccasionDative(festivalContext);
+        cleaned = cleaned
+                .replace(festival + " साठी " + festival + "च्या शुभेच्छा", possessive + " हार्दिक शुभेच्छा")
+                .replace(festival + " साठी " + festival + "च्या हार्दिक शुभेच्छा", possessive + " हार्दिक शुभेच्छा")
+                .replace(festival + " साठी " + festival, festival)
+                .replace(festival + " साठी", dative)
+                .replace(festival + " निमित्त " + festival + "च्या शुभेच्छा", possessive + " हार्दिक शुभेच्छा")
+                .replace(festival + " निमित्त " + festival, festival + " निमित्त");
+        if (isNoOfferCampaign(campaign) && hasRepeatedOccasion(cleaned, festivalContext)) {
+            return buildNoOfferMarathiImageHeadline(campaign, null, festivalContext);
+        }
+        return normalizeMarathiMarketingText(cleaned);
+    }
+
+    private String buildSafeMarathiOverlayFallback(Campaign campaign,
+                                                   MarketingOccasionLibrary.Occasion festivalContext) {
+        if (isNoOfferCampaign(campaign)) {
+            return normalizeMarathiMarketingText(buildNoOfferMarathiImageHeadline(campaign, null, festivalContext));
+        }
+        String offerLine = buildOfferLine(campaign, festivalContext);
+        if (festivalContext != null && !mentionsOccasion(offerLine, festivalContext)) {
+            return normalizeMarathiMarketingText(marathiOccasionDative(festivalContext) + " " + offerLine);
+        }
+        return normalizeMarathiMarketingText(defaultString(offerLine, "निवडक कलेक्शन पाहा"));
     }
 
     private String normalizeMarathiMarketingText(String value) {
@@ -1444,6 +1804,8 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
                 .replace("लकशरी", "लक्झरी")
                 .replace("लग्नाचा सीझन साठी", "लग्नसराईसाठी")
                 .replace("लग्नाच्या सीझनसाठी", "लग्नसराईसाठी")
+                .replace("हा संदेश शेअर करा", "आता भेट द्या")
+                .replace("Share this message", "Visit now")
                 .replace("खास खास", "खास")
                 .replaceAll("साठी\\s+साठी", "साठी")
                 .replaceAll("वर\\s+वर", "वर")
@@ -1494,6 +1856,8 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
                 || cleaned.contains("लकशरी")
                 || cleaned.contains("लग्नाचा सीझन साठी")
                 || cleaned.contains("लग्नाच्या सीझनसाठी")
+                || cleaned.contains("दिवाळी साठी")
+                || cleaned.contains(" साठी दिवाळीच्या शुभेच्छा")
                 || cleaned.contains("साठी साठी")
                 || cleaned.contains("वर वर");
     }
@@ -1518,6 +1882,9 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
 
     private String buildCreativeOfferBadge(Campaign campaign) {
         MarketingOccasionLibrary.Occasion festivalContext = detectFestivalContext(campaign);
+        if (isNoOfferCampaign(campaign) && !"OFFER".equals(campaignGoal(campaign))) {
+            return null;
+        }
         if (campaign.getDiscountType() == null || campaign.getDiscountType().name().equals("NONE")) {
             return defaultString(normalizeOfferTitle(campaign.getOfferTitle(), festivalContext), "Premium picks");
         }
@@ -1525,6 +1892,20 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
         return switch (campaign.getDiscountType()) {
             case PERCENTAGE -> value.stripTrailingZeros().toPlainString() + "% पर्यंत सूट";
             case FLAT -> "₹" + value.stripTrailingZeros().toPlainString() + " पर्यंत सूट";
+            case NONE -> defaultString(normalizeOfferTitle(campaign.getOfferTitle(), festivalContext), "Premium picks");
+        };
+    }
+
+    private String buildEnglishOfferBadge(Campaign campaign) {
+        MarketingOccasionLibrary.Occasion festivalContext = detectFestivalContext(campaign);
+        if (campaign.getDiscountType() == null || campaign.getDiscountType().name().equals("NONE")) {
+            return defaultString(normalizeOfferTitle(campaign.getOfferTitle(), festivalContext),
+                    defaultString(normalizeOfferTitle(campaign.getCampaignName(), festivalContext), "Premium picks"));
+        }
+        BigDecimal value = campaign.getDiscountValue() == null ? BigDecimal.ZERO : campaign.getDiscountValue();
+        return switch (campaign.getDiscountType()) {
+            case PERCENTAGE -> value.stripTrailingZeros().toPlainString() + "% off";
+            case FLAT -> "₹" + value.stripTrailingZeros().toPlainString() + " off";
             case NONE -> defaultString(normalizeOfferTitle(campaign.getOfferTitle(), festivalContext), "Premium picks");
         };
     }
@@ -1539,6 +1920,95 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
 
     private String festivalDisplayName(MarketingOccasionLibrary.Occasion festivalContext) {
         return festivalContext == null ? null : festivalContext.marathiName();
+    }
+
+    private String marathiOccasionPossessive(MarketingOccasionLibrary.Occasion festivalContext) {
+        if (festivalContext == null) {
+            return "या खास प्रसंगाच्या";
+        }
+        return switch (festivalContext.key()) {
+            case "diwali" -> "दिवाळीच्या";
+            case "gudi-padwa" -> "गुढी पाडव्याच्या";
+            case "akshaya-tritiya" -> "अक्षय तृतीयेच्या";
+            case "makar-sankranti" -> "मकर संक्रांतीच्या";
+            case "mothers-day" -> "मातृ दिनाच्या";
+            case "wedding-season" -> "लग्नसराईच्या";
+            case "ganesh-chaturthi" -> "गणेश चतुर्थीच्या";
+            case "navratri" -> "नवरात्रीच्या";
+            case "dussehra" -> "दसऱ्याच्या";
+            case "christmas" -> "ख्रिसमसच्या";
+            case "womens-day" -> "महिला दिनाच्या";
+            case "maharashtra-day" -> "महाराष्ट्र दिनाच्या";
+            case "raksha-bandhan" -> "रक्षाबंधनाच्या";
+            case "holi" -> "होळीच्या";
+            default -> festivalContext.marathiName() + " निमित्त";
+        };
+    }
+
+    private String marathiOccasionDative(MarketingOccasionLibrary.Occasion festivalContext) {
+        if (festivalContext == null) {
+            return "या खास प्रसंगासाठी";
+        }
+        return switch (festivalContext.key()) {
+            case "diwali" -> "दिवाळीसाठी";
+            case "gudi-padwa" -> "गुढी पाडव्यासाठी";
+            case "akshaya-tritiya" -> "अक्षय तृतीयेसाठी";
+            case "makar-sankranti" -> "मकर संक्रांतीसाठी";
+            case "mothers-day" -> "मातृ दिनासाठी";
+            case "wedding-season" -> "लग्नसराईसाठी";
+            case "ganesh-chaturthi" -> "गणेश चतुर्थीसाठी";
+            case "navratri" -> "नवरात्रीसाठी";
+            case "dussehra" -> "दसऱ्यासाठी";
+            case "christmas" -> "ख्रिसमससाठी";
+            case "womens-day" -> "महिला दिनासाठी";
+            case "maharashtra-day" -> "महाराष्ट्र दिनासाठी";
+            case "raksha-bandhan" -> "रक्षाबंधनासाठी";
+            case "holi" -> "होळीसाठी";
+            default -> festivalContext.marathiName() + "साठी";
+        };
+    }
+
+    private boolean hasAwkwardMarathiOverlayText(String value,
+                                                 MarketingOccasionLibrary.Occasion festivalContext) {
+        String cleaned = safe(value);
+        if (festivalContext != null && hasRepeatedOccasion(cleaned, festivalContext)) {
+            return true;
+        }
+        return cleaned.contains(" साठी ")
+                && (cleaned.contains("च्या शुभेच्छा") || cleaned.contains("हार्दिक शुभेच्छा"));
+    }
+
+    private boolean hasRepeatedOccasion(String value, MarketingOccasionLibrary.Occasion festivalContext) {
+        if (festivalContext == null) {
+            return false;
+        }
+        String comparable = comparableText(value);
+        String festival = comparableText(festivalContext.marathiName());
+        return !festival.isBlank() && countOccurrences(comparable, festival) > 1;
+    }
+
+    private boolean mentionsOccasion(String value, MarketingOccasionLibrary.Occasion festivalContext) {
+        if (festivalContext == null || value == null) {
+            return false;
+        }
+        String comparable = comparableText(value);
+        String marathi = comparableText(festivalContext.marathiName());
+        String english = comparableText(festivalContext.englishName());
+        return !marathi.isBlank() && comparable.contains(marathi)
+                || !english.isBlank() && comparable.contains(english);
+    }
+
+    private int countOccurrences(String value, String token) {
+        if (value == null || token == null || token.isBlank()) {
+            return 0;
+        }
+        int count = 0;
+        int index = value.indexOf(token);
+        while (index >= 0) {
+            count++;
+            index = value.indexOf(token, index + token.length());
+        }
+        return count;
     }
 
     private boolean isOccasion(MarketingOccasionLibrary.Occasion festivalContext, String key) {

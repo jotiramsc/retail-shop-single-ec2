@@ -68,7 +68,6 @@ Why this matters:
 
 Current webhook controller accepts callback payloads but does not verify:
 
-- PhonePe signature / verification
 - Razorpay signature
 
 Why this matters:
@@ -147,7 +146,6 @@ These are the first changes to make.
    - never expose real OTP in production API responses
 
 4. Enforce webhook validation
-   - verify PhonePe callback authenticity
    - verify Razorpay signatures
    - reject invalid or unsigned callbacks
 

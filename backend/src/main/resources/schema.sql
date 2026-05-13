@@ -58,10 +58,41 @@ where website_price is null;
 
 create table if not exists customers (
     id uuid primary key,
-    name varchar(255) not null,
-    mobile varchar(20) not null unique,
+    name varchar(255),
+    mobile varchar(20) unique,
+    email varchar(255),
+    password_hash varchar(255),
+    auth_provider varchar(50) not null default 'OTP',
+    google_subject varchar(255),
+    mobile_verified boolean not null default false,
+    email_verified boolean not null default false,
+    updated_at timestamp,
+    profile_completed_at timestamp,
+    date_of_birth date,
+    gender varchar(40),
+    profile_image_url varchar(1000),
+    alternate_mobile varchar(20),
     created_at timestamp not null
 );
+
+alter table customers alter column name drop not null;
+alter table customers alter column mobile drop not null;
+alter table customers add column if not exists email varchar(255);
+alter table customers add column if not exists password_hash varchar(255);
+alter table customers add column if not exists auth_provider varchar(50) not null default 'OTP';
+alter table customers add column if not exists google_subject varchar(255);
+alter table customers add column if not exists mobile_verified boolean not null default false;
+alter table customers add column if not exists email_verified boolean not null default false;
+alter table customers add column if not exists updated_at timestamp;
+alter table customers add column if not exists profile_completed_at timestamp;
+alter table customers add column if not exists date_of_birth date;
+alter table customers add column if not exists gender varchar(40);
+alter table customers add column if not exists profile_image_url varchar(1000);
+alter table customers add column if not exists alternate_mobile varchar(20);
+update customers set auth_provider = 'OTP' where auth_provider is null or trim(auth_provider) = '';
+update customers set updated_at = created_at where updated_at is null;
+create unique index if not exists idx_customers_email_unique on customers (lower(email)) where email is not null and trim(email) <> '';
+create unique index if not exists idx_customers_google_subject_unique on customers (google_subject) where google_subject is not null and trim(google_subject) <> '';
 
 create table if not exists customer_otps (
     mobile varchar(20) primary key,
@@ -140,6 +171,16 @@ create table if not exists cart_items (
     unique (cart_id, product_id)
 );
 
+create table if not exists wishlist_items (
+    id uuid primary key,
+    customer_id uuid not null references customers(id) on delete cascade,
+    product_id uuid not null references products(id) on delete cascade,
+    created_at timestamp not null,
+    unique (customer_id, product_id)
+);
+
+create index if not exists idx_wishlist_customer_created_at on wishlist_items(customer_id, created_at desc);
+
 create table if not exists addresses (
     id uuid primary key,
     customer_id uuid not null references customers(id) on delete cascade,
@@ -156,6 +197,8 @@ create table if not exists addresses (
     longitude numeric(10, 7),
     created_at timestamp not null
 );
+
+create sequence if not exists customer_order_number_seq start with 100 increment by 1;
 
 create table if not exists orders (
     id uuid primary key,
@@ -195,6 +238,55 @@ end
 where sales_person_name is null or trim(sales_person_name) = '';
 create unique index if not exists idx_orders_invoice_id_unique on orders(invoice_id) where invoice_id is not null;
 create index if not exists idx_orders_sales_person_created_at on orders (sales_person_user_id, created_at desc);
+
+create table if not exists payment_transactions (
+    id uuid primary key,
+    provider varchar(50) not null,
+    operation varchar(80) not null,
+    status varchar(80) not null,
+    customer_id uuid,
+    order_id uuid,
+    order_number varchar(100),
+    gateway_order_id varchar(255),
+    gateway_payment_id varchar(255),
+    receipt varchar(100),
+    currency varchar(20),
+    amount numeric(12, 2),
+    amount_subunits bigint,
+    payment_state varchar(100),
+    gateway_status varchar(100),
+    webhook_event varchar(255),
+    signature_status varchar(100),
+    failure_code varchar(255),
+    error_message varchar(4000),
+    request_payload text,
+    response_payload text,
+    created_at timestamp not null,
+    updated_at timestamp not null
+);
+
+alter table payment_transactions add column if not exists customer_id uuid;
+alter table payment_transactions add column if not exists order_id uuid;
+alter table payment_transactions add column if not exists order_number varchar(100);
+alter table payment_transactions add column if not exists gateway_order_id varchar(255);
+alter table payment_transactions add column if not exists gateway_payment_id varchar(255);
+alter table payment_transactions add column if not exists receipt varchar(100);
+alter table payment_transactions add column if not exists currency varchar(20);
+alter table payment_transactions add column if not exists amount numeric(12, 2);
+alter table payment_transactions add column if not exists amount_subunits bigint;
+alter table payment_transactions add column if not exists payment_state varchar(100);
+alter table payment_transactions add column if not exists gateway_status varchar(100);
+alter table payment_transactions add column if not exists webhook_event varchar(255);
+alter table payment_transactions add column if not exists signature_status varchar(100);
+alter table payment_transactions add column if not exists failure_code varchar(255);
+alter table payment_transactions add column if not exists error_message varchar(4000);
+alter table payment_transactions add column if not exists request_payload text;
+alter table payment_transactions add column if not exists response_payload text;
+alter table payment_transactions add column if not exists updated_at timestamp not null default now();
+create index if not exists idx_payment_transactions_created_at on payment_transactions(created_at desc);
+create index if not exists idx_payment_transactions_gateway_order on payment_transactions(gateway_order_id);
+create index if not exists idx_payment_transactions_gateway_payment on payment_transactions(gateway_payment_id);
+create index if not exists idx_payment_transactions_status on payment_transactions(status);
 
 create table if not exists order_items (
     id uuid primary key,
@@ -292,6 +384,10 @@ alter table campaigns add column if not exists draft boolean not null default fa
 alter table campaigns add column if not exists created_by varchar(255);
 alter table campaigns add column if not exists campaign_name varchar(255);
 alter table campaigns add column if not exists campaign_type varchar(50);
+alter table campaigns add column if not exists campaign_goal varchar(80);
+alter table campaigns add column if not exists offer_mode varchar(80);
+alter table campaigns add column if not exists linked_offer_id uuid;
+alter table campaigns add column if not exists coupon_code varchar(100);
 alter table campaigns add column if not exists category_id uuid;
 alter table campaigns add column if not exists product_id uuid;
 alter table campaigns add column if not exists offer_title varchar(255);
@@ -308,6 +404,8 @@ alter table campaigns add column if not exists updated_at timestamp;
 update campaigns set campaign_name = name where campaign_name is null or trim(campaign_name) = '';
 update campaigns set campaign_type = coalesce(campaign_type, 'CUSTOM');
 update campaigns set discount_type = coalesce(discount_type, 'NONE');
+update campaigns set campaign_goal = coalesce(campaign_goal, case when discount_type is not null and discount_type <> 'NONE' then 'OFFER' else 'AWARENESS' end);
+update campaigns set offer_mode = coalesce(offer_mode, case when discount_type is not null and discount_type <> 'NONE' then 'MANUAL' else 'NONE' end);
 update campaigns set language = coalesce(language, 'ENGLISH');
 update campaigns set tone = coalesce(tone, 'PREMIUM');
 update campaigns set status = coalesce(status, case when draft then 'DRAFT' else 'PENDING_APPROVAL' end);

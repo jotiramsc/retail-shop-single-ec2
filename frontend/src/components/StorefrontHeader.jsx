@@ -17,7 +17,7 @@ function HeartIcon() {
   );
 }
 
-export default function StorefrontHeader({ logo, shopName, navLinks = [], cartCount = 0 }) {
+export default function StorefrontHeader({ logo, shopName, navLinks = [], cartCount = 0, wishlistCount = 0 }) {
   const uniqueLinks = useMemo(() => {
     const seen = new Set();
     return navLinks.filter((item) => {
@@ -54,7 +54,8 @@ export default function StorefrontHeader({ logo, shopName, navLinks = [], cartCo
         ) : null}
 
         <div className="glow-header-actions">
-          <Link to="/products" className="glow-icon-btn" aria-label="Wishlist">
+          <Link to="/wishlist" className="glow-icon-btn" aria-label="Wishlist">
+            <span className="glow-icon-badge emerald">{wishlistCount}</span>
             <HeartIcon />
           </Link>
           <CustomerAccountMenu cartCount={cartCount} />

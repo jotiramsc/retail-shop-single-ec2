@@ -55,7 +55,6 @@ OpenAI text and image generation:
 MARKETING_AI_ENABLED=true
 MARKETING_OPENAI_API_KEY=<openai-api-key>
 MARKETING_OPENAI_MODEL=gpt-4.1-mini
-MARKETING_IMAGE_PROVIDER=OPENAI
 MARKETING_OPENAI_IMAGE_MODEL=gpt-image-1.5
 MARKETING_OPENAI_IMAGE_SIZE=1024x1024
 MARKETING_OPENAI_IMAGE_QUALITY=medium
@@ -63,7 +62,7 @@ MARKETING_OPENAI_IMAGE_QUALITY=medium
 
 Image storage for generated creative assets:
 
-The AI marketing generator reuses the same image storage already configured for product and branding images. Generated OpenAI/Leonardo image bytes are uploaded through the existing `ImageUploadService` into the current S3 bucket, under the `marketing-campaigns` category, and the stored `imageUrl` becomes the CloudFront URL.
+The AI marketing generator reuses the same image storage already configured for product and branding images. Generated OpenAI image bytes are uploaded through the existing `ImageUploadService` into the current S3 bucket, under the `marketing-campaigns` category, and the stored `imageUrl` becomes the CloudFront URL.
 
 ```bash
 AWS_REGION=ap-south-1
@@ -76,28 +75,26 @@ On EC2, prefer the instance IAM role for S3 access. Do not add new AWS access ke
 Meta publishing and webhook setup:
 
 ```bash
-META_ACCESS_TOKEN=<meta-page-access-token>
+META_ACCESS_TOKEN=<meta-whatsapp-or-instagram-token>
 FB_PAGE_ID=<facebook-page-id>
+FB_PAGE_ACCESS_TOKEN=<facebook-page-access-token>
 IG_BUSINESS_ACCOUNT_ID=<instagram-business-account-id>
 META_GRAPH_VERSION=v23.0
 MARKETING_META_ACCESS_TOKEN=${META_ACCESS_TOKEN}
 MARKETING_FACEBOOK_PAGE_ID=${FB_PAGE_ID}
+MARKETING_FACEBOOK_PAGE_ACCESS_TOKEN=${FB_PAGE_ACCESS_TOKEN}
 MARKETING_INSTAGRAM_BUSINESS_ACCOUNT_ID=${IG_BUSINESS_ACCOUNT_ID}
 MARKETING_META_GRAPH_VERSION=${META_GRAPH_VERSION}
 ```
 
-WhatsApp provider for existing OTP and marketing send:
+Meta WhatsApp Cloud API for OTP, marketing send, and bot replies:
 
 ```bash
-MARKETING_WHATSAPP_PROVIDER=GUPSHUP
-GUPSHUP_API_KEY=<gupshup-api-key>
-GUPSHUP_APP_NAME=<gupshup-app-name>
-GUPSHUP_SOURCE_NUMBER=<approved-whatsapp-number>
-GUPSHUP_OTP_TEMPLATE_ID=<otp-template-id>
-MARKETING_GUPSHUP_API_KEY=${GUPSHUP_API_KEY}
-MARKETING_GUPSHUP_APP_NAME=${GUPSHUP_APP_NAME}
-MARKETING_GUPSHUP_SOURCE_NUMBER=${GUPSHUP_SOURCE_NUMBER}
-MARKETING_GUPSHUP_TEMPLATE_ID=<approved-marketing-template-id>
+META_ACCESS_TOKEN=<permanent-system-user-token>
+META_WHATSAPP_PHONE_NUMBER_ID=<cloud-api-phone-number-id>
+META_WHATSAPP_OTP_TEMPLATE_NAME=<approved-authentication-template-name>
+META_WHATSAPP_OTP_TEMPLATE_LANGUAGE=en_US
+MARKETING_WHATSAPP_PHONE_NUMBER_ID=${META_WHATSAPP_PHONE_NUMBER_ID}
 ```
 
 Payment and checkout, if live checkout is enabled:
@@ -106,11 +103,6 @@ Payment and checkout, if live checkout is enabled:
 RAZORPAY_KEY_ID=<razorpay-key-id>
 RAZORPAY_KEY_SECRET=<razorpay-key-secret>
 RAZORPAY_WEBHOOK_SECRET=<razorpay-webhook-secret>
-PHONEPE_CLIENT_ID=<phonepe-client-id>
-PHONEPE_CLIENT_SECRET=<phonepe-client-secret>
-PHONEPE_ENV=production
-PHONEPE_REDIRECT_URL=https://kpskrishnai.com/checkout
-PHONEPE_WEBHOOK_URL=https://kpskrishnai.com/api/phonepe/webhook
 ```
 
 Optional Redis for OTP/cart cache:
@@ -131,9 +123,11 @@ Meta:
 - Set `OMNICHANNEL_WEBHOOK_SECRET` to the Meta app secret so `X-Hub-Signature-256` can be validated.
 
 WhatsApp:
-- Configure approved WhatsApp templates in Gupshup or the selected provider.
+- Configure approved WhatsApp templates in Meta Business Manager.
+- Subscribe the Meta app webhook to WhatsApp `messages`.
+- Use `https://kpskrishnai.com/api/whatsapp/webhook` for conversational bot callbacks.
 - For n8n-managed conversational approval, configure n8n’s WhatsApp inbound webhook separately.
-- For app-managed campaign publishing, keep `MARKETING_GUPSHUP_*` configured.
+- For app-managed campaign publishing, keep `META_ACCESS_TOKEN` and `MARKETING_WHATSAPP_PHONE_NUMBER_ID` configured.
 
 n8n:
 - Store credentials in n8n for OpenAI, WhatsApp provider, Meta, and the website backend.

@@ -9,4 +9,6 @@ public interface CustomerProfileService {
     CustomerProfileResponse getProfile(UUID customerId);
 
     CustomerProfileResponse updateProfile(UUID customerId, CustomerProfileRequest request);
+
+    void ensureCheckoutReady(UUID customerId);
 }

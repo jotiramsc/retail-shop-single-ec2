@@ -65,6 +65,9 @@ Parameters:
     Default: 6938fd4d98bab03faadb97b34396831e3780aea1
   CorsAllowedOrigins:
     Type: String
+  StaffJwtSecret:
+    Type: String
+    NoEcho: true
   CustomerJwtSecret:
     Type: String
     NoEcho: true
@@ -82,7 +85,6 @@ Parameters:
     Default: RAZORPAY
     AllowedValues:
       - RAZORPAY
-      - PHONEPE
   RazorpayKeyId:
     Type: String
     Default: rzp_test_SirLkQHBMbkN2d
@@ -94,70 +96,19 @@ Parameters:
     Type: String
     Default: ''
     NoEcho: true
-  PhonePeClientId:
-    Type: String
-    Default: ''
-    NoEcho: true
-  PhonePeClientSecret:
-    Type: String
-    Default: ''
-    NoEcho: true
-  PhonePeClientVersion:
-    Type: String
-    Default: '1'
-  PhonePeEnv:
-    Type: String
-    Default: sandbox
-  PhonePeRedirectUrl:
-    Type: String
-    Default: ''
-  PhonePeWebhookUrl:
-    Type: String
-    Default: ''
-  TwilioAccountSid:
-    Type: String
-    Default: ''
-    NoEcho: true
-  TwilioAuthToken:
-    Type: String
-    Default: ''
-    NoEcho: true
-  TwilioVerifyServiceSid:
-    Type: String
-    Default: ''
-    NoEcho: true
-  TwilioVerifyChannel:
-    Type: String
-    Default: whatsapp
-  TwilioWhatsAppFrom:
-    Type: String
-    Default: ''
-  TwilioWhatsAppOtpContentSid:
-    Type: String
-    Default: ''
-  TwilioWhatsAppOrderContentSid:
-    Type: String
-    Default: ''
-  TwilioWhatsAppOfferContentSid:
-    Type: String
-    Default: ''
-  GupshupApiKey:
-    Type: String
-    Default: ''
-    NoEcho: true
-  GupshupAppName:
-    Type: String
-    Default: ''
-  GupshupSourceNumber:
-    Type: String
-    Default: ''
-  GupshupOtpTemplateId:
-    Type: String
-    Default: ''
   MetaAccessToken:
     Type: String
     Default: ''
     NoEcho: true
+  MetaWhatsAppPhoneNumberId:
+    Type: String
+    Default: ''
+  MetaWhatsAppOtpTemplateName:
+    Type: String
+    Default: ''
+  MetaWhatsAppOtpTemplateLanguage:
+    Type: String
+    Default: en_US
   FacebookPageId:
     Type: String
     Default: ''
@@ -167,18 +118,78 @@ Parameters:
   MetaGraphVersion:
     Type: String
     Default: v23.0
+  FacebookPageAccessToken:
+    Type: String
+    Default: ''
+    NoEcho: true
+  MetaAppId:
+    Type: String
+    Default: ''
+  MetaAppSecret:
+    Type: String
+    Default: ''
+    NoEcho: true
+  MetaFbExchangeToken:
+    Type: String
+    Default: ''
+    NoEcho: true
+  OpenAiApiKey:
+    Type: String
+    Default: ''
+    NoEcho: true
+  GoogleClientId:
+    Type: String
+    Default: 647290985970-rhhho15u57fp07jrj75him17gfvjnhc4.apps.googleusercontent.com
+  GoogleClientSecret:
+    Type: String
+    Default: ''
+    NoEcho: true
+  GoogleOAuthRedirectUri:
+    Type: String
+    Default: ''
+  GoogleMapsApiKey:
+    Type: String
+    Default: ''
+    NoEcho: true
   AwsS3Bucket:
     Type: String
     Default: ''
   AwsCloudFrontDomain:
     Type: String
     Default: ''
+  CreateRoute53HostedZone:
+    Type: String
+    Default: 'false'
+    AllowedValues:
+      - 'true'
+      - 'false'
+  DomainName:
+    Type: String
+    Default: ''
+    Description: Optional apex domain name, for example kpskrishnai.com. When CreateRoute53HostedZone is true, the stack creates an A record for this domain and www.
+  EnableHttps:
+    Type: String
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Description: Create a DNS-validated ACM certificate and HTTPS listener when Route53 hosted zone is managed by this stack.
 
 Conditions:
   HasKeyPair: !Not [!Equals [!Ref KeyPairName, '']]
   HasSshAccess: !Not [!Equals [!Ref SshAccessCidr, '']]
   HasGitHubOwner: !Not [!Equals [!Ref GitHubOwner, '']]
   HasGitHubRepo: !Not [!Equals [!Ref GitHubRepo, '']]
+  HasDomainName: !Not [!Equals [!Ref DomainName, '']]
+  HasAwsS3Bucket: !Not [!Equals [!Ref AwsS3Bucket, '']]
+  HasAwsCloudFrontDomain: !Not [!Equals [!Ref AwsCloudFrontDomain, '']]
+  CreateMediaBucket: !Not [!Condition HasAwsS3Bucket]
+  ShouldCreateHostedZone: !And
+    - !Equals [!Ref CreateRoute53HostedZone, 'true']
+    - !Condition HasDomainName
+  ShouldEnableHttps: !And
+    - !Equals [!Ref EnableHttps, 'true']
+    - !Condition ShouldCreateHostedZone
   EnableGitHubDeploy: !And
     - !Condition HasGitHubOwner
     - !Condition HasGitHubRepo
@@ -273,6 +284,10 @@ Resources:
           FromPort: 80
           ToPort: 80
           CidrIp: !Ref PublicAccessCidr
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: !Ref PublicAccessCidr
       SecurityGroupEgress:
         - IpProtocol: -1
           CidrIp: 0.0.0.0/0
@@ -347,12 +362,48 @@ Resources:
   LoadBalancerListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
+      DefaultActions: !If
+        - ShouldEnableHttps
+        - - Type: redirect
+            RedirectConfig:
+              Protocol: HTTPS
+              Port: '443'
+              StatusCode: HTTP_301
+        - - Type: forward
+            TargetGroupArn: !Ref LoadBalancerTargetGroup
+      LoadBalancerArn: !Ref PublicLoadBalancer
+      Port: 80
+      Protocol: HTTP
+
+  SslCertificate:
+    Type: AWS::CertificateManager::Certificate
+    Condition: ShouldEnableHttps
+    Properties:
+      DomainName: !Ref DomainName
+      SubjectAlternativeNames:
+        - !Sub www.${DomainName}
+      ValidationMethod: DNS
+      DomainValidationOptions:
+        - DomainName: !Ref DomainName
+          HostedZoneId: !Ref PublicHostedZone
+        - DomainName: !Sub www.${DomainName}
+          HostedZoneId: !Ref PublicHostedZone
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-${EnvironmentName}-ssl
+
+  HttpsLoadBalancerListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Condition: ShouldEnableHttps
+    Properties:
+      Certificates:
+        - CertificateArn: !Ref SslCertificate
       DefaultActions:
         - Type: forward
           TargetGroupArn: !Ref LoadBalancerTargetGroup
       LoadBalancerArn: !Ref PublicLoadBalancer
-      Port: 80
-      Protocol: HTTP
+      Port: 443
+      Protocol: HTTPS
 
   ArtifactBucket:
     Type: AWS::S3::Bucket
@@ -392,6 +443,46 @@ Resources:
               Bool:
                 aws:SecureTransport: false
 
+  MediaBucket:
+    Type: AWS::S3::Bucket
+    Condition: CreateMediaBucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-${EnvironmentName}-media
+
+  MediaBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Condition: CreateMediaBucket
+    Properties:
+      Bucket: !Ref MediaBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: '*'
+            Action: s3:*
+            Resource:
+              - !Sub arn:aws:s3:::${MediaBucket}
+              - !Sub arn:aws:s3:::${MediaBucket}/*
+            Condition:
+              Bool:
+                aws:SecureTransport: false
+
   AppConfigSecret:
     Type: AWS::SecretsManager::Secret
     DeletionPolicy: Retain
@@ -399,46 +490,95 @@ Resources:
     Properties:
       Name: !Sub ${ProjectName}/${EnvironmentName}/app-config
       Description: Application environment values for the single-host retail app
-      SecretString: !Sub |
-        {
-          "PORT":"8080",
-          "SPRING_PROFILES_ACTIVE":"prod",
-          "DB_INIT_MODE":"never",
-          "CORS_ALLOWED_ORIGINS":"${CorsAllowedOrigins}",
-          "CUSTOMER_JWT_SECRET":"${CustomerJwtSecret}",
-          "CHECKOUT_TAX_PERCENT":"${CheckoutTaxPercent}",
-          "CHECKOUT_DELIVERY_CHARGE":"${CheckoutDeliveryCharge}",
-          "CHECKOUT_FREE_DELIVERY_MIN_ORDER":"${CheckoutFreeDeliveryMinOrder}",
-          "PAYMENT_PROVIDER":"${PaymentProvider}",
-          "RAZORPAY_KEY_ID":"${RazorpayKeyId}",
-          "RAZORPAY_KEY_SECRET":"${RazorpayKeySecret}",
-          "RAZORPAY_WEBHOOK_SECRET":"${RazorpayWebhookSecret}",
-          "PHONEPE_CLIENT_ID":"${PhonePeClientId}",
-          "PHONEPE_CLIENT_SECRET":"${PhonePeClientSecret}",
-          "PHONEPE_CLIENT_VERSION":"${PhonePeClientVersion}",
-          "PHONEPE_ENV":"${PhonePeEnv}",
-          "PHONEPE_REDIRECT_URL":"${PhonePeRedirectUrl}",
-          "PHONEPE_WEBHOOK_URL":"${PhonePeWebhookUrl}",
-          "TWILIO_ACCOUNT_SID":"${TwilioAccountSid}",
-          "TWILIO_AUTH_TOKEN":"${TwilioAuthToken}",
-          "TWILIO_VERIFY_SERVICE_SID":"${TwilioVerifyServiceSid}",
-          "TWILIO_VERIFY_CHANNEL":"${TwilioVerifyChannel}",
-          "TWILIO_WHATSAPP_FROM":"${TwilioWhatsAppFrom}",
-          "TWILIO_WHATSAPP_OTP_CONTENT_SID":"${TwilioWhatsAppOtpContentSid}",
-          "TWILIO_WHATSAPP_ORDER_CONTENT_SID":"${TwilioWhatsAppOrderContentSid}",
-          "TWILIO_WHATSAPP_OFFER_CONTENT_SID":"${TwilioWhatsAppOfferContentSid}",
-          "GUPSHUP_API_KEY":"${GupshupApiKey}",
-          "GUPSHUP_APP_NAME":"${GupshupAppName}",
-          "GUPSHUP_SOURCE_NUMBER":"${GupshupSourceNumber}",
-          "GUPSHUP_OTP_TEMPLATE_ID":"${GupshupOtpTemplateId}",
-          "META_ACCESS_TOKEN":"${MetaAccessToken}",
-          "FB_PAGE_ID":"${FacebookPageId}",
-          "IG_BUSINESS_ACCOUNT_ID":"${InstagramBusinessAccountId}",
-          "META_GRAPH_VERSION":"${MetaGraphVersion}",
-          "AWS_REGION":"${AWS::Region}",
-          "AWS_S3_BUCKET":"${AwsS3Bucket}",
-          "AWS_CLOUDFRONT_DOMAIN":"${AwsCloudFrontDomain}"
-        }
+      SecretString:
+        Fn::Sub:
+          - |
+            {
+              "PORT":"8080",
+              "SPRING_PROFILES_ACTIVE":"prod",
+              "DB_INIT_MODE":"never",
+              "CORS_ALLOWED_ORIGINS":"${CorsAllowedOrigins}",
+              "STAFF_JWT_SECRET":"${StaffJwtSecret}",
+              "STAFF_JWT_TTL_MINUTES":"480",
+              "CUSTOMER_JWT_SECRET":"${CustomerJwtSecret}",
+              "CUSTOMER_JWT_TTL_MINUTES":"43200",
+              "OTP_TTL_MINUTES":"5",
+              "OTP_RATE_LIMIT_SECONDS":"30",
+              "OTP_LENGTH":"6",
+              "OTP_MAX_ATTEMPTS":"5",
+              "CHECKOUT_TAX_PERCENT":"${CheckoutTaxPercent}",
+              "CHECKOUT_DELIVERY_CHARGE":"${CheckoutDeliveryCharge}",
+              "CHECKOUT_FREE_DELIVERY_MIN_ORDER":"${CheckoutFreeDeliveryMinOrder}",
+              "PAYMENT_PROVIDER":"${PaymentProvider}",
+              "RAZORPAY_KEY_ID":"${RazorpayKeyId}",
+              "RAZORPAY_KEY_SECRET":"${RazorpayKeySecret}",
+              "RAZORPAY_WEBHOOK_SECRET":"${RazorpayWebhookSecret}",
+              "META_ACCESS_TOKEN":"${MetaAccessToken}",
+              "META_WHATSAPP_PHONE_NUMBER_ID":"${MetaWhatsAppPhoneNumberId}",
+              "META_WHATSAPP_OTP_TEMPLATE_NAME":"${MetaWhatsAppOtpTemplateName}",
+              "META_WHATSAPP_OTP_TEMPLATE_LANGUAGE":"${MetaWhatsAppOtpTemplateLanguage}",
+              "FB_PAGE_ID":"${FacebookPageId}",
+              "FB_PAGE_ACCESS_TOKEN":"${FacebookPageAccessToken}",
+              "IG_BUSINESS_ACCOUNT_ID":"${InstagramBusinessAccountId}",
+              "META_GRAPH_VERSION":"${MetaGraphVersion}",
+              "META_APP_ID":"${MetaAppId}",
+              "META_APP_SECRET":"${MetaAppSecret}",
+              "META_FB_EXCHANGE_TOKEN":"${MetaFbExchangeToken}",
+              "META_TOKEN_REFRESH_SECRET_ID":"${ProjectName}/${EnvironmentName}/app-config",
+              "META_TOKEN_REFRESH_ENABLED":"true",
+              "META_TOKEN_REFRESH_INTERVAL_MS":"3888000000",
+              "META_TOKEN_REFRESH_INITIAL_DELAY_MS":"60000",
+              "MARKETING_META_ACCESS_TOKEN":"${MetaAccessToken}",
+              "MARKETING_FACEBOOK_PAGE_ID":"${FacebookPageId}",
+              "MARKETING_FACEBOOK_PAGE_ACCESS_TOKEN":"${FacebookPageAccessToken}",
+              "MARKETING_INSTAGRAM_BUSINESS_ACCOUNT_ID":"${InstagramBusinessAccountId}",
+              "MARKETING_META_GRAPH_VERSION":"${MetaGraphVersion}",
+              "MARKETING_WHATSAPP_PHONE_NUMBER_ID":"${MetaWhatsAppPhoneNumberId}",
+              "FB_APP_ID":"${MetaAppId}",
+              "FB_APP_SECRET":"${MetaAppSecret}",
+              "FB_EXCHANGE_TOKEN":"${MetaFbExchangeToken}",
+              "OPEN_AI_API_KEY":"${OpenAiApiKey}",
+              "MARKETING_OPENAI_API_KEY":"${OpenAiApiKey}",
+              "MARKETING_AI_ENABLED":"true",
+              "MARKETING_OPENAI_MODEL":"gpt-4.1-mini",
+              "MARKETING_OPENAI_IMAGE_MODEL":"gpt-image-1.5",
+              "MARKETING_OPENAI_IMAGE_SIZE":"1024x1024",
+              "MARKETING_OPENAI_IMAGE_QUALITY":"medium",
+              "GOOGLE_CLIENT_ID":"${GoogleClientId}",
+              "GOOGLE_CLIENT_SECRET":"${GoogleClientSecret}",
+              "GOOGLE_OAUTH_CLIENT_SECRET":"${GoogleClientSecret}",
+              "GOOGLE_REDIRECT_URI":"${GoogleOAuthRedirectUri}",
+              "GOOGLE_OAUTH_REDIRECT_URI":"${GoogleOAuthRedirectUri}",
+              "GOOGLE_MAPS_API_KEY":"${GoogleMapsApiKey}",
+              "OMNICHANNEL_WEBSITE_BASE_URL":"${ResolvedWebsiteBaseUrl}",
+              "OMNICHANNEL_WEBHOOK_VERIFY_TOKEN":"",
+              "OMNICHANNEL_WEBHOOK_SECRET":"",
+              "OMNICHANNEL_DEFAULT_COUPON_CODE":"",
+              "OMNICHANNEL_MAX_PRODUCT_CARDS":"6",
+              "AWS_REGION":"${AWS::Region}",
+              "AWS_S3_BUCKET":"${ResolvedAwsS3Bucket}",
+              "AWS_CLOUDFRONT_DOMAIN":"${ResolvedImageBaseUrl}",
+              "UPLOAD_MAX_BYTES":"5242880",
+              "UPLOAD_MAX_FILE_SIZE":"8MB",
+              "UPLOAD_MAX_REQUEST_SIZE":"10MB",
+              "MIGRATE_IMAGES_TO_S3_ON_START":"false",
+              "APP_REDIS_ENABLED":"false",
+              "APP_REDIS_OTP_KEY_PREFIX":"retail:otp:",
+              "APP_REDIS_CART_KEY_PREFIX":"retail:cart:",
+              "APP_REDIS_CART_TTL_MINUTES":"30"
+            }
+          - ResolvedAwsS3Bucket: !If [HasAwsS3Bucket, !Ref AwsS3Bucket, !Ref MediaBucket]
+            ResolvedImageBaseUrl: !If
+              - HasAwsCloudFrontDomain
+              - !Ref AwsCloudFrontDomain
+              - !If
+                - HasDomainName
+                - !Sub https://${DomainName}/api/images
+                - !Sub http://${PublicLoadBalancer.DNSName}/api/images
+            ResolvedWebsiteBaseUrl: !If
+              - HasDomainName
+              - !Sub https://${DomainName}
+              - !Sub http://${PublicLoadBalancer.DNSName}
 
   DatabaseSecret:
     Type: AWS::SecretsManager::Secret
@@ -493,6 +633,7 @@ Resources:
                 Action:
                   - secretsmanager:GetSecretValue
                   - secretsmanager:DescribeSecret
+                  - secretsmanager:UpdateSecret
                 Resource:
                   - !Ref AppConfigSecret
                   - !Ref DatabaseSecret
@@ -500,11 +641,17 @@ Resources:
                 Action:
                   - s3:GetObject
                   - s3:PutObject
-                Resource: !Sub arn:aws:s3:::${AwsS3Bucket}/*
+                Resource: !If
+                  - HasAwsS3Bucket
+                  - !Sub arn:aws:s3:::${AwsS3Bucket}/*
+                  - !Sub arn:aws:s3:::${MediaBucket}/*
               - Effect: Allow
                 Action:
                   - s3:ListBucket
-                Resource: !Sub arn:aws:s3:::${AwsS3Bucket}
+                Resource: !If
+                  - HasAwsS3Bucket
+                  - !Sub arn:aws:s3:::${AwsS3Bucket}
+                  - !Sub arn:aws:s3:::${MediaBucket}
 
   Ec2InstanceProfile:
     Type: AWS::IAM::InstanceProfile
@@ -597,7 +744,7 @@ Resources:
           set -euxo pipefail
 
           dnf update -y
-          dnf install -y docker jq git tar gzip curl
+          dnf install -y docker jq git tar gzip
           systemctl enable --now docker
           usermod -aG docker ec2-user || true
 
@@ -659,6 +806,36 @@ Resources:
       AllocationId: !GetAtt ElasticIp.AllocationId
       InstanceId: !Ref RetailEc2Instance
 
+  PublicHostedZone:
+    Type: AWS::Route53::HostedZone
+    Condition: ShouldCreateHostedZone
+    Properties:
+      Name: !Ref DomainName
+      HostedZoneConfig:
+        Comment: !Sub Public hosted zone for ${DomainName}
+
+  ApexAliasRecord:
+    Type: AWS::Route53::RecordSet
+    Condition: ShouldCreateHostedZone
+    Properties:
+      HostedZoneId: !Ref PublicHostedZone
+      Name: !Ref DomainName
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt PublicLoadBalancer.DNSName
+        HostedZoneId: !GetAtt PublicLoadBalancer.CanonicalHostedZoneID
+
+  WwwAliasRecord:
+    Type: AWS::Route53::RecordSet
+    Condition: ShouldCreateHostedZone
+    Properties:
+      HostedZoneId: !Ref PublicHostedZone
+      Name: !Sub www.${DomainName}
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt PublicLoadBalancer.DNSName
+        HostedZoneId: !GetAtt PublicLoadBalancer.CanonicalHostedZoneID
+
 Outputs:
   StackName:
     Value: !Ref AWS::StackName
@@ -690,4 +867,29 @@ Outputs:
   LoadBalancerHostedZoneId:
     Value: !GetAtt PublicLoadBalancer.CanonicalHostedZoneID
   LoadBalancerUrl:
-    Value: !Sub http://${PublicLoadBalancer.DNSName}
+    Value: !If
+      - ShouldEnableHttps
+      - !Sub https://${DomainName}
+      - !Sub http://${PublicLoadBalancer.DNSName}
+  MediaBucketName:
+    Value: !If [HasAwsS3Bucket, !Ref AwsS3Bucket, !Ref MediaBucket]
+  ImageBaseUrl:
+    Value: !If
+      - HasAwsCloudFrontDomain
+      - !Ref AwsCloudFrontDomain
+      - !If
+        - HasDomainName
+        - !Sub https://${DomainName}/api/images
+        - !Sub http://${PublicLoadBalancer.DNSName}/api/images
+  HostedZoneId:
+    Condition: ShouldCreateHostedZone
+    Value: !Ref PublicHostedZone
+  HostedZoneNameServers:
+    Condition: ShouldCreateHostedZone
+    Value: !Join [',', !GetAtt PublicHostedZone.NameServers]
+  ApexDomainName:
+    Condition: ShouldCreateHostedZone
+    Value: !Ref DomainName
+  WwwDomainName:
+    Condition: ShouldCreateHostedZone
+    Value: !Sub www.${DomainName}

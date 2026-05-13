@@ -3,7 +3,6 @@ import { useCallback, useEffect, useState } from 'react';
 import BillingPage from './pages/BillingPage';
 import ProductsPage from './pages/ProductsPage';
 import CustomersPage from './pages/CustomersPage';
-import OffersPage from './pages/OffersPage';
 import CampaignsPage from './pages/CampaignsPage';
 import ReportsPage from './pages/ReportsPage';
 import SalespersonSalesPage from './pages/SalespersonSalesPage';
@@ -18,6 +17,8 @@ import CartPage from './pages/CartPage';
 import CheckoutPage from './pages/CheckoutPage';
 import OrdersPage from './pages/OrdersPage';
 import CustomerProfilePage from './pages/CustomerProfilePage';
+import WishlistPage from './pages/WishlistPage';
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import { retailService } from './services/retailService';
 import { clearAuthSession, getStoredAuthSession } from './utils/auth';
 import { defaultBranding, getStoredBranding, normalizeBranding, storeBranding } from './utils/branding';
@@ -29,8 +30,7 @@ const navItems = [
   { to: '/app', label: 'Billing', permission: 'BILLING' },
   { to: '/app/products', label: 'Inventory', permission: 'PRODUCTS' },
   { to: '/app/customers', label: 'Customers', permission: 'CUSTOMERS' },
-  { to: '/app/offers', label: 'Offers', permission: 'OFFERS' },
-  { to: '/app/campaigns', label: 'Marketing Automation', permission: 'MARKETING_AUTOMATION' },
+  { to: '/app/campaigns', label: 'Campaign Studio', permission: ['MARKETING_AUTOMATION', 'OFFERS'] },
   { to: '/app/reports', label: 'Reports', permission: 'REPORTS' },
   { to: '/app/salesperson-sales', label: 'Salesperson Sales', permission: 'SALESPERSON_SALES' },
   { to: '/app/site-interactions', label: 'Site Interaction', permission: 'SITE_INTERACTIONS' },
@@ -39,25 +39,55 @@ const navItems = [
 ];
 
 function ProtectedApp({ auth, onLogout, branding }) {
+  const location = useLocation();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const permissions = Array.isArray(auth.permissions) ? auth.permissions : [];
-  const canAccess = (permission) => auth.role === 'ADMIN' || auth.role === 'OWNER' || permissions.includes(permission);
+  const canAccess = (permission) => {
+    if (auth.role === 'ADMIN' || auth.role === 'OWNER') {
+      return true;
+    }
+    if (Array.isArray(permission)) {
+      return permission.some((entry) => permissions.includes(entry));
+    }
+    return permissions.includes(permission);
+  };
   const firstAllowedRoute = navItems.find((item) => canAccess(item.permission))?.to || '/login';
   const visibleNavItems = navItems.filter((item) => canAccess(item.permission));
 
+  useEffect(() => {
+    setIsMenuOpen(false);
+  }, [location.pathname, location.search]);
+
   return (
     <div className="app-shell">
-      <aside className="sidebar">
+      <aside className={`sidebar ${isMenuOpen ? 'is-open' : ''}`}>
         <div>
-          <div className="brand-lockup">
-            <img
-              className="brand-logo"
-              src={branding.media?.logo}
-              alt={`${branding.shopName || 'Store'} logo`}
-            />
-            <div>
-              <p className="sidebar-kicker">{branding.sidebarKicker || 'Store Dashboard'}</p>
-              <h1>{branding.shopName || 'Store'}</h1>
+          <div className="sidebar-brand-row">
+            <div className="brand-lockup">
+              <img
+                className="brand-logo"
+                src={branding.media?.logo}
+                alt={`${branding.shopName || 'Store'} logo`}
+              />
+              <div>
+                <p className="sidebar-kicker">{branding.sidebarKicker || 'Store Dashboard'}</p>
+                <h1>{branding.shopName || 'Store'}</h1>
+              </div>
             </div>
+            <button
+              type="button"
+              className="sidebar-menu-toggle"
+              aria-expanded={isMenuOpen}
+              aria-label={isMenuOpen ? 'Close admin menu' : 'Open admin menu'}
+              onClick={() => setIsMenuOpen((current) => !current)}
+            >
+              <span className="sidebar-menu-toggle-bars" aria-hidden="true">
+                <span />
+                <span />
+                <span />
+              </span>
+              <span>{isMenuOpen ? 'Close' : 'Menu'}</span>
+            </button>
           </div>
           <p className="sidebar-copy">
             {branding.headerLine || 'Manage your retail operations from one place.'}
@@ -71,6 +101,7 @@ function ProtectedApp({ auth, onLogout, branding }) {
               to={item.to}
               end={item.to === '/app'}
               className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+              onClick={() => setIsMenuOpen(false)}
             >
               {item.label}
             </NavLink>
@@ -94,8 +125,8 @@ function ProtectedApp({ auth, onLogout, branding }) {
           <Route index element={canAccess('BILLING') ? <BillingPage /> : <Navigate to={firstAllowedRoute} replace />} />
           <Route path="products" element={canAccess('PRODUCTS') ? <ProductsPage /> : <Navigate to={firstAllowedRoute} replace />} />
           <Route path="customers" element={canAccess('CUSTOMERS') ? <CustomersPage /> : <Navigate to={firstAllowedRoute} replace />} />
-          <Route path="offers" element={canAccess('OFFERS') ? <OffersPage /> : <Navigate to={firstAllowedRoute} replace />} />
-          <Route path="campaigns" element={canAccess('MARKETING_AUTOMATION') ? <CampaignsPage /> : <Navigate to={firstAllowedRoute} replace />} />
+          <Route path="offers" element={canAccess(['MARKETING_AUTOMATION', 'OFFERS']) ? <Navigate to="/app/campaigns?tab=offers" replace /> : <Navigate to={firstAllowedRoute} replace />} />
+          <Route path="campaigns" element={canAccess(['MARKETING_AUTOMATION', 'OFFERS']) ? <CampaignsPage /> : <Navigate to={firstAllowedRoute} replace />} />
           <Route path="reports" element={canAccess('REPORTS') ? <ReportsPage /> : <Navigate to={firstAllowedRoute} replace />} />
           <Route path="salesperson-sales" element={canAccess('SALESPERSON_SALES') ? <SalespersonSalesPage auth={auth} /> : <Navigate to={firstAllowedRoute} replace />} />
           <Route path="site-interactions" element={canAccess('SITE_INTERACTIONS') ? <SiteInteractionsPage /> : <Navigate to={firstAllowedRoute} replace />} />
@@ -176,9 +207,11 @@ export default function App() {
       <Route path="/" element={<PublicHomePage branding={branding} siteVisitCount={siteVisitCount} />} />
       <Route path="/products" element={<PublicProductsPage branding={branding} />} />
       <Route path="/cart" element={<CartPage />} />
+      <Route path="/wishlist" element={<WishlistPage />} />
       <Route path="/checkout" element={<CheckoutPage />} />
       <Route path="/orders" element={<OrdersPage />} />
       <Route path="/account" element={<CustomerProfilePage />} />
+      <Route path="/privacy-policy" element={<PrivacyPolicyPage branding={branding} />} />
       <Route
         path="/app/*"
         element={auth ? <ProtectedApp auth={auth} onLogout={handleLogout} branding={branding} /> : <Navigate to="/login" replace />}

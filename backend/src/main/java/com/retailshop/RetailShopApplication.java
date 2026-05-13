@@ -1,6 +1,7 @@
 package com.retailshop;
 
 import com.retailshop.config.AppProperties;
+import com.retailshop.config.BotProperties;
 import com.retailshop.config.MarketingProperties;
 import com.retailshop.config.OmnichannelProperties;
 import org.springframework.boot.SpringApplication;
@@ -12,7 +13,7 @@ import java.util.TimeZone;
 
 @SpringBootApplication
 @EnableScheduling
-@EnableConfigurationProperties({AppProperties.class, MarketingProperties.class, OmnichannelProperties.class})
+@EnableConfigurationProperties({AppProperties.class, BotProperties.class, MarketingProperties.class, OmnichannelProperties.class})
 public class RetailShopApplication {
 
     public static void main(String[] args) {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, Navigate } from 'react-router-dom';
+import { Link, Navigate, useLocation } from 'react-router-dom';
 import { retailService } from '../services/retailService';
 import {
   clearCustomerSession,
@@ -7,6 +7,7 @@ import {
   isCustomerAuthError,
   storeCustomerSession
 } from '../utils/auth';
+import { getApiErrorMessage } from '../utils/validation';
 
 const initialAddress = {
   label: 'Home',
@@ -22,17 +23,50 @@ const initialAddress = {
   longitude: ''
 };
 
+const normalizeMobileDigits = (value) => {
+  const digits = String(value || '').replace(/\D/g, '');
+  return digits.startsWith('91') && digits.length > 10 ? digits.slice(-10) : digits;
+};
+
+const isValidIndianMobile = (value) => normalizeMobileDigits(value).length === 10;
+
+const validateAddressForm = (address) => {
+  if (!address.recipientName.trim()) return 'Enter recipient name for delivery.';
+  if (!isValidIndianMobile(address.mobile)) return 'Enter a valid 10-digit mobile number for delivery.';
+  if (!address.line1.trim()) return 'Enter address line 1.';
+  if (!address.city.trim()) return 'Enter delivery city.';
+  if (!address.state.trim()) return 'Enter delivery state.';
+  if (!address.pincode.trim()) return 'Enter delivery pincode.';
+  return '';
+};
+
 export default function CustomerProfilePage() {
+  const location = useLocation();
+  const redirectTo = new URLSearchParams(location.search).get('redirect') || '';
   const [customerSession, setCustomerSession] = useState(() => getStoredCustomerSession());
   const [profile, setProfile] = useState(null);
   const [addresses, setAddresses] = useState([]);
   const [profileName, setProfileName] = useState('');
+  const [profileEmail, setProfileEmail] = useState('');
+  const [profileMobile, setProfileMobile] = useState('');
+  const [profileDob, setProfileDob] = useState('');
+  const [profileGender, setProfileGender] = useState('');
+  const [profileImageUrl, setProfileImageUrl] = useState('');
+  const [alternateMobile, setAlternateMobile] = useState('');
+  const [mobileOtp, setMobileOtp] = useState('');
+  const [mobileOtpSent, setMobileOtpSent] = useState(false);
   const [addressForm, setAddressForm] = useState(initialAddress);
   const [loading, setLoading] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
+  const [verifyingMobile, setVerifyingMobile] = useState(false);
   const [savingAddress, setSavingAddress] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  const savedMobileDigits = normalizeMobileDigits(profile?.mobile);
+  const currentMobileDigits = normalizeMobileDigits(profileMobile);
+  const mobileChanged = Boolean(savedMobileDigits && currentMobileDigits && savedMobileDigits !== currentMobileDigits);
+  const mobileVerificationRequired = Boolean(!profile?.mobileVerified || mobileChanged);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -45,6 +79,12 @@ export default function CustomerProfilePage() {
         ]);
         setProfile(profileResponse);
         setProfileName(profileResponse?.name || '');
+        setProfileEmail(profileResponse?.email || '');
+        setProfileMobile(profileResponse?.mobile || '');
+        setProfileDob(profileResponse?.dateOfBirth || '');
+        setProfileGender(profileResponse?.gender || '');
+        setProfileImageUrl(profileResponse?.profileImageUrl || '');
+        setAlternateMobile(profileResponse?.alternateMobile || '');
         setAddresses(addressResponse || []);
       } catch (err) {
         if (isCustomerAuthError(err)) {
@@ -70,22 +110,115 @@ export default function CustomerProfilePage() {
     setSavingProfile(true);
     setError('');
     setSuccess('');
+    if (profileMobile && !isValidIndianMobile(profileMobile)) {
+      setError('Enter a valid 10-digit mobile number before saving profile.');
+      setSavingProfile(false);
+      return;
+    }
     try {
-      const updated = await retailService.updateCustomerProfile({ name: profileName });
+      const updated = await retailService.updateCustomerProfile({
+        name: profileName,
+        email: profileEmail,
+        mobile: profileMobile,
+        dateOfBirth: profileDob || null,
+        gender: profileGender,
+        profileImageUrl,
+        alternateMobile
+      });
       setProfile(updated);
-      const nextSession = { ...customerSession, name: updated.name };
+      setProfileName(updated?.name || '');
+      setProfileEmail(updated?.email || '');
+      setProfileMobile(updated?.mobile || '');
+      setProfileDob(updated?.dateOfBirth || '');
+      setProfileGender(updated?.gender || '');
+      setProfileImageUrl(updated?.profileImageUrl || '');
+      setAlternateMobile(updated?.alternateMobile || '');
+      setMobileOtpSent(false);
+      setMobileOtp('');
+      const nextSession = {
+        ...customerSession,
+        name: updated.name,
+        email: updated.email,
+        mobile: updated.mobile,
+        mobileVerified: updated.mobileVerified,
+        profileComplete: updated.profileComplete,
+        missingFields: updated.missingFields || []
+      };
       storeCustomerSession(nextSession);
       setCustomerSession(nextSession);
-      setSuccess('Profile updated.');
+      setSuccess(updated.mobileVerified ? 'Profile saved.' : 'Profile saved. Please verify the new mobile number once.');
     } catch (err) {
       if (isCustomerAuthError(err)) {
         clearCustomerSession();
         setCustomerSession(null);
         return;
       }
-      setError(err.response?.data?.message || 'Unable to save profile.');
+      setError(getApiErrorMessage(err, 'Unable to save profile. Please check the highlighted details and try again.'));
     } finally {
       setSavingProfile(false);
+    }
+  };
+
+  const requestMobileOtp = async () => {
+    setVerifyingMobile(true);
+    setError('');
+    setSuccess('');
+    try {
+      const response = await retailService.sendOtp({ mobile: profileMobile, purpose: 'PROFILE' });
+      setMobileOtpSent(true);
+      setMobileOtp('');
+      setSuccess(response?.message || 'OTP sent for mobile verification.');
+    } catch (err) {
+      if (isCustomerAuthError(err)) {
+        clearCustomerSession();
+        setCustomerSession(null);
+        return;
+      }
+      setError(getApiErrorMessage(err, 'Unable to send mobile OTP. Please enter a valid mobile number.'));
+    } finally {
+      setVerifyingMobile(false);
+    }
+  };
+
+  const verifyMobileOtp = async () => {
+    setVerifyingMobile(true);
+    setError('');
+    setSuccess('');
+    try {
+      const sessionUpdate = await retailService.verifyProfileMobileOtp({ mobile: profileMobile, otp: mobileOtp, purpose: 'PROFILE' });
+      const updatedProfile = await retailService.getCustomerProfile();
+      setProfile(updatedProfile);
+      setProfileName(updatedProfile?.name || '');
+      setProfileEmail(updatedProfile?.email || '');
+      setProfileMobile(updatedProfile?.mobile || '');
+      setProfileDob(updatedProfile?.dateOfBirth || '');
+      setProfileGender(updatedProfile?.gender || '');
+      setProfileImageUrl(updatedProfile?.profileImageUrl || '');
+      setAlternateMobile(updatedProfile?.alternateMobile || '');
+      setMobileOtpSent(false);
+      setMobileOtp('');
+      const nextSession = {
+        ...customerSession,
+        ...sessionUpdate,
+        name: updatedProfile.name,
+        email: updatedProfile.email,
+        mobile: updatedProfile.mobile,
+        mobileVerified: updatedProfile.mobileVerified,
+        profileComplete: updatedProfile.profileComplete,
+        missingFields: updatedProfile.missingFields || []
+      };
+      storeCustomerSession(nextSession);
+      setCustomerSession(nextSession);
+      setSuccess('Mobile verified.');
+    } catch (err) {
+      if (isCustomerAuthError(err)) {
+        clearCustomerSession();
+        setCustomerSession(null);
+        return;
+      }
+      setError(getApiErrorMessage(err, 'Unable to verify mobile OTP. Please check the OTP and try again.'));
+    } finally {
+      setVerifyingMobile(false);
     }
   };
 
@@ -94,6 +227,12 @@ export default function CustomerProfilePage() {
     setSavingAddress(true);
     setError('');
     setSuccess('');
+    const validationError = validateAddressForm(addressForm);
+    if (validationError) {
+      setError(validationError);
+      setSavingAddress(false);
+      return;
+    }
     try {
       const saved = await retailService.addAddress(addressForm);
       setAddresses((current) => [saved, ...current]);
@@ -105,7 +244,7 @@ export default function CustomerProfilePage() {
         setCustomerSession(null);
         return;
       }
-      setError(err.response?.data?.message || 'Unable to save address.');
+      setError(getApiErrorMessage(err, 'Unable to save address. Please check the delivery details.'));
     } finally {
       setSavingAddress(false);
     }
@@ -124,7 +263,7 @@ export default function CustomerProfilePage() {
         setCustomerSession(null);
         return;
       }
-      setError(err.response?.data?.message || 'Unable to remove address.');
+      setError(getApiErrorMessage(err, 'Unable to remove address. Please try again.'));
     }
   };
 
@@ -143,6 +282,9 @@ export default function CustomerProfilePage() {
             <p>Maintain your customer profile, saved Pune delivery addresses, and account access in one place.</p>
           </div>
           <div className="customer-profile-head-actions">
+            {redirectTo ? (
+              <Link className="glow-account-btn glow-account-btn-compact" to={redirectTo}>Continue checkout</Link>
+            ) : null}
             <Link className="ghost-btn compact-btn" to="/orders">My orders</Link>
             <button type="button" className="ghost-btn compact-btn" onClick={logout}>Logout</button>
           </div>
@@ -162,6 +304,22 @@ export default function CustomerProfilePage() {
                 </div>
               </div>
 
+              {mobileVerificationRequired ? (
+                <div className="customer-profile-alert">
+                  <strong>{mobileChanged ? 'Mobile number changed' : 'Verify mobile number'}</strong>
+                  <span>
+                    {mobileChanged
+                      ? 'Save profile first, then verify this new mobile number once.'
+                      : 'Mobile OTP verification is required once for secure checkout.'}
+                  </span>
+                </div>
+              ) : (
+                <div className="customer-profile-alert is-complete">
+                  <strong>Account ready</strong>
+                  <span>Profile details are optional and can be edited anytime.</span>
+                </div>
+              )}
+
               <form className="customer-address-form" onSubmit={saveProfile}>
                 <div className="customer-form-grid">
                   <input
@@ -169,7 +327,40 @@ export default function CustomerProfilePage() {
                     onChange={(event) => setProfileName(event.target.value)}
                     placeholder="Full name"
                   />
-                  <input value={profile?.mobile || ''} readOnly placeholder="Mobile number" />
+                  <input
+                    value={profileEmail}
+                    onChange={(event) => setProfileEmail(event.target.value)}
+                    placeholder="Email address"
+                    type="email"
+                  />
+                  <input
+                    value={profileMobile}
+                    onChange={(event) => setProfileMobile(event.target.value)}
+                    placeholder="Mobile number"
+                  />
+                  <input
+                    value={profileDob}
+                    onChange={(event) => setProfileDob(event.target.value)}
+                    placeholder="Date of birth"
+                    type="date"
+                  />
+                  <select value={profileGender} onChange={(event) => setProfileGender(event.target.value)}>
+                    <option value="">Gender</option>
+                    <option value="Female">Female</option>
+                    <option value="Male">Male</option>
+                    <option value="Other">Other</option>
+                    <option value="Prefer not to say">Prefer not to say</option>
+                  </select>
+                  <input
+                    value={alternateMobile}
+                    onChange={(event) => setAlternateMobile(event.target.value)}
+                    placeholder="Alternate mobile number"
+                  />
+                  <input
+                    value={profileImageUrl}
+                    onChange={(event) => setProfileImageUrl(event.target.value)}
+                    placeholder="Profile image URL"
+                  />
                 </div>
                 <div className="checkout-actions">
                   <button type="submit" className="primary-btn compact-btn" disabled={savingProfile}>
@@ -177,6 +368,32 @@ export default function CustomerProfilePage() {
                   </button>
                 </div>
               </form>
+
+              <div className={`customer-mobile-verification ${mobileVerificationRequired ? '' : 'is-verified'}`}>
+                <div>
+                  <strong>{profile?.mobileVerified ? 'Mobile verified' : 'Mobile OTP verification'}</strong>
+                  <span>{profile?.mobileVerified && !mobileChanged ? profile?.mobile : 'Required before checkout and payment.'}</span>
+                </div>
+                {mobileVerificationRequired && !mobileChanged ? (
+                  <div className="customer-mobile-otp-actions">
+                    <button type="button" className="ghost-btn compact-btn" onClick={requestMobileOtp} disabled={verifyingMobile || !profileMobile}>
+                      {mobileOtpSent ? 'Resend OTP' : 'Send OTP'}
+                    </button>
+                    {mobileOtpSent ? (
+                      <>
+                        <input
+                          value={mobileOtp}
+                          onChange={(event) => setMobileOtp(event.target.value)}
+                          placeholder="OTP"
+                        />
+                        <button type="button" className="primary-btn compact-btn" onClick={verifyMobileOtp} disabled={verifyingMobile || !mobileOtp}>
+                          Verify mobile
+                        </button>
+                      </>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
             </section>
 
             <section className="customer-flow-panel">
@@ -203,7 +420,7 @@ export default function CustomerProfilePage() {
               </div>
 
               <form className="customer-address-form" onSubmit={saveAddress}>
-                <div className="customer-form-grid">
+                <div className="customer-form-grid customer-address-form-grid">
                   <input value={addressForm.label} onChange={(event) => setAddressForm((current) => ({ ...current, label: event.target.value }))} placeholder="Label" />
                   <input value={addressForm.recipientName} onChange={(event) => setAddressForm((current) => ({ ...current, recipientName: event.target.value }))} placeholder="Recipient name" />
                   <input value={addressForm.mobile} onChange={(event) => setAddressForm((current) => ({ ...current, mobile: event.target.value }))} placeholder="Mobile number" />

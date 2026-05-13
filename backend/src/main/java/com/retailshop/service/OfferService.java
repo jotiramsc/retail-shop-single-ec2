@@ -12,6 +12,7 @@ import java.util.UUID;
 
 public interface OfferService {
     OfferResponse createOffer(OfferRequest request);
+    OfferResponse createOfferSilently(OfferRequest request);
     OfferResponse updateOffer(UUID id, OfferRequest request);
     void deleteOffer(UUID id);
     PaginatedResponse<OfferResponse> getActiveOffers(Pageable pageable);
