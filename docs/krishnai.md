@@ -311,6 +311,7 @@ It already covers:
 - WhatsApp order tracking uses a text progress bar and lists being-delivered items in the status card.
 - Products whose names clearly conflict with the selected category are rejected even if stored under that category, preventing bad admin data from leaking into WhatsApp cards.
 - Source-tracked product links use public SPA route `/product/{productId}?campaignId={campaignId}&source={source}`; the storefront records valid campaign/source visits before showing the product.
+- Campaign Studio create form shows validation/API errors next to the Save buttons and scrolls them into view, so blocked submissions are visible without checking Network.
 
 ## External Integrations Present In Code/Config
 

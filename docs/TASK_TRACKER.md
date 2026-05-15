@@ -37,6 +37,7 @@ None
     - Product-name/category conflict guard rejects bad product data such as Necklace-named items in Bangles results.
     - `/product/{productId}` source-tracked links are public SPA routes, record campaign lead visits, and show the product page.
     - Public product listing category filters accept DB codes and display/category aliases.
+    - Campaign Studio create form shows blocked-submit validation/API errors near Save buttons and scrolls them into view.
 
 ## Pending
 

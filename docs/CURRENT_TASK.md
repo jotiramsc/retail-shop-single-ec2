@@ -29,3 +29,4 @@ Implementation:
 - Order tracking uses a text progress bar and shows the being-delivered items.
 - `/product/{productId}` campaign links are public SPA routes, record valid source visits, and render the linked product.
 - Public product category filtering accepts category codes and display/category aliases.
+- Campaign Studio create form shows validation/API errors near the Save buttons and scrolls them into view when a submission is blocked.

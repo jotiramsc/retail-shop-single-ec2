@@ -5433,6 +5433,25 @@ th {
   margin-top: 0.5rem;
 }
 
+.marketing-form-notice {
+  grid-column: 1 / -1;
+  padding: 0.85rem 1rem;
+  border-radius: 14px;
+  font-weight: 700;
+}
+
+.marketing-form-notice.is-error {
+  color: #8f2f20;
+  background: rgba(255, 237, 229, 0.95);
+  border: 1px solid rgba(184, 72, 48, 0.24);
+}
+
+.marketing-form-notice.is-success {
+  color: var(--success);
+  background: rgba(234, 250, 243, 0.95);
+  border: 1px solid rgba(34, 104, 77, 0.22);
+}
+
 .marketing-form-preview-card {
   grid-column: 1 / -1;
   display: grid;

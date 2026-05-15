@@ -263,6 +263,7 @@ export default function CampaignsPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const generationRefreshTimers = useRef({});
+  const createFormNoticeRef = useRef(null);
 
   useEffect(() => {
     if (requestedTab && TABS.some((tab) => tab.value === requestedTab) && requestedTab !== activeTab) {
@@ -408,6 +409,14 @@ export default function CampaignsPage() {
     setSuccess('');
   };
 
+  const showCreateError = (message) => {
+    setSuccess('');
+    setError(message);
+    window.requestAnimationFrame(() => {
+      createFormNoticeRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  };
+
   const handleFilterChange = async (key, value) => {
     const nextFilters = { ...filters, [key]: value };
     setFilters(nextFilters);
@@ -421,41 +430,41 @@ export default function CampaignsPage() {
 
   const handleCreateCampaign = async (generateAfterCreate = false) => {
     if (!form.campaignName.trim()) {
-      setError('Enter a campaign name before saving.');
+      showCreateError('Enter a campaign name before saving.');
       return;
     }
     if (!form.targetPlatforms.length) {
-      setError('Select at least one social platform before creating a campaign.');
+      showCreateError('Select at least one social platform before creating a campaign.');
       return;
     }
     if (form.offerMode === 'ATTACH_EXISTING' && !form.offerId) {
-      setError('Choose an existing offer or switch offer source to No offer.');
+      showCreateError('Choose an existing offer or switch offer source to No offer.');
       return;
     }
     if ((form.offerMode === 'MANUAL' || form.offerMode === 'CREATE') && form.discountType !== 'NONE' && form.discountValue !== '' && Number(form.discountValue) < 0) {
-      setError('Discount value cannot be negative.');
+      showCreateError('Discount value cannot be negative.');
       return;
     }
     if ((form.offerMode === 'MANUAL' || form.offerMode === 'CREATE') && form.discountType === 'PERCENTAGE' && Number(form.discountValue) > 100) {
-      setError('Percentage discount cannot exceed 100.');
+      showCreateError('Percentage discount cannot exceed 100.');
       return;
     }
     if (form.offerMode === 'CREATE') {
       if (form.discountType === 'NONE' || form.discountValue === '') {
-        setError('Choose a discount type and value before creating an active offer.');
+        showCreateError('Choose a discount type and value before creating an active offer.');
         return;
       }
       if (!form.productId && !form.categoryCode) {
-        setError('Choose a category or product for the active offer.');
+        showCreateError('Choose a category or product for the active offer.');
         return;
       }
       if (!form.startDate || !form.endDate) {
-        setError('Start date and end date are required when creating an active offer.');
+        showCreateError('Start date and end date are required when creating an active offer.');
         return;
       }
     }
     if (form.endDate && form.startDate && form.endDate < form.startDate) {
-      setError('End date cannot be earlier than start date.');
+      showCreateError('End date cannot be earlier than start date.');
       return;
     }
     setSubmitting(true);
@@ -480,7 +489,7 @@ export default function CampaignsPage() {
         selectTab('campaigns');
       }
     } catch (requestError) {
-      setError(getApiErrorMessage(requestError, 'Unable to create campaign.'));
+      showCreateError(getApiErrorMessage(requestError, 'Unable to create campaign.'));
     } finally {
       setSubmitting(false);
     }
@@ -1239,6 +1248,15 @@ export default function CampaignsPage() {
                   </p>
                 </div>
               </div>
+              {error || success ? (
+                <div
+                  ref={createFormNoticeRef}
+                  className={`marketing-form-notice ${error ? 'is-error' : 'is-success'}`}
+                  role="status"
+                >
+                  {error || success}
+                </div>
+              ) : null}
               <div className="marketing-form-actions">
                 <button type="button" className="ghost-btn compact-btn" disabled={submitting} onClick={() => handleCreateCampaign(false)}>
                   {submitting ? 'Saving...' : 'Save campaign'}
