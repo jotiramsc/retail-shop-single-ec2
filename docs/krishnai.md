@@ -307,7 +307,7 @@ It already covers:
 - WhatsApp product cards must be filtered against the selected/requested category before sending images or list rows; mismatched search results are discarded and catalog fallback is used.
 - WhatsApp welcome uses quick actions plus a Show More list; product responses avoid repeated shown products for the same category.
 - Products whose names clearly conflict with the selected category are rejected even if stored under that category, preventing bad admin data from leaking into WhatsApp cards.
-- Source-tracked product links use `/product/{productId}?campaignId={campaignId}&source={source}`; the storefront records valid campaign/source visits before showing the product.
+- Source-tracked product links use public SPA route `/product/{productId}?campaignId={campaignId}&source={source}`; the storefront records valid campaign/source visits before showing the product.
 
 ## External Integrations Present In Code/Config
 
