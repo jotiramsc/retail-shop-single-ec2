@@ -306,6 +306,7 @@ It already covers:
 - WhatsApp bot category menus are dynamic: active `product_categories` drive category rows and labels, with live product categories as fallback.
 - WhatsApp product cards must be filtered against the selected/requested category before sending images or list rows; mismatched search results are discarded and catalog fallback is used.
 - WhatsApp welcome uses quick actions plus a Show More list; product responses avoid repeated shown products for the same category.
+- WhatsApp product search sends up to three matching product images before the action list, then shows Details/Add rows plus More Similar for the visible products.
 - Products whose names clearly conflict with the selected category are rejected even if stored under that category, preventing bad admin data from leaking into WhatsApp cards.
 - Source-tracked product links use public SPA route `/product/{productId}?campaignId={campaignId}&source={source}`; the storefront records valid campaign/source visits before showing the product.
 

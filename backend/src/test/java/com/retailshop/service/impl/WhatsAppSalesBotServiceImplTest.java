@@ -41,6 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -462,6 +463,7 @@ class WhatsAppSalesBotServiceImplTest {
                                         .category("Necklace")
                                         .price(BigDecimal.valueOf(2599))
                                         .stockLabel("Available now")
+                                        .imageUrl("https://kpskrishnai.com/api/images/products/necklace.png")
                                         .build()
                         ))
                         .build()
@@ -487,11 +489,13 @@ class WhatsAppSalesBotServiceImplTest {
         ArgumentCaptor<List<WhatsAppInteractiveSection>> sectionCaptor = ArgumentCaptor.forClass(List.class);
         verify(whatsAppMessageService).sendListMessage(any(), any(), any(), any(), sectionCaptor.capture());
         List<WhatsAppInteractiveSection> sections = sectionCaptor.getValue();
-        assertFalse(sections.isEmpty());
-        assertFalse(sections.get(0).options().isEmpty());
+        assertEquals(2, sections.size());
         assertEquals(2, sections.get(0).options().size());
         assertEquals("Pearl Earrings", sections.get(0).options().get(0).title());
         assertEquals("Classic Necklace", sections.get(0).options().get(1).title());
+        assertEquals(3, sections.get(1).options().size());
+        assertTrue(sections.get(1).options().stream().anyMatch(option -> option.title().equals("More Similar")));
+        verify(whatsAppMessageService, times(2)).sendImage(any(), any(), any());
     }
 
     private void mockLeadCapture(String customerName) {

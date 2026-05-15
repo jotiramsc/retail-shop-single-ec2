@@ -24,5 +24,6 @@ Implementation:
 - Product names are checked for category conflicts so a Necklace-named item cannot appear in Bangles results just because stored category is wrong.
 - Repeated same-category searches exclude products already shown in the session.
 - Product details, cart, and order replies use clearer action/status text.
+- Product search replies send up to three matching product images followed by a Details/Add/More Similar action list.
 - `/product/{productId}` campaign links are public SPA routes, record valid source visits, and render the linked product.
 - Public product category filtering accepts category codes and display/category aliases.

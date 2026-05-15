@@ -74,6 +74,7 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
     private static final Duration INBOUND_DEDUP_TTL = Duration.ofMinutes(15);
     private static final Duration BOT_SESSION_TTL = Duration.ofMinutes(45);
     private static final int SHOWN_PRODUCT_HISTORY_CAP = 40;
+    private static final int PRODUCT_IMAGE_SEND_LIMIT = 3;
     private static final Map<String, Instant> RECENT_INBOUND_MESSAGES = new ConcurrentHashMap<>();
     private static final Map<String, BotSession> BOT_SESSIONS = new ConcurrentHashMap<>();
     private static final Set<String> STOP_WORDS = Set.of(
@@ -774,27 +775,51 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
     }
 
     private List<WhatsAppInteractiveSection> productSections(List<OmnichannelProductCardResponse> products) {
-        if (products == null || products.size() <= 1) {
+        if (products == null || products.isEmpty()) {
             return List.of();
         }
 
-        List<WhatsAppInteractiveOption> options = products.stream()
-                .limit(8)
-                .map(product -> {
-                    String productCode = shortProductCode(product);
-                    String title = hasText(product.getName()) ? product.getName() : "Product " + productCode;
-                    return new WhatsAppInteractiveOption(
-                            "VIEW " + productCode,
-                            title,
-                            formatPrice(product.getPrice()) + " | " + defaultString(product.getStockLabel(), "Available")
-                    );
-                })
+        List<OmnichannelProductCardResponse> visibleProducts = products.stream()
+                .limit(PRODUCT_IMAGE_SEND_LIMIT)
                 .toList();
+        List<WhatsAppInteractiveOption> detailOptions = visibleProducts.stream()
+                .map(product -> new WhatsAppInteractiveOption(
+                        "VIEW " + shortProductCode(product),
+                        interactiveTitle(hasText(product.getName()) ? product.getName() : "View Product"),
+                        "Details | " + formatPrice(product.getPrice())
+                ))
+                .toList();
+        List<WhatsAppInteractiveOption> actionOptions = new ArrayList<>();
+        for (OmnichannelProductCardResponse product : visibleProducts) {
+            actionOptions.add(new WhatsAppInteractiveOption(
+                    "BUY " + shortProductCode(product),
+                    interactiveTitle("Add " + firstProductWord(product)),
+                    defaultString(product.getStockLabel(), "Available now")
+            ));
+        }
+        actionOptions.add(new WhatsAppInteractiveOption("MORE", "More Similar", "Show next matching items"));
 
-        if (options.isEmpty()) {
+        if (detailOptions.isEmpty()) {
             return List.of();
         }
-        return List.of(new WhatsAppInteractiveSection("Recommended", options));
+        return List.of(
+                new WhatsAppInteractiveSection("Product Details", detailOptions),
+                new WhatsAppInteractiveSection("Cart and More", actionOptions)
+        );
+    }
+
+    private String firstProductWord(OmnichannelProductCardResponse product) {
+        String name = product == null ? null : product.getName();
+        if (!hasText(name)) {
+            return "Item";
+        }
+        String[] words = name.trim().split("\\s+");
+        return words.length == 0 ? "Item" : words[0];
+    }
+
+    private String interactiveTitle(String value) {
+        String title = defaultString(value, "Product").trim();
+        return title.length() <= 24 ? title : title.substring(0, 23).trim();
     }
 
     private List<WhatsAppInteractiveSection> productDetailSections(OmnichannelProductCardResponse product) {
@@ -1364,7 +1389,7 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
             }
         }
         if (hasProductImage(reply.products())) {
-            mediaResult = sendProductImageIfAvailable(to, reply.products());
+            mediaResult = sendProductImagesIfAvailable(to, reply.products());
             if (!hasInteractiveReply(reply)) {
                 if (mediaResult != null && mediaResult.success()) {
                     return mediaResult;
@@ -1504,23 +1529,30 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
         return products != null && products.stream().anyMatch(product -> hasText(publicImageUrl(product.getImageUrl())));
     }
 
-    private SendResult sendProductImageIfAvailable(String to, List<OmnichannelProductCardResponse> products) {
+    private SendResult sendProductImagesIfAvailable(String to, List<OmnichannelProductCardResponse> products) {
         if (products == null || products.isEmpty()) {
             return null;
         }
-        Optional<OmnichannelProductCardResponse> productWithImage = products.stream()
+        List<OmnichannelProductCardResponse> productsWithImages = products.stream()
                 .filter(product -> hasText(publicImageUrl(product.getImageUrl())))
-                .findFirst();
-        if (productWithImage.isEmpty()) {
+                .limit(PRODUCT_IMAGE_SEND_LIMIT)
+                .toList();
+        if (productsWithImages.isEmpty()) {
             return null;
         }
-        OmnichannelProductCardResponse product = productWithImage.get();
-        MarketingChannelResult result = whatsAppMessageService.sendImage(
-                to,
-                publicImageUrl(product.getImageUrl()),
-                productImageCaption(product)
-        );
-        return new SendResult(result.isSuccess(), result.getResponseId(), result.getErrorMessage());
+        SendResult combined = null;
+        for (OmnichannelProductCardResponse product : productsWithImages) {
+            MarketingChannelResult result = whatsAppMessageService.sendImage(
+                    to,
+                    publicImageUrl(product.getImageUrl()),
+                    productImageCaption(product)
+            );
+            combined = combineSequentialResults(
+                    combined,
+                    new SendResult(result.isSuccess(), result.getResponseId(), result.getErrorMessage())
+            );
+        }
+        return combined;
     }
 
     private SendResult combineTextFallbackWithImageFailure(SendResult textResult, SendResult imageResult) {
