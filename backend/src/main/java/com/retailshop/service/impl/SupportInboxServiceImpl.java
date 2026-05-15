@@ -1,5 +1,7 @@
 package com.retailshop.service.impl;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.retailshop.dto.SupportConversationDetailResponse;
 import com.retailshop.dto.SupportConversationMessageResponse;
 import com.retailshop.dto.SupportConversationSummaryResponse;
@@ -17,12 +19,16 @@ import com.retailshop.service.SupportInboxService;
 import com.retailshop.service.WhatsAppMessageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -35,6 +41,7 @@ public class SupportInboxServiceImpl implements SupportInboxService {
     private final OmnichannelConversationMessageRepository messageRepository;
     private final ProductRepository productRepository;
     private final WhatsAppMessageService whatsAppMessageService;
+    private final ObjectMapper objectMapper;
 
     @Override
     @Transactional(readOnly = true)
@@ -96,15 +103,17 @@ public class SupportInboxServiceImpl implements SupportInboxService {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new BusinessException("Product not found"));
         String productUrl = "https://kpskrishnai.com/product/" + product.getId() + "?source=whatsapp";
-        String message = product.getName() + "\n"
-                + formatPrice(product.getResolvedWebsitePrice()) + " | "
-                + (product.getQuantity() != null && product.getQuantity() > 0 ? "Available now" : "Out of stock") + "\n"
+        String to = customerPhone(conversation);
+        String message = "Suggested by Krishnai support team\n\n"
+                + product.getName() + "\n"
+                + formatProductPrices(product) + "\n"
+                + "Stock: " + stockLabel(product) + "\n"
                 + "View product: " + productUrl;
         String imageUrl = publicImageUrl(product.getImageDataUrl());
         MarketingChannelResult result = hasText(imageUrl)
-                ? whatsAppMessageService.sendImage(customerPhone(conversation), imageUrl, message)
-                : whatsAppMessageService.sendText(customerPhone(conversation), message);
-        saveOutbound(conversation, message, "PRODUCT", result);
+                ? whatsAppMessageService.sendImage(to, imageUrl, message)
+                : whatsAppMessageService.sendText(to, message);
+        saveProductOutbound(conversation, message, product, to, result);
         conversation.setStatus("IN_PROGRESS");
         conversationRepository.save(conversation);
         return toDetail(conversation);
@@ -168,13 +177,42 @@ public class SupportInboxServiceImpl implements SupportInboxService {
     }
 
     private SupportConversationMessageResponse toMessage(OmnichannelConversationMessage message) {
+        Map<String, String> metadata = parseRawPayload(message.getRawPayload());
         return SupportConversationMessageResponse.builder()
                 .id(message.getId())
                 .direction(message.getDirection())
                 .messageType(message.getMessageType())
                 .messageText(message.getMessageText())
+                .productId(metadata.get("productId"))
+                .productName(metadata.get("productName"))
+                .sentBy(metadata.get("sentBy"))
+                .customerMobile(metadata.get("customerMobile"))
+                .whatsAppStatus(metadata.get("whatsAppStatus"))
                 .createdAt(message.getCreatedAt())
                 .build();
+    }
+
+    private void saveProductOutbound(OmnichannelConversation conversation,
+                                     String message,
+                                     Product product,
+                                     String customerMobile,
+                                     MarketingChannelResult result) {
+        OmnichannelConversationMessage outbound = new OmnichannelConversationMessage();
+        outbound.setConversation(conversation);
+        outbound.setDirection("OUTBOUND");
+        outbound.setMessageType("PRODUCT");
+        outbound.setMessageText(message);
+        outbound.setRawPayload(toRawPayload(Map.of(
+                "productId", product.getId().toString(),
+                "productName", defaultString(product.getName(), "Product"),
+                "sentBy", currentAgentName(),
+                "timestamp", LocalDateTime.now().toString(),
+                "customerMobile", safe(customerMobile),
+                "whatsAppStatus", result != null && result.isSuccess() ? "SENT" : "FAILED",
+                "providerMessageId", safe(result == null ? null : result.getResponseId()),
+                "providerError", safe(result == null ? null : result.getErrorMessage())
+        )));
+        messageRepository.save(outbound);
     }
 
     private long unreadCount(OmnichannelConversation conversation) {
@@ -211,6 +249,44 @@ public class SupportInboxServiceImpl implements SupportInboxService {
             return "https://kpskrishnai.com" + trimmed;
         }
         return trimmed.startsWith("api/") ? "https://kpskrishnai.com/" + trimmed : trimmed;
+    }
+
+    private String formatProductPrices(Product product) {
+        BigDecimal sellingPrice = product.getSellingPrice();
+        BigDecimal offerPrice = product.getResolvedWebsitePrice();
+        if (sellingPrice != null && offerPrice != null && sellingPrice.compareTo(offerPrice) != 0) {
+            return "Price: " + formatPrice(sellingPrice) + " | Offer: " + formatPrice(offerPrice);
+        }
+        return "Price: " + formatPrice(offerPrice != null ? offerPrice : sellingPrice);
+    }
+
+    private String stockLabel(Product product) {
+        return product.getQuantity() != null && product.getQuantity() > 0 ? "Available now" : "Out of stock";
+    }
+
+    private String currentAgentName() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        return authentication == null || !hasText(authentication.getName()) ? "support-agent" : authentication.getName();
+    }
+
+    private String toRawPayload(Map<String, String> metadata) {
+        try {
+            return objectMapper.writeValueAsString(metadata);
+        } catch (Exception exception) {
+            return "whatsAppStatus=" + safe(metadata.get("whatsAppStatus")) + ";productId=" + safe(metadata.get("productId"));
+        }
+    }
+
+    private Map<String, String> parseRawPayload(String rawPayload) {
+        if (!hasText(rawPayload) || !rawPayload.trim().startsWith("{")) {
+            return Map.of();
+        }
+        try {
+            return objectMapper.readValue(rawPayload, new TypeReference<>() {
+            });
+        } catch (Exception exception) {
+            return Map.of();
+        }
     }
 
     private String formatPrice(BigDecimal price) {

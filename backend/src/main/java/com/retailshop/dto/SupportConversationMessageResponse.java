@@ -13,5 +13,10 @@ public class SupportConversationMessageResponse {
     private String direction;
     private String messageType;
     private String messageText;
+    private String productId;
+    private String productName;
+    private String sentBy;
+    private String customerMobile;
+    private String whatsAppStatus;
     private LocalDateTime createdAt;
 }

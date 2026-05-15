@@ -1,34 +1,19 @@
 # CURRENT TASK
 
-## WhatsApp Bot Dynamic Category/Menu/Product Flow
+## TASK-17: Support Page Product Suggestion and WhatsApp Forwarding
 
 Status: Completed
 
 Scope:
-- Fix WhatsApp bot category/menu/product flow so categories are loaded dynamically.
-- Use configured `product_categories` first.
-- Fall back to live product categories only when configured categories are absent.
-- Remove static fallback category menu rows.
-- Keep product search/routing dynamic through catalog category values.
-- Fix selected category product leakage, e.g. Bangles must not render Necklace product cards.
-- Improve WhatsApp quick menu, product/detail/cart/order text, repeated product behavior, and campaign source links.
+- Allow the single-agent support inbox to search inventory and forward selected products to the customer's WhatsApp chat.
+- Reuse existing inventory/product data and existing WhatsApp sender integration.
+- Do not create duplicate products or new campaign/support modules.
 
 Implementation:
-- WhatsApp main menu uses the requested flow: View Collections, Offers, Track Order, Talk to Shop, Show More.
-- Category rows are built from active DB category options and live product categories.
-- Category labels prefer DB display names.
-- Product search uses dynamic catalog categories for routing.
-- Product cards are filtered against the selected/requested category before sending images or list rows.
-- If upstream search returns only category mismatches, catalog fallback is used for matching products.
-- Welcome sends quick buttons and a Show More list.
-- Product names are checked for category conflicts so a Necklace-named item cannot appear in Bangles results just because stored category is wrong.
-- Repeated same-category searches exclude products already shown in the session.
-- Product details, cart, and order replies use clearer action/status text.
-- Welcome menu is text-first without a logo image to keep message order clear.
-- Product search replies send a concise intro, up to four matching product images, and then a Details/Add/More Similar action list.
-- Order tracking uses a text progress bar and shows the being-delivered items.
-- `/product/{productId}` campaign links are public SPA routes, record valid source visits, and render the linked product.
-- Public product category filtering accepts category codes and display/category aliases.
-- Campaign Studio create form shows validation/API errors near the Save buttons and scrolls them into view when a submission is blocked.
-- Single-agent WhatsApp support inbox added at `/app/support` using REST polling over existing omnichannel conversation tables.
-- Support inbox supports unread/open counts, conversation search, chat history, WhatsApp replies, product sharing from inventory, and resolved status.
+- Support product picker searches loaded inventory by product name, category, SKU/item code, and simple price filters such as `under 2000`, `above 1000`, or `1000-3000`.
+- Product picker cards show image, name, category, SKU, price/offer price, stock status, and quantity.
+- Send button is labeled "Send to WhatsApp".
+- Out-of-stock products show a warning and require confirmation before sending.
+- WhatsApp product suggestion includes image when a public image URL exists, product name, price/offer price, stock, product link, and "Suggested by Krishnai support team".
+- Conversation history stores productId, product name, sentBy, timestamp, customer mobile, provider message id, and WhatsApp send status in message metadata.
+- Support chat displays product send status in the message history.

@@ -32,7 +32,10 @@ None
     - Welcome uses quick buttons plus a Show More list.
     - Same-category product replies exclude already shown products to avoid repeating the same card.
     - Welcome menu is text-first without a logo image to keep WhatsApp message order clean.
-    - Product search replies send a concise intro, up to four matching images, and then a Details/Add/More Similar action list.
+    - Product search replies send a concise intro, up to five matching images, and then only quick buttons: Details, Add to Cart, Yes show more.
+    - Product search no longer sends the separate collapsed View Products list card that could appear before/after images in the wrong order.
+    - Product image captions include VIEW/ADD reply codes for each shown item.
+    - More product pagination shows the next five items and stops with "No more products available in this category."
     - Order tracking uses a text progress bar and lists being-delivered items in the status card.
     - Product-name/category conflict guard rejects bad product data such as Necklace-named items in Bangles results.
     - `/product/{productId}` source-tracked links are public SPA routes, record campaign lead visits, and show the product page.
@@ -53,6 +56,24 @@ None
     - Admin Support nav shows unread badge via polling.
     - Support page lists/searches WhatsApp chats, shows history, sends replies, sends inventory products, and marks chats resolved.
     - WebSocket is deferred; polling is the first production-safe implementation for the one-agent model.
+- TASK-17: Support Page Product Suggestion and WhatsApp Forwarding
+  - Changed files:
+    - `backend/src/main/java/com/retailshop/dto/SupportConversationMessageResponse.java`
+    - `backend/src/main/java/com/retailshop/service/impl/SupportInboxServiceImpl.java`
+    - `frontend/src/pages/SupportInboxPage.jsx`
+    - `frontend/src/styles/global.css`
+    - `docs/CURRENT_TASK.md`
+    - `docs/TASK_TRACKER.md`
+    - `docs/krishnai.md`
+  - Implementation notes:
+    - Support product picker searches existing inventory by product name, category, SKU/item code, and simple price ranges.
+    - Product cards show image, name, category, SKU, price/offer price, stock status, and quantity.
+    - Admin sends with "Send to WhatsApp"; out-of-stock products require confirmation before sending.
+    - WhatsApp suggestion includes support-team note, product name, price/offer price, stock, product link, and image when public image URL exists.
+    - Product send history stores productId, product name, sentBy, timestamp, customer mobile, provider message id, and WhatsApp status metadata.
+  - Testing:
+    - `backend ./mvnw test` passed: 62 tests.
+    - `frontend npm run build` passed.
 
 ## Pending
 

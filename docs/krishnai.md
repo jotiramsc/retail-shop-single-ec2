@@ -307,12 +307,14 @@ It already covers:
 - WhatsApp product cards must be filtered against the selected/requested category before sending images or list rows; mismatched search results are discarded and catalog fallback is used.
 - WhatsApp welcome uses quick actions plus a Show More list; product responses avoid repeated shown products for the same category.
 - WhatsApp welcome menu is text-first without a logo image, so quick buttons appear before collection/product content.
-- WhatsApp product search sends a short intro first, then up to four matching product images, then a Details/Add/More Similar action list for the visible products.
+- WhatsApp product search sends a short intro first, then up to five matching product images, then quick actions: Details, Add to Cart, Yes show more. It does not send a separate collapsed View Products list card in product results.
+- Product image captions include VIEW/ADD reply codes. The More flow paginates the next five products and stops with a no-more-products message.
 - WhatsApp order tracking uses a text progress bar and lists being-delivered items in the status card.
 - Products whose names clearly conflict with the selected category are rejected even if stored under that category, preventing bad admin data from leaking into WhatsApp cards.
 - Source-tracked product links use public SPA route `/product/{productId}?campaignId={campaignId}&source={source}`; the storefront records valid campaign/source visits before showing the product.
 - Campaign Studio create form shows validation/API errors next to the Save buttons and scrolls them into view, so blocked submissions are visible without checking Network.
 - WhatsApp support inbox is single-agent and reuses omnichannel conversation/message tables. Admins can view unread/open chats, reply to WhatsApp, mark resolved, and send inventory products from `/app/support`. The first implementation uses REST polling instead of WebSocket.
+- Support product suggestions search existing inventory by name, category, SKU, and simple price filters. Product suggestions are sent through the existing WhatsApp sender with image when publicly available, product link, support-team note, and structured conversation metadata for product/status history.
 
 ## External Integrations Present In Code/Config
 

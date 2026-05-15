@@ -22,7 +22,7 @@ import com.retailshop.repository.ProductRepository;
 import com.retailshop.service.MarketingChannelResult;
 import com.retailshop.service.OmnichannelCommerceService;
 import com.retailshop.service.WhatsAppMessageService;
-import com.retailshop.dto.whatsapp.WhatsAppInteractiveSection;
+import com.retailshop.dto.whatsapp.WhatsAppInteractiveOption;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -220,11 +220,13 @@ class WhatsAppSalesBotServiceImplTest {
         ArgumentCaptor<String> textCaptor = ArgumentCaptor.forClass(String.class);
         verify(whatsAppMessageService).sendImage(any(), imageUrlCaptor.capture(), captionCaptor.capture());
         verify(whatsAppMessageService).sendText(any(), textCaptor.capture());
-        assertTrue(textCaptor.getValue().contains("Sharing photos first"));
-        assertTrue(textCaptor.getValue().contains("View Details"));
+        assertTrue(textCaptor.getValue().contains("Showing first"));
+        assertTrue(textCaptor.getValue().contains("Add to Cart"));
         assertEquals("https://kpskrishnai.com/api/images/products/necklace.png", imageUrlCaptor.getValue());
         assertTrue(captionCaptor.getValue().contains("Necklace SB"));
         assertTrue(captionCaptor.getValue().contains("₹12"));
+        assertTrue(captionCaptor.getValue().contains("Reply VIEW"));
+        assertTrue(captionCaptor.getValue().contains("ADD"));
         assertFalse(captionCaptor.getValue().contains("autoAdd"));
         assertFalse(captionCaptor.getValue().contains("utm_"));
     }
@@ -444,9 +446,9 @@ class WhatsAppSalesBotServiceImplTest {
     }
 
     @Test
-    void shouldSendInteractiveListWhenMultipleProductsReturned() {
+    void shouldSendProductImagesAndQuickActionsWhenMultipleProductsReturned() {
         mockLeadCapture("Aarti");
-        when(productRepository.findAll()).thenReturn(List.of(product("Pearl Earrings", "Earrings"), product("Classic Necklace", "Necklace")));
+        when(productRepository.findAll()).thenReturn(List.of(product("Pearl Earrings", "Earrings"), product("Classic Earrings", "Earrings")));
         when(omnichannelCommerceService.searchProducts(any(OmnichannelProductSearchRequest.class))).thenReturn(
                 OmnichannelProductSearchResponse.builder()
                         .query("jewellery")
@@ -462,8 +464,8 @@ class WhatsAppSalesBotServiceImplTest {
                                         .build(),
                                 OmnichannelProductCardResponse.builder()
                                         .productId(UUID.fromString("22222222-2222-2222-2222-222222222222"))
-                                        .name("Classic Necklace")
-                                        .category("Necklace")
+                                        .name("Classic Earrings")
+                                        .category("Earrings")
                                         .price(BigDecimal.valueOf(2599))
                                         .stockLabel("Available now")
                                         .imageUrl("https://kpskrishnai.com/api/images/products/necklace.png")
@@ -475,29 +477,28 @@ class WhatsAppSalesBotServiceImplTest {
                 .success(true)
                 .responseId("image-multi")
                 .build());
-        when(whatsAppMessageService.sendListMessage(any(), any(), any(), any(), any())).thenReturn(MarketingChannelResult.builder()
+        when(whatsAppMessageService.sendReplyButtons(any(), any(), any())).thenReturn(MarketingChannelResult.builder()
                 .success(true)
-                .responseId("list-multi")
+                .responseId("buttons-multi")
                 .build());
         mockOutboundConversation();
 
         var response = service.handleWebhook("""
-                {"from":"919175834000","name":"Aarti","text":"show jewellery under 3000","messageId":"wamid.multi"}
+                {"from":"919175834000","name":"Aarti","text":"show earrings under 3000","messageId":"wamid.multi"}
                 """, null);
 
         assertTrue(response.isAccepted());
         assertTrue(response.isSent());
         assertEquals(2, response.getProductCount());
 
-        ArgumentCaptor<List<WhatsAppInteractiveSection>> sectionCaptor = ArgumentCaptor.forClass(List.class);
-        verify(whatsAppMessageService).sendListMessage(any(), any(), any(), any(), sectionCaptor.capture());
-        List<WhatsAppInteractiveSection> sections = sectionCaptor.getValue();
-        assertEquals(2, sections.size());
-        assertEquals(2, sections.get(0).options().size());
-        assertEquals("Pearl Earrings", sections.get(0).options().get(0).title());
-        assertEquals("Classic Necklace", sections.get(0).options().get(1).title());
-        assertEquals(3, sections.get(1).options().size());
-        assertTrue(sections.get(1).options().stream().anyMatch(option -> option.title().equals("More Similar")));
+        ArgumentCaptor<List<WhatsAppInteractiveOption>> buttonCaptor = ArgumentCaptor.forClass(List.class);
+        verify(whatsAppMessageService).sendReplyButtons(any(), any(), buttonCaptor.capture());
+        List<WhatsAppInteractiveOption> buttons = buttonCaptor.getValue();
+        assertEquals(3, buttons.size());
+        assertEquals("Details", buttons.get(0).title());
+        assertEquals("Add to Cart", buttons.get(1).title());
+        assertEquals("Yes, show more", buttons.get(2).title());
+        verify(whatsAppMessageService, never()).sendListMessage(any(), any(), any(), any(), any());
         verify(whatsAppMessageService, times(2)).sendImage(any(), any(), any());
     }
 

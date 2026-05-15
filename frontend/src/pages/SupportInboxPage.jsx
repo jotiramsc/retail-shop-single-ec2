@@ -7,6 +7,33 @@ import { getApiErrorMessage } from '../utils/validation';
 
 const STATUS_OPTIONS = ['', 'OPEN', 'IN_PROGRESS', 'RESOLVED'];
 
+const productPrice = (product) => Number(product.websitePrice || product.sellingPrice || 0);
+
+const parsePriceFilter = (query) => {
+  const normalized = query.toLowerCase();
+  const range = normalized.match(/(?:rs|₹)?\s*(\d{2,7})\s*(?:-|to)\s*(?:rs|₹)?\s*(\d{2,7})/);
+  if (range) {
+    return { min: Math.min(Number(range[1]), Number(range[2])), max: Math.max(Number(range[1]), Number(range[2])) };
+  }
+  const max = normalized.match(/(?:under|below|less than|upto|up to|<)\s*(?:rs|₹)?\s*(\d{2,7})/);
+  if (max) {
+    return { max: Number(max[1]) };
+  }
+  const min = normalized.match(/(?:above|over|more than|>)\s*(?:rs|₹)?\s*(\d{2,7})/);
+  if (min) {
+    return { min: Number(min[1]) };
+  }
+  return {};
+};
+
+const stripPriceTerms = (query) => query
+  .replace(/(?:rs|₹)?\s*\d{2,7}\s*(?:-|to)\s*(?:rs|₹)?\s*\d{2,7}/gi, ' ')
+  .replace(/(?:under|below|less than|upto|up to|above|over|more than|<|>)\s*(?:rs|₹)?\s*\d{2,7}/gi, ' ')
+  .replace(/\s+/g, ' ')
+  .trim();
+
+const stockLabel = (product) => Number(product.quantity || 0) > 0 ? 'Available now' : 'Out of stock';
+
 export default function SupportInboxPage() {
   const [summary, setSummary] = useState({ openCount: 0, unreadCount: 0 });
   const [conversations, setConversations] = useState([]);
@@ -69,9 +96,17 @@ export default function SupportInboxPage() {
   }, [toast]);
 
   const filteredProducts = useMemo(() => {
-    const query = productSearch.trim().toLowerCase();
+    const priceFilter = parsePriceFilter(productSearch);
+    const query = stripPriceTerms(productSearch).toLowerCase();
     return products
-      .filter((product) => !query || [product.name, product.category, product.sku].some((value) => String(value || '').toLowerCase().includes(query)))
+      .filter((product) => {
+        const price = productPrice(product);
+        const matchesText = !query || [product.name, product.category, product.sku]
+          .some((value) => String(value || '').toLowerCase().includes(query));
+        const matchesMin = priceFilter.min == null || price >= priceFilter.min;
+        const matchesMax = priceFilter.max == null || price <= priceFilter.max;
+        return matchesText && matchesMin && matchesMax;
+      })
       .slice(0, 30);
   }, [productSearch, products]);
 
@@ -108,14 +143,20 @@ export default function SupportInboxPage() {
     }
   };
 
-  const sendProduct = async (productId) => {
+  const sendProduct = async (product) => {
     if (!selected?.id) {
       return;
+    }
+    if (Number(product.quantity || 0) <= 0) {
+      const shouldSend = window.confirm(`${product.name} is out of stock. Send this suggestion anyway?`);
+      if (!shouldSend) {
+        return;
+      }
     }
     setLoading(true);
     setError('');
     try {
-      const detail = await retailService.sendSupportProduct(selected.id, { productId });
+      const detail = await retailService.sendSupportProduct(selected.id, { productId: product.id });
       setSelected(detail);
       setShowProductPicker(false);
       setSuccess('Product sent to WhatsApp.');
@@ -197,6 +238,12 @@ export default function SupportInboxPage() {
                   <div key={message.id} className={`support-message ${message.direction === 'OUTBOUND' ? 'is-outbound' : 'is-inbound'}`}>
                     <span>{message.messageType}</span>
                     <p>{message.messageText}</p>
+                    {message.messageType === 'PRODUCT' ? (
+                      <div className={`support-message-status ${message.whatsAppStatus === 'SENT' ? 'is-sent' : 'is-failed'}`}>
+                        <strong>{message.productName || 'Product suggestion'}</strong>
+                        <small>{message.whatsAppStatus || 'SAVED'} · {message.sentBy || 'support-agent'} · {message.customerMobile || selected.phone}</small>
+                      </div>
+                    ) : null}
                     <small>{formatDate(message.createdAt)}</small>
                   </div>
                 ))}
@@ -223,17 +270,23 @@ export default function SupportInboxPage() {
               <h3>Send Product</h3>
               <button type="button" className="ghost-btn compact-btn" onClick={() => setShowProductPicker(false)}>Close</button>
             </div>
-            <input placeholder="Search inventory" value={productSearch} onChange={(event) => setProductSearch(event.target.value)} />
+            <input placeholder="Search by name, category, SKU, under 2000, 1000-3000" value={productSearch} onChange={(event) => setProductSearch(event.target.value)} />
             <div className="support-product-grid">
               {filteredProducts.map((product) => (
                 <article key={product.id} className="support-product-card">
                   {product.imageDataUrl ? <img src={product.imageDataUrl} alt={product.name} /> : <div className="support-product-placeholder" />}
                   <strong>{product.name}</strong>
-                  <span>{product.category}</span>
-                  <p>{currency(product.websitePrice || product.sellingPrice)} · Stock {product.quantity ?? 0}</p>
-                  <button type="button" className="primary-btn compact-btn" disabled={loading} onClick={() => sendProduct(product.id)}>Send</button>
+                  <span>{product.category} · {product.sku}</span>
+                  <p>
+                    {product.websitePrice && product.sellingPrice && Number(product.websitePrice) !== Number(product.sellingPrice)
+                      ? <><s>{currency(product.sellingPrice)}</s> <b>{currency(product.websitePrice)}</b></>
+                      : currency(product.websitePrice || product.sellingPrice)}
+                  </p>
+                  <p className={Number(product.quantity || 0) > 0 ? 'stock-ok' : 'stock-warning'}>{stockLabel(product)} · Qty {product.quantity ?? 0}</p>
+                  <button type="button" className="primary-btn compact-btn" disabled={loading} onClick={() => sendProduct(product)}>Send to WhatsApp</button>
                 </article>
               ))}
+              {!filteredProducts.length ? <p className="page-description">No inventory products match this search.</p> : null}
             </div>
           </div>
         </div>

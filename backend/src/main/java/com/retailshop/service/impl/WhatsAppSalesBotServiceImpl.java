@@ -74,7 +74,7 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
     private static final Duration INBOUND_DEDUP_TTL = Duration.ofMinutes(15);
     private static final Duration BOT_SESSION_TTL = Duration.ofMinutes(45);
     private static final int SHOWN_PRODUCT_HISTORY_CAP = 40;
-    private static final int PRODUCT_IMAGE_SEND_LIMIT = 4;
+    private static final int PRODUCT_IMAGE_SEND_LIMIT = 5;
     private static final Map<String, Instant> RECENT_INBOUND_MESSAGES = new ConcurrentHashMap<>();
     private static final Map<String, BotSession> BOT_SESSIONS = new ConcurrentHashMap<>();
     private static final Set<String> STOP_WORDS = Set.of(
@@ -488,9 +488,24 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
                     understanding.category()
             );
         }
+        if (moreRequested && productCards.isEmpty()) {
+            return new BotReply(
+                    "No more products available in this category.",
+                    0,
+                    List.of(),
+                    null,
+                    null,
+                    List.of(
+                            new WhatsAppInteractiveOption("View Collections", "Collections", "Browse categories"),
+                            new WhatsAppInteractiveOption("Talk to Shop", "Talk to Shop", "Ask store")
+                    ),
+                    List.of(),
+                    null,
+                    null
+            );
+        }
         products = withProductCards(products, productCards);
-        List<WhatsAppInteractiveSection> productSections = productSections(productCards);
-        List<WhatsAppInteractiveOption> productButtons = productSections.isEmpty() ? productActionButtons(productCards) : List.of();
+        List<WhatsAppInteractiveOption> productButtons = productActionButtons(productCards);
         return new BotReply(
                 formatProductReply(products, understanding),
                 productCards.size(),
@@ -498,9 +513,9 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
                 null,
                 null,
                 productButtons,
-                productSections,
-                productSections.isEmpty() ? null : defaultString(displayCategoryName(understanding.category()), "Recommended Products"),
-                productSections.isEmpty() ? null : "View Products"
+                List.of(),
+                null,
+                null
         );
     }
 
@@ -768,8 +783,8 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
         String productCode = shortProductCode(first);
         return List.of(
                 new WhatsAppInteractiveOption("VIEW " + productCode, "Details", "Price, stock, offers"),
-                new WhatsAppInteractiveOption("BUY " + productCode, "Add to Cart", "Continue shopping"),
-                new WhatsAppInteractiveOption("MORE", "More Options", "Show similar products")
+                new WhatsAppInteractiveOption("BUY " + productCode, "Add to Cart", "Add first item"),
+                new WhatsAppInteractiveOption("MORE", "Yes, show more", "Next 5 products")
         );
     }
 
@@ -1050,7 +1065,7 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
             if (products.size() != 1) {
                 intro.append("es");
             }
-            intro.append(". Sharing photos first, then actions below.");
+            intro.append(". Showing first ").append(Math.min(products.size(), PRODUCT_IMAGE_SEND_LIMIT)).append(" products.");
             if (products.size() > 1) {
                 intro.append("\n\nOther close picks: ");
                 intro.append(products.stream()
@@ -1060,7 +1075,7 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
                         .filter(this::hasText)
                         .collect(java.util.stream.Collectors.joining(", ")));
             }
-            intro.append("\n\nButtons: View Details | Add to Cart | More Similar");
+            intro.append("\n\nAfter these products, choose Details, Add to Cart, or Yes, show more. Reply No to stop.");
             return intro.toString().trim();
         }
 
@@ -1091,7 +1106,7 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
                     .append(shortProductCode(product))
                     .append(" for full details.\n\n");
         }
-        reply.append("Want more options? Send category + budget, like \"necklace under 1500\".");
+        reply.append("Do you want to see more products? Tap Yes, show more or reply No.");
         return reply.toString().trim();
     }
 
@@ -1651,7 +1666,7 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
         lines.add(index + "/" + total + " " + defaultString(product.getName(), "Product"));
         lines.add(formatPrice(product.getPrice()) + " | " + defaultString(product.getStockLabel(), "Available"));
         lines.add(productSalesPitch(product));
-        lines.add("Use the menu below for details, cart, or similar picks.");
+        lines.add("Reply VIEW " + shortProductCode(product) + " for details or ADD " + shortProductCode(product) + " for cart.");
         String caption = String.join("\n", lines);
         return caption.length() > 1000 ? caption.substring(0, 997) + "..." : caption;
     }
@@ -1882,6 +1897,9 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
     private boolean isMoreRequest(String normalizedText) {
         return "more".equals(normalizedText)
                 || "show more".equals(normalizedText)
+                || "yes".equals(normalizedText)
+                || "yes show more".equals(normalizedText)
+                || "yes, show more".equals(normalizedText)
                 || "more options".equals(normalizedText)
                 || "similar".equals(normalizedText)
                 || "similar items".equals(normalizedText);
