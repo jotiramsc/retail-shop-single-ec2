@@ -7,6 +7,7 @@ import CampaignsPage from './pages/CampaignsPage';
 import ReportsPage from './pages/ReportsPage';
 import SalespersonSalesPage from './pages/SalespersonSalesPage';
 import SiteInteractionsPage from './pages/SiteInteractionsPage';
+import SupportInboxPage from './pages/SupportInboxPage';
 import LoginPage from './pages/LoginPage';
 import ReceiptSettingsPage from './pages/ReceiptSettingsPage';
 import UsersPage from './pages/UsersPage';
@@ -31,6 +32,7 @@ const navItems = [
   { to: '/app', label: 'Billing', permission: 'BILLING' },
   { to: '/app/products', label: 'Inventory', permission: 'PRODUCTS' },
   { to: '/app/customers', label: 'Customers', permission: 'CUSTOMERS' },
+  { to: '/app/support', label: 'Support', permission: 'CUSTOMERS', badgeKey: 'supportUnread' },
   { to: '/app/campaigns', label: 'Campaign Studio', permission: ['MARKETING_AUTOMATION', 'OFFERS'] },
   { to: '/app/reports', label: 'Reports', permission: 'REPORTS' },
   { to: '/app/salesperson-sales', label: 'Salesperson Sales', permission: 'SALESPERSON_SALES' },
@@ -42,6 +44,7 @@ const navItems = [
 function ProtectedApp({ auth, onLogout, branding }) {
   const location = useLocation();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [supportSummary, setSupportSummary] = useState({ unreadCount: 0 });
   const permissions = Array.isArray(auth.permissions) ? auth.permissions : [];
   const canAccess = (permission) => {
     if (auth.role === 'ADMIN' || auth.role === 'OWNER') {
@@ -58,6 +61,25 @@ function ProtectedApp({ auth, onLogout, branding }) {
   useEffect(() => {
     setIsMenuOpen(false);
   }, [location.pathname, location.search]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadSupportSummary = () => {
+      retailService.getSupportSummary()
+        .then((summary) => {
+          if (!cancelled) {
+            setSupportSummary(summary || { unreadCount: 0 });
+          }
+        })
+        .catch(() => {});
+    };
+    loadSupportSummary();
+    const timer = window.setInterval(loadSupportSummary, 8000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, []);
 
   return (
     <div className="app-shell">
@@ -104,7 +126,10 @@ function ProtectedApp({ auth, onLogout, branding }) {
               className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
               onClick={() => setIsMenuOpen(false)}
             >
-              {item.label}
+              <span>{item.label}</span>
+              {item.badgeKey === 'supportUnread' && Number(supportSummary.unreadCount || 0) > 0 ? (
+                <span className="nav-item-badge">{supportSummary.unreadCount}</span>
+              ) : null}
             </NavLink>
           ))}
         </nav>
@@ -126,6 +151,7 @@ function ProtectedApp({ auth, onLogout, branding }) {
           <Route index element={canAccess('BILLING') ? <BillingPage /> : <Navigate to={firstAllowedRoute} replace />} />
           <Route path="products" element={canAccess('PRODUCTS') ? <ProductsPage /> : <Navigate to={firstAllowedRoute} replace />} />
           <Route path="customers" element={canAccess('CUSTOMERS') ? <CustomersPage /> : <Navigate to={firstAllowedRoute} replace />} />
+          <Route path="support" element={canAccess('CUSTOMERS') ? <SupportInboxPage /> : <Navigate to={firstAllowedRoute} replace />} />
           <Route path="offers" element={canAccess(['MARKETING_AUTOMATION', 'OFFERS']) ? <Navigate to="/app/campaigns?tab=offers" replace /> : <Navigate to={firstAllowedRoute} replace />} />
           <Route path="campaigns" element={canAccess(['MARKETING_AUTOMATION', 'OFFERS']) ? <CampaignsPage /> : <Navigate to={firstAllowedRoute} replace />} />
           <Route path="reports" element={canAccess('REPORTS') ? <ReportsPage /> : <Navigate to={firstAllowedRoute} replace />} />

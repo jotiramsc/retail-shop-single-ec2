@@ -30,3 +30,5 @@ Implementation:
 - `/product/{productId}` campaign links are public SPA routes, record valid source visits, and render the linked product.
 - Public product category filtering accepts category codes and display/category aliases.
 - Campaign Studio create form shows validation/API errors near the Save buttons and scrolls them into view when a submission is blocked.
+- Single-agent WhatsApp support inbox added at `/app/support` using REST polling over existing omnichannel conversation tables.
+- Support inbox supports unread/open counts, conversation search, chat history, WhatsApp replies, product sharing from inventory, and resolved status.

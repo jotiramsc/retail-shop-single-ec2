@@ -38,6 +38,21 @@ None
     - `/product/{productId}` source-tracked links are public SPA routes, record campaign lead visits, and show the product page.
     - Public product listing category filters accept DB codes and display/category aliases.
     - Campaign Studio create form shows blocked-submit validation/API errors near Save buttons and scrolls them into view.
+- Single-Agent WhatsApp Support Inbox
+  - Changed files:
+    - `backend/src/main/java/com/retailshop/controller/SupportInboxController.java`
+    - `backend/src/main/java/com/retailshop/service/SupportInboxService.java`
+    - `backend/src/main/java/com/retailshop/service/impl/SupportInboxServiceImpl.java`
+    - `backend/src/main/java/com/retailshop/dto/Support*.java`
+    - `frontend/src/pages/SupportInboxPage.jsx`
+    - `frontend/src/App.jsx`
+    - `frontend/src/services/retailService.js`
+    - `frontend/src/styles/global.css`
+  - Implementation notes:
+    - Uses existing `omnichannel_conversations` and `omnichannel_conversation_messages`.
+    - Admin Support nav shows unread badge via polling.
+    - Support page lists/searches WhatsApp chats, shows history, sends replies, sends inventory products, and marks chats resolved.
+    - WebSocket is deferred; polling is the first production-safe implementation for the one-agent model.
 
 ## Pending
 

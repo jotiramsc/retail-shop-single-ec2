@@ -1,0 +1,243 @@
+import { useEffect, useMemo, useState } from 'react';
+import PageHeader from '../components/PageHeader';
+import Panel from '../components/Panel';
+import { retailService } from '../services/retailService';
+import { currency, formatDate } from '../utils/format';
+import { getApiErrorMessage } from '../utils/validation';
+
+const STATUS_OPTIONS = ['', 'OPEN', 'IN_PROGRESS', 'RESOLVED'];
+
+export default function SupportInboxPage() {
+  const [summary, setSummary] = useState({ openCount: 0, unreadCount: 0 });
+  const [conversations, setConversations] = useState([]);
+  const [selected, setSelected] = useState(null);
+  const [products, setProducts] = useState([]);
+  const [filters, setFilters] = useState({ status: '', search: '' });
+  const [replyText, setReplyText] = useState('');
+  const [showProductPicker, setShowProductPicker] = useState(false);
+  const [productSearch, setProductSearch] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [toast, setToast] = useState('');
+
+  const loadSummary = async () => {
+    const next = await retailService.getSupportSummary();
+    setSummary((current) => {
+      if (Number(next?.unreadCount || 0) > Number(current?.unreadCount || 0)) {
+        setToast('New WhatsApp support message');
+      }
+      return next || { openCount: 0, unreadCount: 0 };
+    });
+  };
+
+  const loadConversations = async (nextFilters = filters) => {
+    const rows = await retailService.getSupportConversations(nextFilters);
+    setConversations(rows || []);
+  };
+
+  const loadSelected = async (conversationId = selected?.id) => {
+    if (!conversationId) {
+      return null;
+    }
+    const detail = await retailService.getSupportConversation(conversationId);
+    setSelected(detail);
+    return detail;
+  };
+
+  useEffect(() => {
+    Promise.all([
+      loadSummary(),
+      loadConversations(),
+      retailService.getProducts({ page: 0, size: 250 }).then((page) => setProducts(page.items || []))
+    ]).catch((requestError) => setError(getApiErrorMessage(requestError, 'Unable to load support inbox.')));
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      Promise.all([loadSummary(), loadConversations(), loadSelected()]).catch(() => {});
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [filters, selected?.id]);
+
+  useEffect(() => {
+    if (!toast) {
+      return undefined;
+    }
+    const timeout = window.setTimeout(() => setToast(''), 4500);
+    return () => window.clearTimeout(timeout);
+  }, [toast]);
+
+  const filteredProducts = useMemo(() => {
+    const query = productSearch.trim().toLowerCase();
+    return products
+      .filter((product) => !query || [product.name, product.category, product.sku].some((value) => String(value || '').toLowerCase().includes(query)))
+      .slice(0, 30);
+  }, [productSearch, products]);
+
+  const updateFilters = async (patch) => {
+    const next = { ...filters, ...patch };
+    setFilters(next);
+    setError('');
+    await loadConversations(next);
+  };
+
+  const openConversation = async (conversationId) => {
+    setError('');
+    setSuccess('');
+    setSelected(await retailService.getSupportConversation(conversationId));
+  };
+
+  const sendReply = async (event) => {
+    event.preventDefault();
+    if (!selected?.id || !replyText.trim()) {
+      return;
+    }
+    setLoading(true);
+    setError('');
+    try {
+      const detail = await retailService.sendSupportReply(selected.id, { message: replyText.trim() });
+      setSelected(detail);
+      setReplyText('');
+      setSuccess('Reply sent to WhatsApp.');
+      await Promise.all([loadSummary(), loadConversations()]);
+    } catch (requestError) {
+      setError(getApiErrorMessage(requestError, 'Unable to send reply.'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const sendProduct = async (productId) => {
+    if (!selected?.id) {
+      return;
+    }
+    setLoading(true);
+    setError('');
+    try {
+      const detail = await retailService.sendSupportProduct(selected.id, { productId });
+      setSelected(detail);
+      setShowProductPicker(false);
+      setSuccess('Product sent to WhatsApp.');
+      await Promise.all([loadSummary(), loadConversations()]);
+    } catch (requestError) {
+      setError(getApiErrorMessage(requestError, 'Unable to send product.'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resolveConversation = async () => {
+    if (!selected?.id) {
+      return;
+    }
+    setLoading(true);
+    setError('');
+    try {
+      const detail = await retailService.resolveSupportConversation(selected.id);
+      setSelected(detail);
+      setSuccess('Conversation marked resolved.');
+      await Promise.all([loadSummary(), loadConversations()]);
+    } catch (requestError) {
+      setError(getApiErrorMessage(requestError, 'Unable to resolve conversation.'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="page support-inbox-page">
+      <PageHeader
+        eyebrow="WhatsApp Support"
+        title="Single-agent support inbox"
+        description="Handle customer handoffs, reply on WhatsApp, share products from inventory, and close resolved chats."
+      />
+
+      {toast ? <div className="support-toast">{toast}</div> : null}
+      {error ? <p className="error-text">{error}</p> : null}
+      {success ? <p className="success-text">{success}</p> : null}
+
+      <div className="support-summary-row">
+        <div><span>Open chats</span><strong>{summary.openCount || 0}</strong></div>
+        <div><span>Unread messages</span><strong>{summary.unreadCount || 0}</strong></div>
+      </div>
+
+      <div className="support-grid">
+        <Panel title="Customer chats" subtitle="Search WhatsApp conversations by phone, name, or latest message.">
+          <div className="support-filter-row">
+            <input placeholder="Search phone or name" value={filters.search} onChange={(event) => updateFilters({ search: event.target.value })} />
+            <select value={filters.status} onChange={(event) => updateFilters({ status: event.target.value })}>
+              {STATUS_OPTIONS.map((status) => <option key={status || 'ALL'} value={status}>{status || 'All statuses'}</option>)}
+            </select>
+          </div>
+          <div className="support-conversation-list">
+            {conversations.map((conversation) => (
+              <button
+                key={conversation.id}
+                type="button"
+                className={`support-conversation-card ${selected?.id === conversation.id ? 'is-active' : ''}`}
+                onClick={() => openConversation(conversation.id)}
+              >
+                <strong>{conversation.customerName}</strong>
+                <span>{conversation.phone}</span>
+                <p>{conversation.latestMessage || 'No message text yet'}</p>
+                <small>{conversation.status} · {formatDate(conversation.updatedAt)}</small>
+                {conversation.unreadCount ? <em>{conversation.unreadCount}</em> : null}
+              </button>
+            ))}
+            {!conversations.length ? <p className="page-description">No support conversations found.</p> : null}
+          </div>
+        </Panel>
+
+        <Panel title={selected ? selected.customerName : 'Live chat'} subtitle={selected ? `${selected.phone} · ${selected.status}` : 'Open a WhatsApp conversation to reply.'}>
+          {selected ? (
+            <>
+              <div className="support-chat-window">
+                {(selected.messages || []).map((message) => (
+                  <div key={message.id} className={`support-message ${message.direction === 'OUTBOUND' ? 'is-outbound' : 'is-inbound'}`}>
+                    <span>{message.messageType}</span>
+                    <p>{message.messageText}</p>
+                    <small>{formatDate(message.createdAt)}</small>
+                  </div>
+                ))}
+              </div>
+              <form className="support-reply-box" onSubmit={sendReply}>
+                <textarea value={replyText} onChange={(event) => setReplyText(event.target.value)} placeholder="Type WhatsApp reply..." />
+                <div>
+                  <button type="button" className="ghost-btn compact-btn" disabled={loading} onClick={() => setShowProductPicker(true)}>Send Product</button>
+                  <button type="button" className="ghost-btn compact-btn" disabled={loading || selected.status === 'RESOLVED'} onClick={resolveConversation}>Mark Resolved</button>
+                  <button type="submit" className="primary-btn compact-btn" disabled={loading || !replyText.trim()}>Reply</button>
+                </div>
+              </form>
+            </>
+          ) : (
+            <p className="page-description">New WhatsApp handoffs appear here automatically while this page is open.</p>
+          )}
+        </Panel>
+      </div>
+
+      {showProductPicker ? (
+        <div className="support-product-modal" role="dialog" aria-modal="true">
+          <div className="support-product-dialog">
+            <div className="support-dialog-head">
+              <h3>Send Product</h3>
+              <button type="button" className="ghost-btn compact-btn" onClick={() => setShowProductPicker(false)}>Close</button>
+            </div>
+            <input placeholder="Search inventory" value={productSearch} onChange={(event) => setProductSearch(event.target.value)} />
+            <div className="support-product-grid">
+              {filteredProducts.map((product) => (
+                <article key={product.id} className="support-product-card">
+                  {product.imageDataUrl ? <img src={product.imageDataUrl} alt={product.name} /> : <div className="support-product-placeholder" />}
+                  <strong>{product.name}</strong>
+                  <span>{product.category}</span>
+                  <p>{currency(product.websitePrice || product.sellingPrice)} · Stock {product.quantity ?? 0}</p>
+                  <button type="button" className="primary-btn compact-btn" disabled={loading} onClick={() => sendProduct(product.id)}>Send</button>
+                </article>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}

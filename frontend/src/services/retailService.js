@@ -76,6 +76,18 @@ export const retailService = {
   getProductCategoryOptions: () => api.get('/product-categories/options').then((res) => res.data),
   createProductCategory: (payload) => api.post('/product-categories', payload).then((res) => res.data),
   updateProductCategory: (id, payload) => api.put(`/product-categories/${id}`, payload).then((res) => res.data),
+  getSupportSummary: () => api.get('/support/summary').then((res) => res.data),
+  getSupportConversations: ({ status, search } = {}) => {
+    const params = new URLSearchParams();
+    if (status) params.set('status', status);
+    if (search) params.set('search', search);
+    const query = params.toString();
+    return api.get(`/support/conversations${query ? `?${query}` : ''}`).then((res) => res.data);
+  },
+  getSupportConversation: (conversationId) => api.get(`/support/conversations/${conversationId}`).then((res) => res.data),
+  sendSupportReply: (conversationId, payload) => api.post(`/support/conversations/${conversationId}/reply`, payload).then((res) => res.data),
+  sendSupportProduct: (conversationId, payload) => api.post(`/support/conversations/${conversationId}/send-product`, payload).then((res) => res.data),
+  resolveSupportConversation: (conversationId) => api.patch(`/support/conversations/${conversationId}/resolve`).then((res) => res.data),
   getCustomers: (params) => api.get(`/customers?${buildPageParams(params)}`).then((res) => res.data),
   searchCustomers: (query) => api.get(`/customers/search?q=${encodeURIComponent(query)}`).then((res) => res.data),
   createCustomer: (payload) => api.post('/customers', payload).then((res) => res.data),
