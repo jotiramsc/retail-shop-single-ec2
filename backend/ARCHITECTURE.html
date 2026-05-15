@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Retail Shop Backend Architecture</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: #f4f6fb;
+      color: #1f2937;
+    }
+    .wrap {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+    .hero {
+      background: linear-gradient(135deg, #4f46e5, #7c3aed);
+      color: #fff;
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 8px 20px rgba(31, 41, 55, 0.18);
+      margin-bottom: 20px;
+    }
+    .hero h1 { margin: 0 0 8px; font-size: 30px; }
+    .hero p { margin: 0; opacity: 0.95; }
+    .legend {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 10px;
+      margin: 14px 0 0;
+    }
+    .chip {
+      background: rgba(255,255,255,0.2);
+      border: 1px solid rgba(255,255,255,0.35);
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 13px;
+    }
+    .layer {
+      background: #fff;
+      border-radius: 10px;
+      border: 1px solid #e5e7eb;
+      margin-bottom: 14px;
+      overflow: hidden;
+    }
+    .layer h2 {
+      margin: 0;
+      padding: 12px 14px;
+      font-size: 17px;
+      background: #eef2ff;
+      color: #312e81;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 10px;
+      padding: 12px;
+    }
+    .card {
+      border: 1px solid #e5e7eb;
+      border-left: 4px solid #6366f1;
+      border-radius: 8px;
+      padding: 10px;
+      background: #fff;
+    }
+    .card b { color: #3730a3; }
+    .flow {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+      padding: 12px;
+      margin-top: 6px;
+    }
+    .flow h3 {
+      margin: 0 0 8px;
+      color: #111827;
+      font-size: 16px;
+    }
+    code {
+      background: #f3f4f6;
+      border-radius: 4px;
+      padding: 2px 5px;
+      font-size: 12px;
+    }
+    .path {
+      font-family: Menlo, Consolas, monospace;
+      font-size: 12px;
+      color: #4b5563;
+      margin-top: 6px;
+    }
+    footer {
+      color: #6b7280;
+      font-size: 12px;
+      text-align: center;
+      margin-top: 18px;
+      padding-bottom: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero">
+      <h1>Retail Shop Backend - Architecture</h1>
+      <p>Spring Boot 3.3.5 | Java 17 | PostgreSQL | Redis | Omnichannel + WhatsApp AI</p>
+      <div class="legend">
+        <div class="chip">Controllers: REST entrypoints</div>
+        <div class="chip">Services: domain/business logic</div>
+        <div class="chip">Repositories: JPA persistence</div>
+        <div class="chip">Integrations: Razorpay, Meta, Gupshup, OpenAI, AWS</div>
+      </div>
+    </section>
+
+    <section class="layer">
+      <h2>1) Client / Channel Layer</h2>
+      <div class="cards">
+        <div class="card"><b>Web Storefront</b><div>Catalog, cart, checkout, customer account.</div></div>
+        <div class="card"><b>Admin UI</b><div>Products, billing, campaigns, reports, staff controls.</div></div>
+        <div class="card"><b>WhatsApp</b><div>Template messages, bot conversations, order notifications.</div></div>
+        <div class="card"><b>Meta / Social</b><div>Lead capture and webhook event intake.</div></div>
+      </div>
+    </section>
+
+    <section class="layer">
+      <h2>2) API + Security Layer</h2>
+      <div class="cards">
+        <div class="card"><b>Controllers</b><div><code>/api/products</code>, <code>/api/order</code>, <code>/api/auth</code>, <code>/api/whatsapp/webhook</code>.</div><div class="path">src/main/java/com/retailshop/controller</div></div>
+        <div class="card"><b>JWT Security</b><div>Separate staff/customer filters and token services.</div><div class="path">SecurityConfig, StaffJwtFilter, CustomerJwtFilter</div></div>
+        <div class="card"><b>RBAC</b><div>Role + permission authority checks via <code>@PreAuthorize</code>.</div></div>
+        <div class="card"><b>Error Handling</b><div>Centralized API errors in GlobalExceptionHandler.</div></div>
+      </div>
+    </section>
+
+    <section class="layer">
+      <h2>3) Domain Services Layer</h2>
+      <div class="cards">
+        <div class="card"><b>Commerce</b><div>Product, Cart, Checkout, Order, Offer, Billing services.</div></div>
+        <div class="card"><b>Customer Auth</b><div>OTP + Google login + profile completion lifecycle.</div></div>
+        <div class="card"><b>Payments</b><div>Razorpay order creation, verification, webhook audit logs.</div></div>
+        <div class="card"><b>Omnichannel</b><div>Lead capture, product search cards, webhook signature validation.</div></div>
+        <div class="card"><b>Marketing</b><div>Campaign workflow, approvals, scheduling, publisher integrations.</div></div>
+        <div class="card"><b>WhatsApp Bot</b><div>Intent classification, memory retrieval, handoff orchestration.</div></div>
+      </div>
+    </section>
+
+    <section class="layer">
+      <h2>4) Data + State Layer</h2>
+      <div class="cards">
+        <div class="card"><b>PostgreSQL</b><div>Primary transactional store (products, orders, campaigns, leads).</div><div class="path">src/main/resources/schema.sql</div></div>
+        <div class="card"><b>Redis (optional)</b><div>OTP/cart state acceleration behind feature flag <code>app.redis.enabled</code>.</div><div class="path">RedisStateStore</div></div>
+        <div class="card"><b>JPA Repositories</b><div>Entity persistence and custom analytics queries.</div><div class="path">src/main/java/com/retailshop/repository</div></div>
+        <div class="card"><b>Seed Data</b><div>SQL seed scripts and local profile seeder.</div><div class="path">data.sql, data-local.sql, LocalDataSeeder</div></div>
+      </div>
+    </section>
+
+    <section class="layer">
+      <h2>5) External Integration Layer</h2>
+      <div class="cards">
+        <div class="card"><b>Payments</b><div>Razorpay APIs + webhook endpoint <code>/api/razorpay/webhook</code>.</div></div>
+        <div class="card"><b>Messaging</b><div>Meta WhatsApp or Gupshup provider switch via config.</div></div>
+        <div class="card"><b>AI</b><div>OpenAI for marketing + bot, Qdrant for semantic memory.</div></div>
+        <div class="card"><b>AWS</b><div>S3 storage, optional Secrets Manager token refresh persistence.</div></div>
+      </div>
+    </section>
+
+    <section class="flow">
+      <h3>Key Runtime Flows</h3>
+      <p><b>Checkout:</b> Cart → Pricing → Payment Order → Verify Signature → Create Order + Invoice.</p>
+      <p><b>WhatsApp Bot:</b> Webhook → Parse inbound → Classify intent → Fetch context/memory → Compose + send response.</p>
+      <p><b>Marketing Automation:</b> Campaign content → Approval → Scheduler tick → Publisher (Meta/WhatsApp) → Analytics log.</p>
+      <p><b>Omnichannel Lead:</b> Social webhook → Signature validate → Lead + conversation upsert → Product recommendations.</p>
+    </section>
+
+    <footer>
+      Generated for customer/developer communication. Pair with FUNCTIONALITY.md, CONFIGURATION.md, and DEPLOYMENT.md.
+    </footer>
+  </div>
+</body>
+</html>
+

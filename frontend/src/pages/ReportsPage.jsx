@@ -12,6 +12,17 @@ const currentMonth = today.slice(0, 7);
 const currentYear = Number(today.slice(0, 4));
 const defaultPaymentFromDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 const websiteSalesPersonOption = { id: 'WEBSITE', displayName: 'Website', username: 'website' };
+const ORDER_STATUS_OPTIONS = [
+  'PENDING',
+  'CONFIRMED',
+  'SHIPPED',
+  'DELIVERED',
+  'COMPLETED',
+  'CANCELLED',
+  'RETURNED',
+  'REFUND_INITIATED',
+  'PAYMENT_FAILED'
+];
 
 const paymentStatusTone = (status) => {
   const normalized = String(status || '').toUpperCase();
@@ -47,6 +58,8 @@ export default function ReportsPage() {
   const [salesPeople, setSalesPeople] = useState([websiteSalesPersonOption]);
   const [salesPersonFilter, setSalesPersonFilter] = useState('');
   const [error, setError] = useState('');
+  const [orderStatusFeedback, setOrderStatusFeedback] = useState('');
+  const [updatingOrderId, setUpdatingOrderId] = useState('');
   const [salesError, setSalesError] = useState('');
   const [salesLoading, setSalesLoading] = useState(false);
   const [salesReport, setSalesReport] = useState(null);
@@ -220,6 +233,32 @@ export default function ReportsPage() {
 
   const loadLowStockPage = (page) => loadReports(reportFromDate, page, orderFeed.page || 0);
   const loadInvoicePage = (page) => loadReports(reportFromDate, lowStockPage.page || 0, page);
+
+  const updateOrderDeliveryStatus = async (row, nextStatus) => {
+    const source = String(row?.source || '').toUpperCase();
+    if (!row?.id || source !== 'WEBSITE') {
+      return;
+    }
+    setUpdatingOrderId(row.id);
+    setOrderStatusFeedback('');
+    setError('');
+    try {
+      await retailService.updateOrderStatus(row.id, { status: nextStatus });
+      setOrderFeed((current) => ({
+        ...current,
+        orders: (current.orders || []).map((order) => (
+          order.id === row.id ? { ...order, status: nextStatus } : order
+        ))
+      }));
+      setOrderStatusFeedback(
+        `Order ${row.referenceNumber || row.id} moved to ${nextStatus.replaceAll('_', ' ')}. WhatsApp update has been triggered.`
+      );
+    } catch (requestError) {
+      setError(getApiErrorMessage(requestError, 'Unable to update order delivery status.'));
+    } finally {
+      setUpdatingOrderId('');
+    }
+  };
 
   useEffect(() => {
     const normalized = customerFilter.trim();
@@ -713,11 +752,40 @@ export default function ReportsPage() {
           </Panel>
 
           <Panel title="Orders in selected range" subtitle="Review both website orders and billing orders in the chosen date range, with live delivery status for online purchases.">
+            {orderStatusFeedback ? (
+              <p className="storefront-feedback" role="status" aria-live="polite">
+                {orderStatusFeedback}
+              </p>
+            ) : null}
             <DataTable
               columns={[
                 { key: 'referenceNumber', label: 'Reference No.' },
                 { key: 'source', label: 'Source' },
-                { key: 'status', label: 'Status' },
+                {
+                  key: 'status',
+                  label: 'Delivery Status',
+                  render: (row) => {
+                    const source = String(row.source || '').toUpperCase();
+                    if (source !== 'WEBSITE' || !row.id) {
+                      return row.status || '-';
+                    }
+                    return (
+                      <select
+                        className="order-status-select"
+                        value={row.status || ''}
+                        disabled={updatingOrderId === row.id}
+                        onChange={(event) => updateOrderDeliveryStatus(row, event.target.value)}
+                      >
+                        {!row.status ? <option value="">Select status</option> : null}
+                        {ORDER_STATUS_OPTIONS.map((status) => (
+                          <option key={status} value={status}>
+                            {status.replaceAll('_', ' ')}
+                          </option>
+                        ))}
+                      </select>
+                    );
+                  }
+                },
                 { key: 'createdAt', label: 'Date', render: (row) => formatDate(row.createdAt) },
                 { key: 'customerName', label: 'Customer' },
                 { key: 'customerMobile', label: 'Mobile' },

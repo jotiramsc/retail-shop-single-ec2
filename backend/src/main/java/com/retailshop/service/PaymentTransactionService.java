@@ -137,15 +137,26 @@ public class PaymentTransactionService {
         }
         LocalDateTime start = rangeStart.atStartOfDay();
         LocalDateTime end = rangeEnd.atTime(LocalTime.MAX);
-        return PaginatedResponse.from(paymentTransactionRepository.search(
+        String normalizedSearch = normalizeFilter(search);
+        var page = normalizedSearch == null
+                ? paymentTransactionRepository.search(
                 start,
                 end,
                 normalizeFilter(provider),
                 normalizeFilter(operation),
                 normalizeFilter(status),
-                normalizeFilter(search),
                 pageable
-        ).map(this::map));
+        )
+                : paymentTransactionRepository.searchWithText(
+                start,
+                end,
+                normalizeFilter(provider),
+                normalizeFilter(operation),
+                normalizeFilter(status),
+                "%" + normalizedSearch.toLowerCase(Locale.ROOT) + "%",
+                pageable
+        );
+        return PaginatedResponse.from(page.map(this::map));
     }
 
     private PaymentTransactionResponse map(PaymentTransaction transaction) {

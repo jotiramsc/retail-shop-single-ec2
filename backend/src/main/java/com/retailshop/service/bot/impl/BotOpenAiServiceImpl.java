@@ -59,9 +59,14 @@ public class BotOpenAiServiceImpl implements BotOpenAiService {
                             OFFERS_AND_COUPONS, ORDER_HISTORY, LATEST_ORDER, ORDER_DETAILS, TOTAL_ORDER_VALUE,
                             ORDER_COUNT, DELIVERY_STATUS, PAYMENT_STATUS, REFUND_STATUS, REORDER, ACCOUNT_HELP,
                             CART_CHECKOUT_HELP, AGENT_HANDOFF, FALLBACK.
+                            Infer intent from natural, incomplete, typo-heavy English/Hindi/Hinglish/Marathi messages.
+                            Do not wait for exact phrases like "necklace under 1500"; if the customer says "haar",
+                            "mala", "chain", "neckalce", "neckpiece", "show me 1500", or taps a category/list row,
+                            map it to the closest catalog category and shopping intent.
                             Correct common spelling mistakes before category/searchText, for example neckalce/neckless -> necklace,
                             earings -> earrings, bangels -> bangles, cosmatic -> cosmetics.
-                            Use backend categories if they are relevant. Do not invent order/payment facts.
+                            Use backend categories if they are relevant, even if the catalog spelling is imperfect.
+                            Do not invent order/payment facts.
                             """),
                     Map.of("role", "user", "content", objectMapper.writeValueAsString(Map.of(
                             "message", safe(message),

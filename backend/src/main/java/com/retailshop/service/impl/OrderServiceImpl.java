@@ -22,11 +22,13 @@ import com.retailshop.repository.ProductRepository;
 import com.retailshop.service.CartService;
 import com.retailshop.service.CheckoutService;
 import com.retailshop.service.CustomerProfileService;
+import com.retailshop.service.MarketingChannelResult;
 import com.retailshop.service.OrderService;
 import com.retailshop.service.PaymentService;
 import com.retailshop.service.PaymentTransactionService;
 import com.retailshop.service.WhatsAppMessageService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,6 +38,7 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class OrderServiceImpl implements OrderService {
 
     private final AddressRepository addressRepository;
@@ -117,7 +120,11 @@ public class OrderServiceImpl implements OrderService {
         CustomerOrder saved = orderRepository.save(order);
         paymentTransactionService.linkOrder(paymentOrderId, saved.getId(), saved.getOrderNumber(), customer.getId());
         cartService.clearCart(customerId);
-        whatsAppMessageService.sendOrderConfirmation(saved);
+        MarketingChannelResult confirmationResult = whatsAppMessageService.sendOrderConfirmation(saved);
+        if (!confirmationResult.isSuccess()) {
+            log.warn("WhatsApp order confirmation failed for order {}: {}",
+                    saved.getOrderNumber(), confirmationResult.getErrorMessage());
+        }
         return map(saved);
     }
 
@@ -153,23 +160,30 @@ public class OrderServiceImpl implements OrderService {
 
     private void sendStatusNotification(CustomerOrder order, OrderStatusUpdateRequest request) {
         try {
+            MarketingChannelResult result;
             if (request.getStatus() == OrderStatus.SHIPPED) {
-                whatsAppMessageService.sendOrderDispatched(order, request.getTrackingId(), request.getTrackingUrl());
+                result = whatsAppMessageService.sendOrderDispatched(order, request.getTrackingId(), request.getTrackingUrl());
             } else if (request.getStatus() == OrderStatus.DELIVERED || request.getStatus() == OrderStatus.COMPLETED) {
-                whatsAppMessageService.sendOrderDelivered(order);
+                result = whatsAppMessageService.sendOrderDelivered(order);
             } else if (request.getStatus() == OrderStatus.CANCELLED) {
-                whatsAppMessageService.sendOrderCancelled(order);
+                result = whatsAppMessageService.sendOrderCancelled(order);
             } else if (request.getStatus() == OrderStatus.RETURNED) {
-                whatsAppMessageService.sendOrderReturned(order);
+                result = whatsAppMessageService.sendOrderReturned(order);
             } else if (request.getStatus() == OrderStatus.REFUND_INITIATED) {
-                whatsAppMessageService.sendRefundInitiated(order, request.getRefundAmount());
+                result = whatsAppMessageService.sendRefundInitiated(order, request.getRefundAmount());
             } else if (request.getStatus() == OrderStatus.PAYMENT_FAILED) {
-                whatsAppMessageService.sendPaymentFailed(order);
+                result = whatsAppMessageService.sendPaymentFailed(order);
             } else {
-                whatsAppMessageService.sendOrderUpdate(order);
+                result = whatsAppMessageService.sendOrderUpdate(order);
             }
-        } catch (Exception ignored) {
+            if (!result.isSuccess()) {
+                log.warn("WhatsApp order status notification failed for order {} status {}: {}",
+                        order.getOrderNumber(), request.getStatus(), result.getErrorMessage());
+            }
+        } catch (Exception exception) {
             // Order status is the source of truth. WhatsApp failures are visible in logs and should not roll back status changes.
+            log.warn("WhatsApp order status notification threw exception for order {} status {}",
+                    order.getOrderNumber(), request.getStatus(), exception);
         }
     }
 

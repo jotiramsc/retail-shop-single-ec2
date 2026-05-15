@@ -8,6 +8,7 @@ import com.retailshop.service.bot.BotOpenAiService;
 import com.retailshop.service.bot.QdrantMemoryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -23,12 +24,16 @@ import java.util.UUID;
 public class BotMemoryServiceImpl implements BotMemoryService {
 
     private final BotProperties properties;
-    private final BotOpenAiService openAiService;
+    private final ObjectProvider<BotOpenAiService> openAiServiceProvider;
     private final QdrantMemoryService qdrantMemoryService;
 
     @Override
     public List<BotMemoryRecord> retrieve(String mobile, String query, int limit) {
         if (!properties.isEnabled() || !properties.isMemoryEnabled() || !hasText(query)) {
+            return List.of();
+        }
+        BotOpenAiService openAiService = openAiServiceProvider.getIfAvailable();
+        if (openAiService == null) {
             return List.of();
         }
         Optional<List<Double>> vector = openAiService.embed(query);
@@ -41,6 +46,10 @@ public class BotMemoryServiceImpl implements BotMemoryService {
             return;
         }
         try {
+            BotOpenAiService openAiService = openAiServiceProvider.getIfAvailable();
+            if (openAiService == null) {
+                return;
+            }
             String summary = openAiService.summarizeMemory(inboundText, outboundText, context)
                     .orElseGet(() -> fallbackSummary(inboundText, outboundText));
             if (!hasText(summary)) {

@@ -49,6 +49,22 @@ public class BotOrchestratorServiceImpl implements BotOrchestratorService {
     }
 
     @Override
+    public String polishReply(BotInboundMessage inbound, BotIntentClassification classification, String factualDraft) {
+        if (!properties.isEnabled() || inbound == null || factualDraft == null || factualDraft.isBlank()) {
+            return factualDraft;
+        }
+        try {
+            BotContext context = customerContextService.buildContext(inbound.getMobile());
+            List<BotMemoryRecord> memories = memoryService.retrieve(inbound.getMobile(), inbound.getMessageText(), properties.getMemoryTopK());
+            return intentService.polishReply(inbound.getMessageText(), classification, context, memories, factualDraft)
+                    .orElse(factualDraft);
+        } catch (Exception exception) {
+            log.debug("Bot orchestration reply polishing failed", exception);
+            return factualDraft;
+        }
+    }
+
+    @Override
     public void remember(BotInboundMessage inbound, String outboundText) {
         if (!properties.isEnabled() || inbound == null) {
             return;

@@ -8,6 +8,8 @@ import com.retailshop.entity.Customer;
 import com.retailshop.entity.CustomerOrder;
 import com.retailshop.enums.OrderStatus;
 import com.retailshop.enums.WhatsAppTemplateKey;
+import com.retailshop.dto.whatsapp.WhatsAppInteractiveOption;
+import com.retailshop.dto.whatsapp.WhatsAppInteractiveSection;
 import com.retailshop.service.MarketingChannelResult;
 import com.retailshop.service.OtpDeliveryService;
 import com.retailshop.service.WhatsAppMessageService;
@@ -26,9 +28,11 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @Slf4j
 @Service
@@ -174,6 +178,47 @@ public class WhatsAppMessageServiceImpl implements WhatsAppMessageService, OtpDe
     }
 
     @Override
+    public MarketingChannelResult sendReplyButtons(String mobile, String body, List<WhatsAppInteractiveOption> buttons) {
+        List<WhatsAppInteractiveOption> safeButtons = buttons == null ? List.of() : buttons.stream()
+                .filter(option -> option != null && hasText(option.title()))
+                .limit(3)
+                .toList();
+        if (safeButtons.isEmpty()) {
+            return sendText(mobile, body);
+        }
+        if (!useGupshup()) {
+            return sendText(mobile, body + "\n\n" + formatOptionsForFallback(safeButtons));
+        }
+        MarketingChannelResult result = sendGupshupQuickReplyMessage(mobile, body, safeButtons);
+        if (result.isSuccess()) {
+            return result;
+        }
+        log.warn("Gupshup quick reply failed, falling back to text: {}", result.getErrorMessage());
+        return sendText(mobile, body + "\n\n" + formatOptionsForFallback(safeButtons));
+    }
+
+    @Override
+    public MarketingChannelResult sendListMessage(String mobile,
+                                                  String header,
+                                                  String body,
+                                                  String buttonText,
+                                                  List<WhatsAppInteractiveSection> sections) {
+        List<WhatsAppInteractiveSection> safeSections = normalizeSections(sections);
+        if (safeSections.isEmpty()) {
+            return sendText(mobile, body);
+        }
+        if (!useGupshup()) {
+            return sendText(mobile, body + "\n\n" + formatSectionsForFallback(safeSections));
+        }
+        MarketingChannelResult result = sendGupshupListMessage(mobile, header, body, buttonText, safeSections);
+        if (result.isSuccess()) {
+            return result;
+        }
+        log.warn("Gupshup list message failed, falling back to text: {}", result.getErrorMessage());
+        return sendText(mobile, body + "\n\n" + formatSectionsForFallback(safeSections));
+    }
+
+    @Override
     public MarketingChannelResult sendOrderConfirmation(CustomerOrder order) {
         return sendTemplate(orderMobile(order), WhatsAppTemplateKey.ORDER_CONFIRMATION, List.of(
                 customerName(order),
@@ -296,10 +341,14 @@ public class WhatsAppMessageServiceImpl implements WhatsAppMessageService, OtpDe
 
     @Override
     public MarketingChannelResult publishCampaign(Campaign campaign, List<Customer> customers) {
-        return broadcast(customers, buildCampaignBody(campaign));
+        return broadcastCampaign(customers, buildCampaignBody(campaign), campaign == null ? null : campaign.getMediaUrl());
     }
 
     private MarketingChannelResult broadcast(List<Customer> customers, String body) {
+        return broadcastCampaign(customers, body, null);
+    }
+
+    private MarketingChannelResult broadcastCampaign(List<Customer> customers, String body, String imageUrl) {
         if (!isConfigured()) {
             return MarketingChannelResult.builder()
                     .success(false)
@@ -319,8 +368,11 @@ public class WhatsAppMessageServiceImpl implements WhatsAppMessageService, OtpDe
         int sentCount = 0;
         String firstMessageId = null;
         String firstError = null;
+        boolean hasImage = hasText(imageUrl);
         for (Customer customer : recipients) {
-            MarketingChannelResult result = sendSingleTextMessage(customer.getMobile(), body);
+            MarketingChannelResult result = hasImage
+                    ? sendImage(customer.getMobile(), imageUrl, body)
+                    : sendSingleTextMessage(customer.getMobile(), body);
             if (result.isSuccess()) {
                 sentCount++;
                 if (!hasText(firstMessageId)) {
@@ -467,6 +519,96 @@ public class WhatsAppMessageServiceImpl implements WhatsAppMessageService, OtpDe
             return MarketingChannelResult.builder()
                     .success(false)
                     .errorMessage("Unable to send WhatsApp image with Gupshup")
+                    .build();
+        }
+    }
+
+    private MarketingChannelResult sendGupshupQuickReplyMessage(String mobile, String body, List<WhatsAppInteractiveOption> buttons) {
+        if (!isConfigured()) {
+            return MarketingChannelResult.builder()
+                    .success(false)
+                    .errorMessage(whatsAppConfigurationError())
+                    .build();
+        }
+        try {
+            Map<String, String> formData = baseGupshupFormData(mobile);
+            List<Map<String, Object>> options = new ArrayList<>();
+            for (WhatsAppInteractiveOption button : buttons) {
+                Map<String, Object> option = new LinkedHashMap<>();
+                option.put("type", "text");
+                option.put("title", truncate(button.title(), 20));
+                option.put("postbackText", firstText(button.id(), button.title()));
+                options.add(option);
+            }
+            Map<String, Object> content = new LinkedHashMap<>();
+            content.put("type", "text");
+            content.put("text", safeText(body));
+
+            Map<String, Object> message = new LinkedHashMap<>();
+            message.put("type", "quick_reply");
+            message.put("msgid", UUID.randomUUID().toString());
+            message.put("content", content);
+            message.put("options", options);
+            formData.put("message", objectMapper.writeValueAsString(message));
+            return sendGupshupForm(appProperties.getGupshup().getMessageEndpoint(), formData);
+        } catch (IOException exception) {
+            log.warn("Unable to build Gupshup WhatsApp quick reply payload", exception);
+            return MarketingChannelResult.builder()
+                    .success(false)
+                    .errorMessage("Unable to send WhatsApp quick reply with Gupshup")
+                    .build();
+        }
+    }
+
+    private MarketingChannelResult sendGupshupListMessage(String mobile,
+                                                          String header,
+                                                          String body,
+                                                          String buttonText,
+                                                          List<WhatsAppInteractiveSection> sections) {
+        if (!isConfigured()) {
+            return MarketingChannelResult.builder()
+                    .success(false)
+                    .errorMessage(whatsAppConfigurationError())
+                    .build();
+        }
+        try {
+            Map<String, String> formData = baseGupshupFormData(mobile);
+            List<Map<String, Object>> items = new ArrayList<>();
+            for (WhatsAppInteractiveSection section : sections) {
+                List<Map<String, Object>> options = new ArrayList<>();
+                for (WhatsAppInteractiveOption row : section.options()) {
+                    Map<String, Object> option = new LinkedHashMap<>();
+                    option.put("type", "text");
+                    option.put("title", truncate(row.title(), 24));
+                    if (hasText(row.description())) {
+                        option.put("description", truncate(row.description(), 72));
+                    }
+                    option.put("postbackText", firstText(row.id(), row.title()));
+                    options.add(option);
+                }
+                if (!options.isEmpty()) {
+                    Map<String, Object> item = new LinkedHashMap<>();
+                    item.put("title", truncate(defaultString(section.title(), "Options"), 24));
+                    item.put("subtitle", "");
+                    item.put("options", options);
+                    items.add(item);
+                }
+            }
+
+            Map<String, Object> message = new LinkedHashMap<>();
+            message.put("type", "list");
+            message.put("title", truncate(defaultString(header, "Krishnai Pearl Shopee"), 60));
+            message.put("body", safeText(body));
+            message.put("msgid", UUID.randomUUID().toString());
+            message.put("globalButtons", List.of(Map.of("type", "text", "title", truncate(defaultString(buttonText, "Choose"), 20))));
+            message.put("items", items);
+            formData.put("message", objectMapper.writeValueAsString(message));
+            return sendGupshupForm(appProperties.getGupshup().getMessageEndpoint(), formData);
+        } catch (IOException exception) {
+            log.warn("Unable to build Gupshup WhatsApp list payload", exception);
+            return MarketingChannelResult.builder()
+                    .success(false)
+                    .errorMessage("Unable to send WhatsApp list with Gupshup")
                     .build();
         }
     }
@@ -830,6 +972,58 @@ public class WhatsAppMessageServiceImpl implements WhatsAppMessageService, OtpDe
             }
         }
         return "";
+    }
+
+    private List<WhatsAppInteractiveSection> normalizeSections(List<WhatsAppInteractiveSection> sections) {
+        if (sections == null) {
+            return List.of();
+        }
+        List<WhatsAppInteractiveSection> safeSections = new ArrayList<>();
+        for (WhatsAppInteractiveSection section : sections) {
+            if (section == null || section.options() == null) {
+                continue;
+            }
+            List<WhatsAppInteractiveOption> options = section.options().stream()
+                    .filter(option -> option != null && hasText(option.title()))
+                    .limit(10)
+                    .toList();
+            if (!options.isEmpty()) {
+                safeSections.add(new WhatsAppInteractiveSection(defaultString(section.title(), "Options"), options));
+            }
+        }
+        return safeSections.stream().limit(10).toList();
+    }
+
+    private String formatOptionsForFallback(List<WhatsAppInteractiveOption> options) {
+        List<String> lines = new ArrayList<>();
+        int index = 1;
+        for (WhatsAppInteractiveOption option : options) {
+            lines.add(index++ + ". " + option.title());
+        }
+        return String.join("\n", lines);
+    }
+
+    private String formatSectionsForFallback(List<WhatsAppInteractiveSection> sections) {
+        List<String> lines = new ArrayList<>();
+        int index = 1;
+        for (WhatsAppInteractiveSection section : sections) {
+            if (hasText(section.title())) {
+                lines.add(section.title());
+            }
+            for (WhatsAppInteractiveOption option : section.options()) {
+                lines.add(index++ + ". " + option.title()
+                        + (hasText(option.description()) ? " - " + option.description() : ""));
+            }
+        }
+        return String.join("\n", lines);
+    }
+
+    private String truncate(String value, int maxLength) {
+        String safe = safeText(value);
+        if (maxLength <= 0 || safe.length() <= maxLength) {
+            return safe;
+        }
+        return safe.substring(0, Math.max(0, maxLength - 1)).trim() + "…";
     }
 
     private String whatsAppConfigurationError() {

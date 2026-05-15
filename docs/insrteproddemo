@@ -1,0 +1,12 @@
+INSERT INTO Tenant138056_databricks.cluster_library
+(name, `type`, updated_by, updated_on, id, runtime_version, runtime_dependent, lib_name_identifier, unity_Catalog)
+VALUES('pydeequ==1.4.0', 'PYPI', 'SYSTEM', '2026-02-09 02:29:45', '328df6d6-055f-11f1-bb33-0ad890d40e67', '14', 1, 'pydeequ', 0);
+INSERT INTO Tenant138056_databricks.cluster_library
+(name, `type`, updated_by, updated_on, id, runtime_version, runtime_dependent, lib_name_identifier, unity_Catalog)
+VALUES('pydeequ==1.4.0', 'PYPI', 'SYSTEM', '2026-02-09 02:29:45', '328df8e5-055f-11f1-bb33-0ad890d40e67', '15', 1, 'pydeequ', 0);
+INSERT INTO Tenant138056_databricks.cluster_library
+(name, `type`, updated_by, updated_on, id, runtime_version, runtime_dependent, lib_name_identifier, unity_Catalog)
+VALUES('com.amazon.deequ:deequ:2.0.11-spark-3.5', 'MAVEN', 'SYSTEM', '2026-02-09 02:29:45', '328df958-055f-11f1-bb33-0ad890d40e67', '14', 1, 'com.amazon.deequ:deequ', 1);
+INSERT INTO Tenant138056_databricks.cluster_library
+(name, `type`, updated_by, updated_on, id, runtime_version, runtime_dependent, lib_name_identifier, unity_Catalog)
+VALUES('com.amazon.deequ:deequ:2.0.11-spark-3.5', 'MAVEN', 'SYSTEM', '2026-02-09 02:29:45', '328df9ae-055f-11f1-bb33-0ad890d40e67', '15', 1, 'com.amazon.deequ:deequ', 1);

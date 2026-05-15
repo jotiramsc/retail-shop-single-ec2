@@ -24,12 +24,6 @@ public interface PaymentTransactionRepository extends JpaRepository<PaymentTrans
               and (:provider is null or p.provider = :provider)
               and (:operation is null or p.operation = :operation)
               and (:status is null or p.status = :status)
-              and (:search is null
-                   or lower(coalesce(p.gatewayOrderId, '')) like lower(concat('%', :search, '%'))
-                   or lower(coalesce(p.gatewayPaymentId, '')) like lower(concat('%', :search, '%'))
-                   or lower(coalesce(p.orderNumber, '')) like lower(concat('%', :search, '%'))
-                   or lower(coalesce(p.receipt, '')) like lower(concat('%', :search, '%'))
-                   or lower(coalesce(p.errorMessage, '')) like lower(concat('%', :search, '%')))
             order by p.createdAt desc
             """)
     Page<PaymentTransaction> search(@Param("start") LocalDateTime start,
@@ -37,6 +31,26 @@ public interface PaymentTransactionRepository extends JpaRepository<PaymentTrans
                                     @Param("provider") String provider,
                                     @Param("operation") String operation,
                                     @Param("status") String status,
-                                    @Param("search") String search,
                                     Pageable pageable);
+
+    @Query("""
+            select p from PaymentTransaction p
+            where p.createdAt between :start and :end
+              and (:provider is null or p.provider = :provider)
+              and (:operation is null or p.operation = :operation)
+              and (:status is null or p.status = :status)
+              and (lower(coalesce(p.gatewayOrderId, '')) like :searchPattern
+                   or lower(coalesce(p.gatewayPaymentId, '')) like :searchPattern
+                   or lower(coalesce(p.orderNumber, '')) like :searchPattern
+                   or lower(coalesce(p.receipt, '')) like :searchPattern
+                   or lower(coalesce(p.errorMessage, '')) like :searchPattern)
+            order by p.createdAt desc
+            """)
+    Page<PaymentTransaction> searchWithText(@Param("start") LocalDateTime start,
+                                            @Param("end") LocalDateTime end,
+                                            @Param("provider") String provider,
+                                            @Param("operation") String operation,
+                                            @Param("status") String status,
+                                            @Param("searchPattern") String searchPattern,
+                                            Pageable pageable);
 }

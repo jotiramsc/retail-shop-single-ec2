@@ -11,12 +11,15 @@ import com.retailshop.dto.OmnichannelProductSearchResponse;
 import com.retailshop.dto.WhatsAppBotWebhookResponse;
 import com.retailshop.dto.bot.BotInboundMessage;
 import com.retailshop.dto.bot.BotIntentClassification;
+import com.retailshop.dto.whatsapp.WhatsAppInteractiveOption;
+import com.retailshop.dto.whatsapp.WhatsAppInteractiveSection;
 import com.retailshop.entity.CustomerOrder;
 import com.retailshop.entity.Offer;
 import com.retailshop.entity.OmnichannelConversation;
 import com.retailshop.entity.OmnichannelConversationMessage;
 import com.retailshop.entity.OmnichannelLead;
 import com.retailshop.entity.Product;
+import com.retailshop.entity.ReceiptSettings;
 import com.retailshop.enums.WhatsAppBotIntent;
 import com.retailshop.repository.CustomerOrderRepository;
 import com.retailshop.repository.OfferRepository;
@@ -24,6 +27,7 @@ import com.retailshop.repository.OmnichannelConversationMessageRepository;
 import com.retailshop.repository.OmnichannelConversationRepository;
 import com.retailshop.repository.OmnichannelLeadRepository;
 import com.retailshop.repository.ProductRepository;
+import com.retailshop.repository.ReceiptSettingsRepository;
 import com.retailshop.service.OmnichannelCommerceService;
 import com.retailshop.service.MarketingChannelResult;
 import com.retailshop.service.WhatsAppMessageService;
@@ -42,9 +46,11 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.text.NumberFormat;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -52,6 +58,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -61,10 +69,21 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
 
     private static final Pattern MONEY_PATTERN = Pattern.compile("(?:₹|rs\\.?|inr)?\\s*(\\d{2,7})(?:\\s*(?:-|to|and|ते|पासून)\\s*(?:₹|rs\\.?|inr)?\\s*(\\d{2,7}))?", Pattern.CASE_INSENSITIVE);
     private static final Pattern ORDER_NUMBER_PATTERN = Pattern.compile("\\b(?:KPS\\d+|ORD[-A-Z0-9]+)\\b", Pattern.CASE_INSENSITIVE);
+    private static final Duration INBOUND_DEDUP_TTL = Duration.ofMinutes(15);
+    private static final Duration BOT_SESSION_TTL = Duration.ofMinutes(45);
+    private static final Map<String, Instant> RECENT_INBOUND_MESSAGES = new ConcurrentHashMap<>();
+    private static final Map<String, BotSession> BOT_SESSIONS = new ConcurrentHashMap<>();
     private static final Set<String> STOP_WORDS = Set.of(
             "show", "send", "share", "list", "want", "need", "under", "below", "less", "than", "price", "budget",
             "items", "item", "products", "product", "collection", "please", "pls", "mala", "mujhe", "dikhao",
+            "dakhwa", "dakhav", "dakhava", "dakhavayche", "hava", "havi", "chahiye",
             "दाखवा", "पाहा", "खाली", "मध्ये", "आहे", "का", "साठी", "मला", "द्या"
+    );
+    private static final Set<String> COLOR_STYLE_TERMS = Set.of(
+            "green", "red", "maroon", "black", "white", "gold", "golden", "silver", "pink", "blue",
+            "emerald", "pearl", "kundan", "traditional", "modern", "lightweight", "heavy", "simple",
+            "premium", "party", "daily", "office", "bridal", "wedding", "gift", "festive",
+            "हिरवा", "लाल", "का��ा", "पांढरा", "सोनेरी", "चांदी", "मोती", "साधा", "लग्न", "भेट"
     );
 
     private final MarketingProperties marketingProperties;
@@ -76,6 +95,7 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
     private final OmnichannelConversationRepository conversationRepository;
     private final OmnichannelConversationMessageRepository messageRepository;
     private final WhatsAppMessageService whatsAppMessageService;
+    private final ReceiptSettingsRepository receiptSettingsRepository;
     private final BotOrchestratorService botOrchestratorService;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
@@ -91,7 +111,7 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
                                        WhatsAppMessageService whatsAppMessageService,
                                        ObjectMapper objectMapper) {
         this(marketingProperties, omnichannelCommerceService, orderRepository, offerRepository, productRepository, leadRepository, conversationRepository, messageRepository, whatsAppMessageService, objectMapper,
-                HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(20)).build(), null);
+                HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(20)).build(), null, null);
     }
 
     @Autowired
@@ -104,10 +124,11 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
                                        OmnichannelConversationRepository conversationRepository,
                                        OmnichannelConversationMessageRepository messageRepository,
                                        WhatsAppMessageService whatsAppMessageService,
+                                       ReceiptSettingsRepository receiptSettingsRepository,
                                        ObjectMapper objectMapper,
                                        ObjectProvider<BotOrchestratorService> botOrchestratorProvider) {
         this(marketingProperties, omnichannelCommerceService, orderRepository, offerRepository, productRepository, leadRepository, conversationRepository, messageRepository, whatsAppMessageService, objectMapper,
-                HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(20)).build(), botOrchestratorProvider.getIfAvailable());
+                HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(20)).build(), receiptSettingsRepository, botOrchestratorProvider.getIfAvailable());
     }
 
     WhatsAppSalesBotServiceImpl(MarketingProperties marketingProperties,
@@ -122,7 +143,7 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
                                 ObjectMapper objectMapper,
                                 HttpClient httpClient) {
         this(marketingProperties, omnichannelCommerceService, orderRepository, offerRepository, productRepository, leadRepository, conversationRepository, messageRepository, whatsAppMessageService,
-                objectMapper, httpClient, null);
+                objectMapper, httpClient, null, null);
     }
 
     WhatsAppSalesBotServiceImpl(MarketingProperties marketingProperties,
@@ -136,6 +157,7 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
                                 WhatsAppMessageService whatsAppMessageService,
                                 ObjectMapper objectMapper,
                                 HttpClient httpClient,
+                                ReceiptSettingsRepository receiptSettingsRepository,
                                 BotOrchestratorService botOrchestratorService) {
         this.marketingProperties = marketingProperties;
         this.omnichannelCommerceService = omnichannelCommerceService;
@@ -146,6 +168,7 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
         this.conversationRepository = conversationRepository;
         this.messageRepository = messageRepository;
         this.whatsAppMessageService = whatsAppMessageService;
+        this.receiptSettingsRepository = receiptSettingsRepository;
         this.botOrchestratorService = botOrchestratorService;
         this.objectMapper = objectMapper;
         this.httpClient = httpClient;
@@ -163,10 +186,53 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
         }
 
         InboundMessage message = inbound.get();
+        if (isDuplicateInbound(message)) {
+            return WhatsAppBotWebhookResponse.builder()
+                    .accepted(true)
+                    .sent(false)
+                    .message("Duplicate WhatsApp webhook ignored")
+                    .customerPhone(message.from())
+                    .replyText("")
+                    .productCount(0)
+                    .build();
+        }
         OmnichannelLeadResponse lead = captureLead(message, payload);
-        BotInboundMessage botInbound = buildBotInbound(message, lead);
-        BotUnderstanding understanding = mergeOrchestratedUnderstanding(message.text(), understandMessage(message.text()), classifyWithOrchestrator(botInbound));
+        BotSession session = sessionFor(message.from());
+        BotReply actionReply = buildProductActionReply(message.text(), session, lead);
+        if (actionReply != null) {
+            BotInboundMessage botInbound = buildBotInbound(message, lead);
+            BotUnderstanding actionUnderstanding = new BotUnderstanding(
+                    BotIntent.PRODUCT_SEARCH,
+                    session.lastCategory(),
+                    message.text(),
+                    positiveAmountOrNull(session.lastMinPrice()),
+                    positiveAmountOrNull(session.lastMaxPrice()),
+                    null
+            );
+            updateSession(message.from(), message.text(), actionUnderstanding, actionReply);
+            SendResult sendResult = sendReply(message.from(), actionReply);
+            saveOutboundMessage(lead.getLeadId(), actionReply.text(), sendResult);
+            rememberWithOrchestrator(botInbound, actionReply.text());
+
+            return WhatsAppBotWebhookResponse.builder()
+                    .accepted(true)
+                    .sent(sendResult.success())
+                    .message(sendResult.success() ? "Bot reply sent" : "Bot reply generated but sender is not configured or failed")
+                    .leadId(lead.getLeadId())
+                    .customerPhone(message.from())
+                    .replyText(actionReply.text())
+                    .productCount(actionReply.productCount())
+                    .providerMessageId(sendResult.messageId())
+                    .errorMessage(sendResult.errorMessage())
+                    .build();
+        }
+        InboundMessage contextualMessage = contextualizeMessage(message, session);
+        BotInboundMessage botInbound = buildBotInbound(contextualMessage, lead);
+        BotIntentClassification classification = classifyWithOrchestrator(botInbound);
+        BotUnderstanding understanding = mergeOrchestratedUnderstanding(contextualMessage.text(), understandMessage(contextualMessage.text()), classification);
         BotReply reply = buildReply(understanding, lead);
+        reply = polishReplyWithOrchestrator(botInbound, classification, reply);
+        updateSession(message.from(), message.text(), understanding, reply);
         SendResult sendResult = sendReply(message.from(), reply);
         saveOutboundMessage(lead.getLeadId(), reply.text(), sendResult);
         rememberWithOrchestrator(botInbound, reply.text());
@@ -212,12 +278,109 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
         return omnichannelCommerceService.captureLead(request);
     }
 
+    private BotSession sessionFor(String from) {
+        cleanupBotSessions();
+        String key = sessionKey(from);
+        if (!hasText(key)) {
+            return new BotSession(null, null, null, null, null, Instant.now());
+        }
+        return BOT_SESSIONS.getOrDefault(key, new BotSession(null, null, null, null, null, Instant.now()));
+    }
+
+    private InboundMessage contextualizeMessage(InboundMessage message, BotSession session) {
+        if (message == null || session == null) {
+            return message;
+        }
+        String rawText = defaultString(message.text(), "");
+        String normalized = normalize(rawText);
+        if (isBudgetOnly(normalized) && hasText(session.lastCategory())) {
+            BigDecimal amount = extractPositiveAmount(normalized);
+            if (amount != null) {
+                String combined = session.lastCategory() + " under " + amount.stripTrailingZeros().toPlainString();
+                return new InboundMessage(message.from(), message.name(), combined, message.messageId());
+            }
+        }
+        if (isMoreRequest(normalized) && hasText(session.lastCategory())) {
+            StringBuilder combined = new StringBuilder(session.lastCategory());
+            BigDecimal maxPrice = positiveAmountOrNull(session.lastMaxPrice());
+            if (maxPrice != null) {
+                combined.append(" under ").append(maxPrice.stripTrailingZeros().toPlainString());
+            }
+            return new InboundMessage(message.from(), message.name(), combined.toString(), message.messageId());
+        }
+        if (hasText(session.lastCategory()) && isCategoryModifierOnly(normalized)) {
+            return new InboundMessage(message.from(), message.name(), session.lastCategory() + " " + rawText, message.messageId());
+        }
+        if (containsAny(normalized, "buy", "view", "details", "similar") && hasText(session.lastCategory()) && !hasRecognizableCatalogSignal(normalized)) {
+            return new InboundMessage(message.from(), message.name(), rawText + " " + session.lastCategory(), message.messageId());
+        }
+        return message;
+    }
+
+    private void updateSession(String from, String rawText, BotUnderstanding understanding, BotReply reply) {
+        String key = sessionKey(from);
+        if (!hasText(key) || understanding == null) {
+            return;
+        }
+        BotSession previous = sessionFor(from);
+        String category = firstNonBlank(understanding.category(), previous.lastCategory());
+        BigDecimal maxPrice = positiveAmountOrNull(understanding.maxPrice());
+        if (maxPrice == null) {
+            maxPrice = positiveAmountOrNull(previous.lastMaxPrice());
+        }
+        BigDecimal minPrice = positiveAmountOrNull(understanding.minPrice());
+        if (minPrice == null) {
+            minPrice = positiveAmountOrNull(previous.lastMinPrice());
+        }
+        String intent = understanding.intent() == null ? previous.lastIntent() : understanding.intent().name();
+        String recentProduct = reply == null || reply.products() == null || reply.products().isEmpty()
+                ? previous.lastProductId()
+                : reply.products().get(0).getProductId() == null ? previous.lastProductId() : reply.products().get(0).getProductId().toString();
+        if (understanding.intent() == BotIntent.CATEGORY_BROWSE && hasText(detectCategory(normalize(rawText)))) {
+            category = detectCategory(normalize(rawText));
+        }
+        BOT_SESSIONS.put(key, new BotSession(category, maxPrice, minPrice, intent, recentProduct, Instant.now()));
+    }
+
+    private void cleanupBotSessions() {
+        Instant cutoff = Instant.now().minus(BOT_SESSION_TTL);
+        BOT_SESSIONS.entrySet().removeIf(entry -> entry.getValue().updatedAt().isBefore(cutoff));
+    }
+
+    private String sessionKey(String from) {
+        String digits = digitsOnly(from);
+        if (digits.length() >= 10) {
+            return digits.substring(digits.length() - 10);
+        }
+        return digits;
+    }
+
     private BotReply buildReply(BotUnderstanding understanding, OmnichannelLeadResponse lead) {
         if (understanding.intent() == BotIntent.GREETING) {
-            return new BotReply(buildGuidedMenuReply(), 0, List.of());
+            return buildWelcomeReply();
         }
         if (understanding.intent() == BotIntent.CATEGORY_BROWSE) {
-            return new BotReply(buildCategoryMenuReply(), 0, List.of());
+            if (hasText(understanding.category())) {
+                return buildProductSearchReply(new BotUnderstanding(
+                        BotIntent.PRODUCT_SEARCH,
+                        understanding.category(),
+                        firstNonBlank(understanding.searchText(), understanding.category()),
+                        understanding.minPrice(),
+                        understanding.maxPrice(),
+                        understanding.occasion()
+                ), lead);
+            }
+            return new BotReply(
+                    buildCategoryMenuReply(),
+                    0,
+                    List.of(),
+                    null,
+                    null,
+                    List.of(),
+                    categorySections(),
+                    "Browse Categories",
+                    "Choose category"
+            );
         }
         if (understanding.intent() == BotIntent.ORDER_SUPPORT) {
             return new BotReply(buildOrderSupportReply(understanding.searchText(), lead), 0, List.of());
@@ -238,6 +401,10 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
             return new BotReply(buildFallbackMenuReply(), 0, List.of());
         }
 
+        return buildProductSearchReply(understanding, lead);
+    }
+
+    private BotReply buildProductSearchReply(BotUnderstanding understanding, OmnichannelLeadResponse lead) {
         OmnichannelProductSearchRequest searchRequest = new OmnichannelProductSearchRequest();
         searchRequest.setLeadId(lead.getLeadId());
         searchRequest.setChannel("WHATSAPP");
@@ -256,31 +423,316 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
             products = fallbackProductSearch(searchRequest, understanding);
         }
         List<OmnichannelProductCardResponse> productCards = products.getProducts() == null ? List.of() : products.getProducts();
-        return new BotReply(formatProductReply(products, understanding), productCards.size(), productCards);
+        List<WhatsAppInteractiveSection> productSections = productSections(productCards);
+        List<WhatsAppInteractiveOption> productButtons = productSections.isEmpty() ? productActionButtons(productCards) : List.of();
+        return new BotReply(
+                formatProductReply(products, understanding),
+                productCards.size(),
+                productCards,
+                null,
+                null,
+                productButtons,
+                productSections,
+                productSections.isEmpty() ? null : defaultString(displayCategoryName(understanding.category()), "Recommended Products"),
+                productSections.isEmpty() ? null : "View Products"
+        );
+    }
+
+    private BotReply buildProductActionReply(String rawText, BotSession session, OmnichannelLeadResponse lead) {
+        String normalized = normalize(rawText);
+        if (!hasText(normalized)) {
+            return null;
+        }
+        if (isMoreRequest(normalized) && session != null && hasText(session.lastCategory())) {
+            return buildProductSearchReply(new BotUnderstanding(
+                    BotIntent.PRODUCT_SEARCH,
+                    session.lastCategory(),
+                    session.lastCategory(),
+                    positiveAmountOrNull(session.lastMinPrice()),
+                    positiveAmountOrNull(session.lastMaxPrice()),
+                    null
+            ), lead);
+        }
+
+        boolean isProductAction = containsAny(normalized, "view", "detail", "buy", "add", "cart", "select");
+        if (!isProductAction) {
+            return null;
+        }
+        Optional<Product> product = findProductForAction(rawText, session);
+        if (product.isEmpty()) {
+            return null;
+        }
+        if (containsAny(normalized, "buy", "add", "cart", "select")) {
+            return buildAddToCartReply(product.get());
+        }
+        if (containsAny(normalized, "view", "detail")) {
+            return buildProductDetailReply(product.get());
+        }
+        return null;
+    }
+
+    private Optional<Product> findProductForAction(String rawText, BotSession session) {
+        String productCode = extractProductActionCode(rawText);
+        if (hasText(productCode)) {
+            String upperCode = productCode.replace("-", "").toUpperCase(Locale.ROOT);
+            try {
+                Optional<Product> exact = productRepository.findAll().stream()
+                        .filter(product -> product.getId() != null)
+                        .filter(product -> product.getId().toString().replace("-", "").toUpperCase(Locale.ROOT).startsWith(upperCode))
+                        .findFirst();
+                if (exact.isPresent()) {
+                    return exact;
+                }
+            } catch (Exception exception) {
+                log.debug("Unable to resolve WhatsApp product action code {}", productCode, exception);
+            }
+        }
+        if (session != null && hasText(session.lastProductId())) {
+            try {
+                return productRepository.findById(UUID.fromString(session.lastProductId()));
+            } catch (IllegalArgumentException exception) {
+                log.debug("Ignoring invalid WhatsApp session product id {}", session.lastProductId());
+            }
+        }
+        return Optional.empty();
+    }
+
+    private String extractProductActionCode(String rawText) {
+        String text = defaultString(rawText, "");
+        Matcher actionMatcher = Pattern.compile("\\b(?:VIEW|BUY|DETAILS|DETAIL|ADD|SELECT)\\s+([A-Fa-f0-9-]{6,36})\\b", Pattern.CASE_INSENSITIVE)
+                .matcher(text);
+        if (actionMatcher.find()) {
+            return actionMatcher.group(1).replace("-", "");
+        }
+        for (String token : text.split("\\s+")) {
+            String cleaned = token.replaceAll("[^A-Fa-f0-9-]", "");
+            if (cleaned.matches("[A-Fa-f0-9]{6,36}") || cleaned.matches("[A-Fa-f0-9-]{8,36}")) {
+                return cleaned.replace("-", "");
+            }
+        }
+        return "";
+    }
+
+    private BotReply buildProductDetailReply(Product product) {
+        OmnichannelProductCardResponse card = mapFallbackProduct(product, new OmnichannelProductSearchRequest());
+        String text = defaultString(card.getName(), "Product") + "\n"
+                + formatPrice(card.getPrice()) + " | " + defaultString(card.getStockLabel(), "Available") + "\n"
+                + productSalesPitch(card) + "\n\n"
+                + "Choose Add to Cart to continue, or More Options for similar picks.";
+        return new BotReply(
+                text,
+                1,
+                List.of(card),
+                null,
+                null,
+                productActionButtons(List.of(card)),
+                List.of(),
+                null,
+                null
+        );
+    }
+
+    private BotReply buildAddToCartReply(Product product) {
+        OmnichannelProductCardResponse card = mapFallbackProduct(product, new OmnichannelProductSearchRequest());
+        String cartUrl = firstNonBlank(card.getBuyNowUrl(), card.getCheckoutUrl(), shortProductLink(card));
+        String text = "Lovely pick. Open this cart link to add the product directly.\n\n"
+                + defaultString(card.getName(), "Product") + "\n"
+                + formatPrice(card.getPrice()) + " | " + defaultString(card.getStockLabel(), "Available") + "\n"
+                + "Cart: " + cartUrl + "\n\n"
+                + "Want similar options? Choose More Options.";
+        return new BotReply(
+                text,
+                1,
+                List.of(),
+                null,
+                null,
+                List.of(
+                        new WhatsAppInteractiveOption("MORE", "More Options", "Similar picks"),
+                        new WhatsAppInteractiveOption("Connect to Agent", "Agent", "Need help")
+                ),
+                List.of(),
+                null,
+                null
+        );
+    }
+
+    private BotReply buildWelcomeReply() {
+        String text = buildGuidedMenuReply();
+        String imageUrl = welcomeImageUrl();
+        return new BotReply(
+                text,
+                0,
+                List.of(),
+                imageUrl,
+                "Namaste. I can help with shopping, orders, offers, payments, and support.",
+                List.of(),
+                mainMenuSections(),
+                "Krishnai Assistant",
+                "Open menu"
+        );
     }
 
     private String buildGuidedMenuReply() {
-        return "Welcome to Krishnai Pearl Shopee. I can help with shopping, orders, delivery, payments, offers, and support.\n\n"
-                + "Please reply with one option:\n"
+        return "Namaste. Welcome to Krishnai Pearl Shopee.\n"
+                + "I can help like a shop salesperson with products, orders, delivery, payments, offers, and support.\n\n"
+                + "Reply with one option:\n"
                 + "1. Shop Products\n"
                 + "2. Browse Categories\n"
                 + "3. My Orders\n"
                 + "4. Track Delivery\n"
                 + "5. Payments / Refunds\n"
                 + "6. Offers\n"
-                + "7. Connect to Agent";
+                + "7. Connect to Agent\n\n"
+                + "You can also type naturally, like: necklace under 1500, bridal set, payment status, or my latest order.";
     }
 
     private String buildCategoryMenuReply() {
         List<String> categories = availableCategories().stream().limit(6).toList();
-        String categoryText = categories.isEmpty() ? "Cosmetics, Jewellery, Earrings, Necklaces, Rings, Bangles" : String.join("\n", categories.stream().map(category -> "- " + category).toList());
-        return "Choose a category or reply with your budget/style:\n\n"
+        String categoryText = categories.isEmpty()
+                ? "- Necklace\n- Earrings\n- Bangles\n- Rings\n- Cosmetics\n- New arrivals"
+                : String.join("\n", categories.stream().map(category -> "- " + displayCategoryName(category)).toList());
+        return "Sure. Choose a category, or send your budget/style and I will shortlist the best pieces:\n\n"
                 + categoryText + "\n\n"
                 + "Quick examples:\n"
                 + "- necklace under 1500\n"
                 + "- bridal jewellery\n"
                 + "- cosmetics gift under 1000\n\n"
                 + "Need help deciding? Reply: Connect to Agent";
+    }
+
+    private List<WhatsAppInteractiveSection> mainMenuSections() {
+        return List.of(new WhatsAppInteractiveSection("How can I help?", List.of(
+                new WhatsAppInteractiveOption("Shop Products", "Shop Products", "Featured and recommended picks"),
+                new WhatsAppInteractiveOption("Browse Categories", "Browse Categories", "Jewellery, cosmetics, gifts"),
+                new WhatsAppInteractiveOption("My Orders", "My Orders", "Recent orders and bills"),
+                new WhatsAppInteractiveOption("Track Delivery", "Track Delivery", "Current delivery status"),
+                new WhatsAppInteractiveOption("Payments / Refunds", "Payments / Refunds", "Payment and refund help"),
+                new WhatsAppInteractiveOption("Offers", "Offers", "Active coupons and deals"),
+                new WhatsAppInteractiveOption("Connect to Agent", "Connect to Agent", "Talk to store support")
+        )));
+    }
+
+    private List<WhatsAppInteractiveSection> categorySections() {
+        List<WhatsAppInteractiveOption> categoryOptions = availableCategories().stream()
+                .limit(10)
+                .map(category -> new WhatsAppInteractiveOption(category, displayCategoryName(category), displayCategoryDescription(category)))
+                .toList();
+        if (categoryOptions.isEmpty()) {
+            categoryOptions = List.of(
+                    new WhatsAppInteractiveOption("Cosmetics", "Cosmetics", "Beauty and daily-use picks"),
+                    new WhatsAppInteractiveOption("Jewellery", "Jewellery", "Necklaces, earrings, bangles"),
+                    new WhatsAppInteractiveOption("Necklace", "Necklace", "Premium necklace picks"),
+                    new WhatsAppInteractiveOption("Earrings", "Earrings", "Party and daily wear")
+            );
+        }
+        return List.of(new WhatsAppInteractiveSection("Categories", categoryOptions));
+    }
+
+    private String displayCategoryName(String category) {
+        String normalized = normalize(category);
+        if (normalized.contains("neck") || normalized.contains("mala") || normalized.contains("haar")) {
+            return "Necklace";
+        }
+        if (normalized.contains("ear") || normalized.contains("jhumka")) {
+            return "Earrings";
+        }
+        if (normalized.contains("bangle")) {
+            return "Bangles";
+        }
+        if (normalized.contains("ring")) {
+            return "Rings";
+        }
+        if (normalized.contains("cosmetic") || normalized.contains("makeup")) {
+            return "Cosmetics";
+        }
+        if (normalized.contains("bridal")) {
+            return "Bridal";
+        }
+        if (normalized.contains("gift")) {
+            return "Gifts";
+        }
+        return titleCaseLabel(category);
+    }
+
+    private String displayCategoryDescription(String category) {
+        String normalized = normalize(category);
+        if (normalized.contains("neck")) {
+            return "Premium necklaces and sets";
+        }
+        if (normalized.contains("ear") || normalized.contains("jhumka")) {
+            return "Daily, party, and festive picks";
+        }
+        if (normalized.contains("bangle")) {
+            return "Bangles and hand jewellery";
+        }
+        if (normalized.contains("ring")) {
+            return "Elegant rings and gift picks";
+        }
+        if (normalized.contains("cosmetic") || normalized.contains("makeup")) {
+            return "Beauty and styling essentials";
+        }
+        return "View products";
+    }
+
+    private String titleCaseLabel(String value) {
+        String normalized = safe(value).replace('_', ' ').replace('-', ' ').trim().toLowerCase(Locale.ROOT);
+        if (!hasText(normalized)) {
+            return "Products";
+        }
+        StringBuilder builder = new StringBuilder();
+        for (String part : normalized.split("\\s+")) {
+            if (part.isBlank()) {
+                continue;
+            }
+            if (!builder.isEmpty()) {
+                builder.append(' ');
+            }
+            builder.append(Character.toUpperCase(part.charAt(0)));
+            if (part.length() > 1) {
+                builder.append(part.substring(1));
+            }
+        }
+        return builder.toString();
+    }
+
+    private List<WhatsAppInteractiveOption> productActionButtons(List<OmnichannelProductCardResponse> products) {
+        if (products == null || products.isEmpty()) {
+            return List.of(
+                    new WhatsAppInteractiveOption("Browse Categories", "Categories", "Browse collections"),
+                    new WhatsAppInteractiveOption("Connect to Agent", "Agent", "Talk to support")
+            );
+        }
+        OmnichannelProductCardResponse first = products.get(0);
+        String productCode = shortProductCode(first);
+        return List.of(
+                new WhatsAppInteractiveOption("VIEW " + productCode, "View Details", "Price, stock, offers"),
+                new WhatsAppInteractiveOption("BUY " + productCode, "Add to Cart", "Continue shopping"),
+                new WhatsAppInteractiveOption("MORE", "More Options", "Show similar products")
+        );
+    }
+
+    private List<WhatsAppInteractiveSection> productSections(List<OmnichannelProductCardResponse> products) {
+        if (products == null || products.size() <= 1) {
+            return List.of();
+        }
+
+        List<WhatsAppInteractiveOption> options = products.stream()
+                .limit(8)
+                .map(product -> {
+                    String productCode = shortProductCode(product);
+                    String title = hasText(product.getName()) ? product.getName() : "Product " + productCode;
+                    return new WhatsAppInteractiveOption(
+                            "VIEW " + productCode,
+                            title,
+                            formatPrice(product.getPrice()) + " | " + defaultString(product.getStockLabel(), "Available")
+                    );
+                })
+                .toList();
+
+        if (options.isEmpty()) {
+            return List.of();
+        }
+        return List.of(new WhatsAppInteractiveSection("Recommended", options));
     }
 
     private String buildFallbackMenuReply() {
@@ -452,13 +904,13 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
 
         if (products.stream().anyMatch(product -> hasText(publicImageUrl(product.getImageUrl())))) {
             StringBuilder intro = new StringBuilder();
-            intro.append("I found ").append(products.size()).append(" close match");
+            intro.append("I found ").append(products.size()).append(" good match");
             if (products.size() != 1) {
                 intro.append("es");
             }
-            intro.append(". I am sharing the best product photo with details now.");
+            intro.append(". I am sharing the best product photo with price and availability.");
             if (products.size() > 1) {
-                intro.append("\n\nOther matching picks: ");
+                intro.append("\n\nOther close picks: ");
                 intro.append(products.stream()
                         .skip(1)
                         .limit(3)
@@ -466,7 +918,7 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
                         .filter(this::hasText)
                         .collect(java.util.stream.Collectors.joining(", ")));
             }
-            intro.append("\n\nWant more options? Reply with category + budget, like \"necklace under 1500\".");
+            intro.append("\n\nChoose an action below.");
             return intro.toString().trim();
         }
 
@@ -492,7 +944,10 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
             if (hasText(product.getShortBenefit())) {
                 reply.append(product.getShortBenefit()).append("\n");
             }
-            reply.append("Reply BUY ").append(shortProductCode(product)).append(" to continue, or visit https://kpskrishnai.com/products\n\n");
+            reply.append("Reply BUY ").append(shortProductCode(product))
+                    .append(" to add it to cart, or VIEW ")
+                    .append(shortProductCode(product))
+                    .append(" for full details.\n\n");
         }
         reply.append("Want more options? Send category + budget, like \"necklace under 1500\".");
         return reply.toString().trim();
@@ -640,7 +1095,8 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
             return new BotUnderstanding(BotIntent.THANKS, null, text, null, null, null);
         }
         if (isCategoryBrowseRequest(normalized)) {
-            return new BotUnderstanding(BotIntent.CATEGORY_BROWSE, null, text, null, null, null);
+            String category = detectCategory(normalized);
+            return new BotUnderstanding(BotIntent.CATEGORY_BROWSE, category, text, null, null, null);
         }
         if (containsAny(normalized, "offer", "offers", "discount", "coupon", "deal", "सूट")) {
             String category = detectCategory(normalized);
@@ -667,7 +1123,7 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
         String value = normalize(normalizedText);
         return switch (value) {
             case "1", "one", "shop products", "shop product" ->
-                    new BotUnderstanding(BotIntent.PRODUCT_SEARCH, null, firstNonBlank(originalText, "featured products"), null, null, null);
+                    new BotUnderstanding(BotIntent.PRODUCT_SEARCH, null, "featured trending new arrival jewellery cosmetics", null, null, null);
             case "2", "two", "browse categories", "browse category" ->
                     new BotUnderstanding(BotIntent.CATEGORY_BROWSE, null, firstNonBlank(originalText, "categories"), null, null, null);
             case "3", "three", "my orders", "orders" ->
@@ -750,7 +1206,28 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
             return null;
         }
         String text = firstNonBlank(
+                payload.path("payload").path("id").asText(null),
+                payload.path("payload").path("payload").asText(null),
+                payload.path("payload").path("selectedRowId").asText(null),
+                payload.path("payload").path("postback").path("id").asText(null),
+                payload.path("payload").path("postbackText").asText(null),
+                payload.path("payload").path("button").path("id").asText(null),
+                payload.path("payload").path("button").path("payload").asText(null),
+                payload.path("payload").path("title").asText(null),
+                payload.path("payload").path("button").path("text").asText(null),
+                payload.path("payload").path("list_reply").path("id").asText(null),
+                payload.path("payload").path("list_reply").path("title").asText(null),
                 payload.path("payload").path("text").asText(null),
+                payload.path("id").asText(null),
+                payload.path("payload").asText(null),
+                payload.path("selectedRowId").asText(null),
+                payload.path("postbackText").asText(null),
+                payload.path("title").asText(null),
+                payload.path("button").path("id").asText(null),
+                payload.path("button").path("payload").asText(null),
+                payload.path("button").path("text").asText(null),
+                payload.path("list_reply").path("id").asText(null),
+                payload.path("list_reply").path("title").asText(null),
                 payload.path("text").asText(null),
                 payload.path("message").asText(null)
         );
@@ -775,6 +1252,8 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
         }
         String text = firstNonBlank(
                 message.path("text").path("body").asText(null),
+                message.path("interactive").path("button_reply").path("id").asText(null),
+                message.path("interactive").path("list_reply").path("id").asText(null),
                 message.path("interactive").path("button_reply").path("title").asText(null),
                 message.path("interactive").path("list_reply").path("title").asText(null),
                 message.path("button").path("text").asText(null)
@@ -796,15 +1275,134 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
         if (reply == null) {
             return sendWhatsAppText(to, buildFallbackMenuReply());
         }
-        if (hasProductImage(reply.products())) {
-            SendResult imageResult = sendProductImageIfAvailable(to, reply.products());
-            if (imageResult != null && imageResult.success()) {
-                return imageResult;
+        SendResult mediaResult = null;
+        if (hasText(reply.mediaUrl())) {
+            MarketingChannelResult result = whatsAppMessageService.sendImage(
+                    to,
+                    publicImageUrl(reply.mediaUrl()),
+                    defaultString(reply.mediaCaption(), reply.text())
+            );
+            mediaResult = new SendResult(result.isSuccess(), result.getResponseId(), result.getErrorMessage());
+            if (!hasInteractiveReply(reply)) {
+                if (mediaResult.success()) {
+                    return mediaResult;
+                }
+                SendResult textResult = sendWhatsAppText(to, reply.text());
+                return combineTextFallbackWithImageFailure(textResult, mediaResult);
             }
-            SendResult textResult = sendWhatsAppText(to, reply.text());
-            return combineTextFallbackWithImageFailure(textResult, imageResult);
+        }
+        if (hasProductImage(reply.products())) {
+            mediaResult = sendProductImageIfAvailable(to, reply.products());
+            if (!hasInteractiveReply(reply)) {
+                if (mediaResult != null && mediaResult.success()) {
+                    return mediaResult;
+                }
+                SendResult textResult = sendWhatsAppText(to, reply.text());
+                return combineTextFallbackWithImageFailure(textResult, mediaResult);
+            }
+        }
+        if (hasInteractiveReply(reply)) {
+            BotReply interactiveReply = mediaResult != null && mediaResult.success()
+                    ? compactInteractiveReply(reply)
+                    : reply;
+            SendResult interactiveResult = sendInteractiveReply(to, interactiveReply);
+            if (mediaResult == null && interactiveResult == null) {
+                return sendWhatsAppText(to, reply.text());
+            }
+            return combineSequentialResults(mediaResult, interactiveResult);
         }
         return sendWhatsAppText(to, reply.text());
+    }
+
+    private boolean hasInteractiveReply(BotReply reply) {
+        return reply != null
+                && ((reply.sections() != null && !reply.sections().isEmpty())
+                || (reply.buttons() != null && !reply.buttons().isEmpty()));
+    }
+
+    private BotReply compactInteractiveReply(BotReply reply) {
+        if (reply == null) {
+            return null;
+        }
+        String text = reply.text();
+        if (hasProductImage(reply.products()) && reply.buttons() != null && !reply.buttons().isEmpty()) {
+            text = "Choose what you would like to do next.";
+        } else if (reply.sections() != null && !reply.sections().isEmpty()) {
+            text = "Please choose an option below.";
+        }
+        return new BotReply(
+                text,
+                reply.productCount(),
+                List.of(),
+                null,
+                null,
+                reply.buttons(),
+                reply.sections(),
+                reply.listHeader(),
+                reply.listButtonText()
+        );
+    }
+
+    private SendResult sendInteractiveReply(String to, BotReply reply) {
+        MarketingChannelResult result;
+        if (reply.sections() != null && !reply.sections().isEmpty()) {
+            result = whatsAppMessageService.sendListMessage(
+                    to,
+                    defaultString(reply.listHeader(), "Krishnai Assistant"),
+                    reply.text(),
+                    defaultString(reply.listButtonText(), "Choose"),
+                    reply.sections()
+            );
+        } else {
+            result = whatsAppMessageService.sendReplyButtons(to, reply.text(), reply.buttons());
+        }
+        if (result == null) {
+            return null;
+        }
+        return new SendResult(result.isSuccess(), result.getResponseId(), result.getErrorMessage());
+    }
+
+    private SendResult combineSequentialResults(SendResult first, SendResult second) {
+        if (first == null) {
+            return second;
+        }
+        if (second == null) {
+            return first;
+        }
+        String messageId = firstNonBlank(joinMessageIds(first.messageId(), second.messageId()), first.messageId(), second.messageId());
+        if (second.success()) {
+            return new SendResult(true, messageId, first.success() ? null : "First message failed: " + safe(first.errorMessage()));
+        }
+        if (first.success()) {
+            return new SendResult(true, messageId, "Interactive message failed: " + safe(second.errorMessage()));
+        }
+        return new SendResult(false, messageId, firstNonBlank(second.errorMessage(), first.errorMessage()));
+    }
+
+    private BotReply polishReplyWithOrchestrator(BotInboundMessage inbound,
+                                                 BotIntentClassification classification,
+                                                 BotReply reply) {
+        if (reply == null || botOrchestratorService == null || hasProductImage(reply.products())) {
+            return reply;
+        }
+        try {
+            String polished = botOrchestratorService.polishReply(inbound, classification, reply.text());
+            if (!hasText(polished) || polished.length() > 1800) {
+                return reply;
+            }
+            return new BotReply(polished,
+                    reply.productCount(),
+                    reply.products(),
+                    reply.mediaUrl(),
+                    reply.mediaCaption(),
+                    reply.buttons(),
+                    reply.sections(),
+                    reply.listHeader(),
+                    reply.listButtonText());
+        } catch (Exception exception) {
+            log.debug("Unable to polish WhatsApp bot reply", exception);
+            return reply;
+        }
     }
 
     private boolean hasProductImage(List<OmnichannelProductCardResponse> products) {
@@ -869,15 +1467,29 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
         lines.add(defaultString(product.getName(), "Product"));
         lines.add(formatPrice(product.getPrice()) + " | " + defaultString(product.getStockLabel(), "Available"));
         lines.add(productSalesPitch(product));
-        String shortLink = shortProductLink(product);
-        if (hasText(shortLink)) {
-            lines.add("View product: " + shortLink);
-        } else {
-            lines.add("Open store: https://kpskrishnai.com/products");
-        }
-        lines.add("Reply BUY " + shortProductCode(product) + " or ask for more options.");
+        lines.add("Tap an option below for details, cart, or similar picks.");
         String caption = String.join("\n", lines);
         return caption.length() > 1000 ? caption.substring(0, 997) + "..." : caption;
+    }
+
+    private String welcomeImageUrl() {
+        if (receiptSettingsRepository == null) {
+            return null;
+        }
+        try {
+            return receiptSettingsRepository.findAll().stream()
+                    .findFirst()
+                    .map(settings -> firstNonBlank(
+                            publicImageUrl(settings.getHeroPrimaryImageUrl()),
+                            publicImageUrl(settings.getHeroSecondaryImageUrl()),
+                            publicImageUrl(settings.getLogoUrl())
+                    ))
+                    .filter(this::hasText)
+                    .orElse(null);
+        } catch (Exception exception) {
+            log.debug("Unable to load WhatsApp welcome image", exception);
+            return null;
+        }
     }
 
     private String productSalesPitch(OmnichannelProductCardResponse product) {
@@ -887,16 +1499,16 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
         }
         String category = normalize(firstNonBlank(product.getCategory(), product.getName()));
         if (category.contains("necklace") || category.contains("neckalace") || category.contains("हार")) {
-            return "Elegant necklace set for festive, gifting, and occasion looks.";
+            return "A graceful necklace pick for festive looks, gifting, and special occasions.";
         }
         if (category.contains("earring") || category.contains("jhumka")) {
-            return "Elegant earrings that pair well with ethnic and party wear.";
+            return "Elegant earrings that pair beautifully with ethnic and party wear.";
         }
         if (category.contains("bangle") || category.contains("bracelet")) {
-            return "Beautiful hand jewellery to complete your festive look.";
+            return "A polished hand-jewellery pick to complete a festive look.";
         }
         if (category.contains("cosmetic") || category.contains("makeup")) {
-            return "A polished beauty pick for daily use or gifting.";
+            return "A refined beauty pick for daily use, styling, or gifting.";
         }
         return "Premium pick from the latest retail collection.";
     }
@@ -913,6 +1525,33 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
             return "ITEM";
         }
         return product.getProductId().toString().substring(0, 8).toUpperCase(Locale.ROOT);
+    }
+
+    private boolean isDuplicateInbound(InboundMessage message) {
+        String key = inboundDedupKey(message);
+        if (!hasText(key)) {
+            return false;
+        }
+        cleanupRecentInboundMessages();
+        Instant now = Instant.now();
+        Instant previous = RECENT_INBOUND_MESSAGES.putIfAbsent(key, now);
+        return previous != null && previous.plus(INBOUND_DEDUP_TTL).isAfter(now);
+    }
+
+    private void cleanupRecentInboundMessages() {
+        Instant cutoff = Instant.now().minus(INBOUND_DEDUP_TTL);
+        RECENT_INBOUND_MESSAGES.entrySet().removeIf(entry -> entry.getValue().isBefore(cutoff));
+    }
+
+    private String inboundDedupKey(InboundMessage message) {
+        if (message == null) {
+            return "";
+        }
+        String id = firstNonBlank(message.messageId());
+        if (hasText(id)) {
+            return "id:" + id;
+        }
+        return "body:" + digitsOnly(message.from()) + ":" + normalize(message.text());
     }
 
     private void saveOutboundMessage(java.util.UUID leadId, String replyText, SendResult sendResult) {
@@ -992,15 +1631,90 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
         return new PriceRange(null, first);
     }
 
+    private boolean isBudgetOnly(String normalizedText) {
+        if (!hasText(normalizedText)) {
+            return false;
+        }
+        String compact = normalizedText.replaceAll("\\s+", "");
+        if (compact.matches("(?:rs|inr)?\\d{2,7}")) {
+            return true;
+        }
+        return MONEY_PATTERN.matcher(normalizedText).matches()
+                && !hasRecognizableCatalogSignal(normalizedText)
+                && !containsAny(normalizedText, "order", "payment", "track", "otp", "phone", "mobile");
+    }
+
+    private String extractFirstAmount(String normalizedText) {
+        Matcher matcher = MONEY_PATTERN.matcher(normalizedText);
+        if (matcher.find()) {
+            return matcher.group(1);
+        }
+        return normalizedText.replaceAll("\\D", "");
+    }
+
+    private BigDecimal extractPositiveAmount(String normalizedText) {
+        String amount = extractFirstAmount(normalizedText);
+        if (!hasText(amount)) {
+            return null;
+        }
+        try {
+            BigDecimal value = new BigDecimal(amount);
+            return positiveAmountOrNull(value);
+        } catch (NumberFormatException exception) {
+            return null;
+        }
+    }
+
+    private BigDecimal positiveAmountOrNull(BigDecimal amount) {
+        return amount != null && amount.compareTo(BigDecimal.ZERO) > 0 ? amount : null;
+    }
+
+    private boolean isMoreRequest(String normalizedText) {
+        return "more".equals(normalizedText)
+                || "show more".equals(normalizedText)
+                || "more options".equals(normalizedText)
+                || "similar".equals(normalizedText)
+                || "similar items".equals(normalizedText);
+    }
+
+    private boolean isCategoryModifierOnly(String normalizedText) {
+        if (!hasText(normalizedText) || hasRecognizableCatalogSignal(normalizedText)) {
+            return false;
+        }
+        if (isBudgetOnly(normalizedText)) {
+            return true;
+        }
+        if (MONEY_PATTERN.matcher(normalizedText).find()) {
+            return true;
+        }
+        List<String> tokens = meaningfulTokens(normalizedText);
+        if (tokens.isEmpty() || tokens.size() > 4) {
+            return false;
+        }
+        return tokens.stream().allMatch(token ->
+                COLOR_STYLE_TERMS.contains(token)
+                        || containsAny(token, "daily", "party", "bridal", "wedding", "gift", "office", "simple", "premium", "cheap")
+        );
+    }
+
+    private boolean hasRecognizableCatalogSignal(String normalizedText) {
+        return hasText(detectCategory(normalizedText))
+                || hasText(detectOccasion(normalizedText))
+                || containsAny(normalizedText, "gift", "bridal", "daily wear", "party", "festival", "new arrival", "trending", "featured");
+    }
+
     private String detectOccasion(String normalizedText) {
         if (containsAny(normalizedText, "wedding", "bridal", "लग्न", "shaadi")) {
             return "wedding";
         }
-        if (containsAny(normalizedText, "gift", "birthday", "anniversary", "भेट")) {
+        if (containsAny(normalizedText, "gift", "birthday", "anniversary", "mother", "mothers day", "आई", "भेट")) {
             return "gifting";
         }
-        if (containsAny(normalizedText, "party", "function", "festival", "सण")) {
+        if (containsAny(normalizedText, "party", "function", "festival", "diwali", "दिवाळी", "सण")) {
             return "occasion wear";
+        }
+        if (containsAny(normalizedText, "daily", "office", "regular", "simple", "दररोज")) {
+            return "daily wear";
         }
         return null;
     }
@@ -1024,7 +1738,8 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
 
     private OmnichannelProductSearchResponse fallbackProductSearch(OmnichannelProductSearchRequest request, BotUnderstanding understanding) {
         int limit = request.getLimit() == null ? 5 : Math.max(1, request.getLimit());
-        List<OmnichannelProductCardResponse> products = productRepository.findAll().stream()
+        List<Product> catalog = productRepository.findAll();
+        List<OmnichannelProductCardResponse> products = catalog.stream()
                 .filter(product -> isCatalogProductAvailable(product, request))
                 .map(product -> new ScoredProduct(product, scoreProduct(product, understanding)))
                 .filter(scored -> scored.score() > 0)
@@ -1038,6 +1753,14 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
                 .limit(limit)
                 .map(scored -> mapFallbackProduct(scored.product(), request))
                 .toList();
+        if (products.isEmpty() && isBroadShoppingRequest(understanding)) {
+            products = catalog.stream()
+                    .filter(product -> isCatalogProductAvailable(product, request))
+                    .sorted(Comparator.comparing(Product::getQuantity, Comparator.nullsLast(Comparator.reverseOrder())))
+                    .limit(limit)
+                    .map(product -> mapFallbackProduct(product, request))
+                    .toList();
+        }
 
         return OmnichannelProductSearchResponse.builder()
                 .query(firstNonBlank(understanding.searchText(), understanding.category(), request.getQuery(), "Recommended products"))
@@ -1045,6 +1768,16 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
                 .introMessage(products.isEmpty() ? "No close catalog match found." : "Here are close matches from the catalog.")
                 .products(products)
                 .build();
+    }
+
+    private boolean isBroadShoppingRequest(BotUnderstanding understanding) {
+        if (understanding == null) {
+            return false;
+        }
+        String text = normalize(understanding.searchText());
+        return !hasText(understanding.category())
+                && (containsAny(text, "featured", "trending", "new arrival", "jewellery", "cosmetics", "shop products")
+                || "1".equals(text));
     }
 
     private boolean isCatalogProductAvailable(Product product, OmnichannelProductSearchRequest request) {
@@ -1160,12 +1893,26 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
                 Map.entry("neckless", "necklace"),
                 Map.entry("neckles", "necklace"),
                 Map.entry("nekles", "necklace"),
+                Map.entry("neck piece", "necklace"),
+                Map.entry("neckpiece", "necklace"),
+                Map.entry("chain", "necklace"),
+                Map.entry("mala", "necklace"),
+                Map.entry("maal", "necklace"),
+                Map.entry("haar", "necklace"),
+                Map.entry("har", "necklace"),
+                Map.entry("set", "necklace"),
                 Map.entry("हार", "necklace"),
+                Map.entry("माळ", "necklace"),
+                Map.entry("माला", "necklace"),
                 Map.entry("bangle", "bangles"),
                 Map.entry("bangles", "bangles"),
                 Map.entry("bangels", "bangles"),
                 Map.entry("bangal", "bangles"),
+                Map.entry("chudi", "bangles"),
+                Map.entry("chuda", "bangles"),
+                Map.entry("kangan", "bangles"),
                 Map.entry("बांगडी", "bangles"),
+                Map.entry("बांगड्या", "bangles"),
                 Map.entry("bracelet", "bracelet"),
                 Map.entry("bracelete", "bracelet"),
                 Map.entry("cosmetic", "cosmetics"),
@@ -1173,11 +1920,28 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
                 Map.entry("cosmatic", "cosmetics"),
                 Map.entry("cosmatics", "cosmetics"),
                 Map.entry("makeup", "cosmetics"),
+                Map.entry("lipstick", "cosmetics"),
+                Map.entry("lipstic", "cosmetics"),
+                Map.entry("kajal", "cosmetics"),
+                Map.entry("eyeliner", "cosmetics"),
+                Map.entry("liner", "cosmetics"),
+                Map.entry("foundation", "cosmetics"),
+                Map.entry("powder", "cosmetics"),
+                Map.entry("toner", "cosmetics"),
+                Map.entry("facewash", "cosmetics"),
+                Map.entry("face wash", "cosmetics"),
+                Map.entry("perfume", "cosmetics"),
+                Map.entry("highlighter", "cosmetics"),
                 Map.entry("gift", "gifts"),
                 Map.entry("gifting", "gifts"),
                 Map.entry("bridal", "bridal"),
+                Map.entry("bride", "bridal"),
                 Map.entry("mangalsutra", "mangalsutra"),
                 Map.entry("mangal sutra", "mangalsutra"),
+                Map.entry("nose pin", "nose pin"),
+                Map.entry("nosepin", "nose pin"),
+                Map.entry("nath", "nose pin"),
+                Map.entry("pendant", "pendant"),
                 Map.entry("ring", "rings"),
                 Map.entry("rings", "rings")
         );
@@ -1350,6 +2114,7 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
 
     private List<String> availableCategories() {
         LinkedHashSet<String> categories = productRepository.findAll().stream()
+                .sorted(Comparator.comparing(Product::getCategory, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)))
                 .map(Product::getCategory)
                 .filter(this::hasText)
                 .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
@@ -1488,7 +2253,26 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
     private record BotUnderstanding(BotIntent intent, String category, String searchText, BigDecimal minPrice, BigDecimal maxPrice, String occasion) {
     }
 
-    private record BotReply(String text, int productCount, List<OmnichannelProductCardResponse> products) {
+    private record BotReply(String text,
+                            int productCount,
+                            List<OmnichannelProductCardResponse> products,
+                            String mediaUrl,
+                            String mediaCaption,
+                            List<WhatsAppInteractiveOption> buttons,
+                            List<WhatsAppInteractiveSection> sections,
+                            String listHeader,
+                            String listButtonText) {
+        private BotReply(String text, int productCount, List<OmnichannelProductCardResponse> products) {
+            this(text, productCount, products, null, null, List.of(), List.of(), null, null);
+        }
+
+        private BotReply(String text,
+                         int productCount,
+                         List<OmnichannelProductCardResponse> products,
+                         String mediaUrl,
+                         String mediaCaption) {
+            this(text, productCount, products, mediaUrl, mediaCaption, List.of(), List.of(), null, null);
+        }
     }
 
     private record PriceRange(BigDecimal min, BigDecimal max) {
@@ -1498,6 +2282,14 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
     }
 
     private record SendResult(boolean success, String messageId, String errorMessage) {
+    }
+
+    private record BotSession(String lastCategory,
+                              BigDecimal lastMaxPrice,
+                              BigDecimal lastMinPrice,
+                              String lastIntent,
+                              String lastProductId,
+                              Instant updatedAt) {
     }
 
     private enum BotIntent {

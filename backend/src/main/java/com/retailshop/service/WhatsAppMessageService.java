@@ -4,6 +4,8 @@ import com.retailshop.entity.Campaign;
 import com.retailshop.entity.Customer;
 import com.retailshop.entity.CustomerOrder;
 import com.retailshop.enums.WhatsAppTemplateKey;
+import com.retailshop.dto.whatsapp.WhatsAppInteractiveOption;
+import com.retailshop.dto.whatsapp.WhatsAppInteractiveSection;
 
 import java.util.List;
 
@@ -17,6 +19,14 @@ public interface WhatsAppMessageService {
     MarketingChannelResult sendText(String mobile, String body);
 
     MarketingChannelResult sendImage(String mobile, String imageUrl, String caption);
+
+    MarketingChannelResult sendReplyButtons(String mobile, String body, List<WhatsAppInteractiveOption> buttons);
+
+    MarketingChannelResult sendListMessage(String mobile,
+                                           String header,
+                                           String body,
+                                           String buttonText,
+                                           List<WhatsAppInteractiveSection> sections);
 
     MarketingChannelResult sendOrderConfirmation(CustomerOrder order);
 

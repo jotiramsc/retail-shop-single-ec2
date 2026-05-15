@@ -11,5 +11,7 @@ public interface BotOrchestratorService {
 
     List<BotMemoryRecord> retrieveMemory(BotInboundMessage inbound);
 
+    String polishReply(BotInboundMessage inbound, BotIntentClassification classification, String factualDraft);
+
     void remember(BotInboundMessage inbound, String outboundText);
 }

@@ -6,7 +6,7 @@ import com.retailshop.dto.bot.BotMemoryRecord;
 import com.retailshop.enums.WhatsAppBotIntent;
 import com.retailshop.service.bot.BotIntentService;
 import com.retailshop.service.bot.BotOpenAiService;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -18,22 +18,41 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @Service
-@RequiredArgsConstructor
 public class BotIntentServiceImpl implements BotIntentService {
 
     private static final Pattern MONEY_PATTERN = Pattern.compile("(?:₹|rs\\.?|inr)?\\s*(\\d{2,7})(?:\\s*(?:-|to|and)\\s*(?:₹|rs\\.?|inr)?\\s*(\\d{2,7}))?", Pattern.CASE_INSENSITIVE);
     private static final Pattern ORDER_PATTERN = Pattern.compile("\\b(?:KPS\\d+|ORD[-A-Z0-9]+)\\b", Pattern.CASE_INSENSITIVE);
 
-    private final BotOpenAiService openAiService;
+    private final ObjectProvider<BotOpenAiService> openAiServiceProvider;
+
+    public BotIntentServiceImpl(ObjectProvider<BotOpenAiService> openAiServiceProvider) {
+        this.openAiServiceProvider = openAiServiceProvider;
+    }
 
     @Override
     public BotIntentClassification classify(String message, BotContext context, List<BotMemoryRecord> memories) {
         BotIntentClassification rule = classifyWithRules(message, context);
-        Optional<BotIntentClassification> ai = openAiService.classifyIntent(message, context, memories);
+        BotOpenAiService openAiService = openAiServiceProvider.getIfAvailable();
+        Optional<BotIntentClassification> ai = openAiService == null
+                ? Optional.empty()
+                : openAiService.classifyIntent(message, context, memories);
         if (ai.isPresent() && ai.get().getConfidence() >= 0.65) {
             return merge(rule, ai.get());
         }
         return rule;
+    }
+
+    @Override
+    public Optional<String> polishReply(String message,
+                                        BotIntentClassification intent,
+                                        BotContext context,
+                                        List<BotMemoryRecord> memories,
+                                        String factualDraft) {
+        BotOpenAiService openAiService = openAiServiceProvider.getIfAvailable();
+        if (openAiService == null) {
+            return Optional.empty();
+        }
+        return openAiService.generateReply(message, intent, context, memories, factualDraft);
     }
 
     private BotIntentClassification merge(BotIntentClassification rule, BotIntentClassification ai) {
@@ -187,19 +206,49 @@ public class BotIntentServiceImpl implements BotIntentService {
                 Map.entry("neckalce", "necklace"),
                 Map.entry("neckalace", "necklace"),
                 Map.entry("neckless", "necklace"),
+                Map.entry("neck piece", "necklace"),
+                Map.entry("neckpiece", "necklace"),
+                Map.entry("chain", "necklace"),
+                Map.entry("mala", "necklace"),
+                Map.entry("haar", "necklace"),
+                Map.entry("set", "necklace"),
+                Map.entry("हार", "necklace"),
+                Map.entry("माळ", "necklace"),
+                Map.entry("माला", "necklace"),
                 Map.entry("earring", "earrings"),
+                Map.entry("earrings", "earrings"),
                 Map.entry("earings", "earrings"),
                 Map.entry("earing", "earrings"),
+                Map.entry("tops", "earrings"),
+                Map.entry("stud", "earrings"),
                 Map.entry("jhumka", "earrings"),
+                Map.entry("झुमका", "earrings"),
                 Map.entry("bangle", "bangles"),
+                Map.entry("bangles", "bangles"),
                 Map.entry("bangels", "bangles"),
+                Map.entry("bangale", "bangles"),
+                Map.entry("chudi", "bangles"),
+                Map.entry("चुडी", "bangles"),
+                Map.entry("बांगडी", "bangles"),
                 Map.entry("bracelet", "bracelet"),
                 Map.entry("ring", "rings"),
+                Map.entry("rings", "rings"),
+                Map.entry("anguthi", "rings"),
                 Map.entry("mangalsutra", "mangalsutra"),
+                Map.entry("nose pin", "nose pin"),
+                Map.entry("nosepin", "nose pin"),
+                Map.entry("nath", "nose pin"),
+                Map.entry("pendant", "pendant"),
                 Map.entry("cosmetic", "cosmetics"),
                 Map.entry("cosmetics", "cosmetics"),
                 Map.entry("makeup", "cosmetics"),
+                Map.entry("lipstick", "cosmetics"),
+                Map.entry("kajal", "cosmetics"),
+                Map.entry("eyeliner", "cosmetics"),
+                Map.entry("compact", "cosmetics"),
+                Map.entry("foundation", "cosmetics"),
                 Map.entry("gift", "gifts"),
+                Map.entry("gifting", "gifts"),
                 Map.entry("bridal", "bridal")
         );
     }
