@@ -44,7 +44,7 @@ export default function OrdersPage() {
           <div>
             <p className="glow-kicker">Orders</p>
             <h1>Your recent orders</h1>
-            <p>Track placed orders and review what was confirmed from the checkout flow.</p>
+            <p>Track placed orders, payment status, and fulfillment updates from your storefront account.</p>
           </div>
           <Link className="ghost-btn compact-btn" to="/products">Shop more</Link>
         </div>

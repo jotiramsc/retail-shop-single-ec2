@@ -217,6 +217,14 @@ public class ProductServiceImpl implements ProductService {
         return selectedProducts.stream().map(this::mapToPublicResponse).toList();
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public PublicProductResponse getPublicProduct(UUID id) {
+        return productRepository.findById(id)
+                .map(this::mapToPublicResponse)
+                .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
+    }
+
     private void mapRequest(Product product, ProductRequest request) {
         productCategoryOptionService.validateCategoryCode(request.getCategory());
         product.setName(request.getName());

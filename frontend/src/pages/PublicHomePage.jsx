@@ -439,9 +439,10 @@ export default function PublicHomePage({ branding, siteVisitCount }) {
 
         <div className={bentoGridClassName}>
           {collectionProducts.map((product, index) => (
-            <article
+            <Link
               key={product.id}
               id={`collection-${normalizeId(product.name)}`}
+              to={`/products?category=${normalizeId(titleCaseCategory(product.category))}`}
             className={`category-card glow-bento-card glow-reveal ${index === 0 ? 'glow-bento-card-large' : ''}`}
             style={{ transitionDelay: `${Math.min(index * 0.08, 0.42)}s` }}
           >
@@ -450,7 +451,7 @@ export default function PublicHomePage({ branding, siteVisitCount }) {
                 <span>{titleCaseCategory(product.category)}</span>
                 <strong>{product.name}</strong>
               </div>
-            </article>
+            </Link>
           ))}
         </div>
       </section>

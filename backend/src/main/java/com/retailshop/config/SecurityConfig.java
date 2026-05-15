@@ -94,7 +94,7 @@ public class SecurityConfig {
                         .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/site-interactions/visit").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/settings/receipt").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/product-categories/options").permitAll()
-                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/products/catalog", "/api/products/catalog/home", "/api/products/catalog/trending").permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/products/catalog", "/api/products/catalog/home", "/api/products/catalog/trending", "/api/products/catalog/**").permitAll()
                         .requestMatchers("/api/cart/**", "/api/wishlist/**", "/api/address/**", "/api/order/**", "/api/orders/**", "/api/checkout/**", "/api/customer-profile/**").hasRole("CUSTOMER")
                         .anyRequest().authenticated())
                 .addFilterBefore(staffJwtFilter, UsernamePasswordAuthenticationFilter.class)

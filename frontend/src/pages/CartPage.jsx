@@ -218,7 +218,10 @@ export default function CartPage() {
             <h1>Your selected pieces</h1>
             <p>Review quantities, keep your guest cart safe, and continue to checkout when you are ready.</p>
           </div>
-          <Link className="ghost-btn compact-btn" to="/products">Continue shopping</Link>
+          <div className="customer-flow-actions">
+            <Link className="ghost-btn compact-btn" to="/products">Continue shopping</Link>
+            <Link className="primary-btn compact-btn" to="/orders">Track orders</Link>
+          </div>
         </div>
 
         {loading ? <p>Loading cart…</p> : null}

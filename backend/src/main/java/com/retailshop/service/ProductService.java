@@ -21,4 +21,5 @@ public interface ProductService {
     PaginatedResponse<LowStockProductResponse> getLowStockProducts(Pageable pageable);
     List<PublicProductResponse> getPublicCatalog();
     List<PublicProductResponse> getPublicHomepageCatalog();
+    PublicProductResponse getPublicProduct(UUID id);
 }

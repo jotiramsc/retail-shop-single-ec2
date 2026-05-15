@@ -39,6 +39,7 @@ import com.retailshop.exception.ResourceNotFoundException;
 import com.retailshop.repository.ApprovalHistoryRepository;
 import com.retailshop.repository.CampaignAnalyticsRepository;
 import com.retailshop.repository.CampaignContentRepository;
+import com.retailshop.repository.CampaignLeadVisitRepository;
 import com.retailshop.repository.CampaignLogRepository;
 import com.retailshop.repository.CampaignRepository;
 import com.retailshop.repository.OfferRepository;
@@ -87,6 +88,7 @@ public class MarketingAutomationServiceImpl implements MarketingAutomationServic
     private final ApprovalHistoryRepository approvalHistoryRepository;
     private final PublishLogRepository publishLogRepository;
     private final CampaignAnalyticsRepository campaignAnalyticsRepository;
+    private final CampaignLeadVisitRepository campaignLeadVisitRepository;
     private final ProductRepository productRepository;
     private final ProductCategoryOptionRepository productCategoryRepository;
     private final OfferRepository offerRepository;
@@ -383,6 +385,15 @@ public class MarketingAutomationServiceImpl implements MarketingAutomationServic
                 .sorted(Comparator.comparing(row -> row.getPlatform().name()))
                 .toList();
 
+        List<MarketingAnalyticsResponse.SourceAnalyticsRow> sourceRows = campaignLeadVisitRepository.countBySource(campaignId, start, end)
+                .stream()
+                .map(row -> MarketingAnalyticsResponse.SourceAnalyticsRow.builder()
+                        .source(row.getSource())
+                        .visits(row.getVisits())
+                        .build())
+                .toList();
+        long leadVisits = sourceRows.stream().mapToLong(MarketingAnalyticsResponse.SourceAnalyticsRow::getVisits).sum();
+
         List<MarketingAnalyticsResponse.CampaignAnalyticsRow> campaignRows = rows.stream()
                 .map(row -> MarketingAnalyticsResponse.CampaignAnalyticsRow.builder()
                         .campaignId(row.getCampaignContent().getCampaign().getId())
@@ -406,7 +417,9 @@ public class MarketingAutomationServiceImpl implements MarketingAutomationServic
                 .shares(shares)
                 .clicks(clicks)
                 .conversions(conversions)
+                .leadVisits(leadVisits)
                 .byPlatform(platformRows)
+                .bySource(sourceRows)
                 .byCampaign(campaignRows)
                 .build();
     }

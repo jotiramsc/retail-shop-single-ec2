@@ -12,6 +12,7 @@ import ReceiptSettingsPage from './pages/ReceiptSettingsPage';
 import UsersPage from './pages/UsersPage';
 import PublicHomePage from './pages/PublicHomePage';
 import PublicProductsPage from './pages/PublicProductsPage';
+import PublicProductDetailPage from './pages/PublicProductDetailPage';
 import CustomerLoginPage from './pages/CustomerLoginPage';
 import CartPage from './pages/CartPage';
 import CheckoutPage from './pages/CheckoutPage';
@@ -206,6 +207,7 @@ export default function App() {
       <Route path="/customer-login" element={<CustomerLoginPage />} />
       <Route path="/" element={<PublicHomePage branding={branding} siteVisitCount={siteVisitCount} />} />
       <Route path="/products" element={<PublicProductsPage branding={branding} />} />
+      <Route path="/products/:productId" element={<PublicProductDetailPage branding={branding} />} />
       <Route path="/cart" element={<CartPage />} />
       <Route path="/wishlist" element={<WishlistPage />} />
       <Route path="/checkout" element={<CheckoutPage />} />

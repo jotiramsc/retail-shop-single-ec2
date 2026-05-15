@@ -103,6 +103,10 @@ function priceRangeLabel(price) {
   return 'Above Rs. 2,000';
 }
 
+function detailPath(product) {
+  return `/products/${product.id}`;
+}
+
 export default function PublicProductsPage({ branding }) {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -510,12 +514,20 @@ export default function PublicProductsPage({ branding }) {
                 </div>
                 <div className="glow-product-card-copy">
                   <p>{titleCaseCategory(product.category)}</p>
-                  <h3>{product.name}</h3>
+                  <h3>
+                    <Link to={detailPath(product)}>{product.name}</Link>
+                  </h3>
                   <div className="glow-product-card-meta">
                     <strong>{currency(product.sellingPrice)}</strong>
                     <span>{product.sku}</span>
                   </div>
+                  <div className="glow-product-card-tags">
+                    <span>{product.stockLabel || (product.inStock ? 'Available now' : 'Out of stock')}</span>
+                    {product.showInFeaturedPieces ? <span>Featured</span> : null}
+                    {product.showInNewRelease ? <span>New arrival</span> : null}
+                  </div>
                   <div className="glow-product-card-actions">
+                    <Link className="ghost-btn compact-btn" to={detailPath(product)}>View details</Link>
                     <button
                       type="button"
                       className="primary-btn compact-btn"

@@ -17,7 +17,9 @@ public class MarketingAnalyticsResponse {
     private long shares;
     private long clicks;
     private long conversions;
+    private long leadVisits;
     private List<PlatformAnalyticsRow> byPlatform;
+    private List<SourceAnalyticsRow> bySource;
     private List<CampaignAnalyticsRow> byCampaign;
 
     @Getter
@@ -30,6 +32,13 @@ public class MarketingAnalyticsResponse {
         private long shares;
         private long clicks;
         private long conversions;
+    }
+
+    @Getter
+    @Builder
+    public static class SourceAnalyticsRow {
+        private String source;
+        private long visits;
     }
 
     @Getter

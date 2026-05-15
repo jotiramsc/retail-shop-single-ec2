@@ -700,6 +700,7 @@ export default function CampaignsPage() {
   ), [form]);
 
   const analyticsPlatformRows = analytics?.byPlatform || [];
+  const analyticsSourceRows = analytics?.bySource || [];
   const analyticsCampaignRows = analytics?.byCampaign || [];
 
   const useSuggestion = (suggestion) => {
@@ -1382,9 +1383,20 @@ export default function CampaignsPage() {
               <article className="metric-card"><span>Comments</span><strong>{analytics?.comments ?? 0}</strong></article>
               <article className="metric-card"><span>Shares</span><strong>{analytics?.shares ?? 0}</strong></article>
               <article className="metric-card"><span>Conversions</span><strong>{analytics?.conversions ?? 0}</strong></article>
+              <article className="metric-card tone-accent"><span>Lead visits</span><strong>{analytics?.leadVisits ?? 0}</strong></article>
             </div>
 
             <div className="marketing-analytics-grid">
+              <div>
+                <h4>Source-wise leads</h4>
+                <DataTable
+                  columns={[
+                    { key: 'source', label: 'Source' },
+                    { key: 'visits', label: 'Visits' }
+                  ]}
+                  rows={analyticsSourceRows}
+                />
+              </div>
               <div>
                 <h4>By platform</h4>
                 <DataTable
