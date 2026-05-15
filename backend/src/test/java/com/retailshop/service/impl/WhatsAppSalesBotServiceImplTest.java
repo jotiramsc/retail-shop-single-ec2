@@ -217,8 +217,11 @@ class WhatsAppSalesBotServiceImplTest {
 
         ArgumentCaptor<String> imageUrlCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<String> captionCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> textCaptor = ArgumentCaptor.forClass(String.class);
         verify(whatsAppMessageService).sendImage(any(), imageUrlCaptor.capture(), captionCaptor.capture());
-        verify(whatsAppMessageService, never()).sendText(any(), any());
+        verify(whatsAppMessageService).sendText(any(), textCaptor.capture());
+        assertTrue(textCaptor.getValue().contains("Sharing photos first"));
+        assertTrue(textCaptor.getValue().contains("View Details"));
         assertEquals("https://kpskrishnai.com/api/images/products/necklace.png", imageUrlCaptor.getValue());
         assertTrue(captionCaptor.getValue().contains("Necklace SB"));
         assertTrue(captionCaptor.getValue().contains("₹12"));

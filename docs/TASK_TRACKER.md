@@ -31,7 +31,9 @@ None
     - Regression test covers Bangles selection rejecting a returned Necklace card and falling back to matching Bangles products.
     - Welcome uses quick buttons plus a Show More list.
     - Same-category product replies exclude already shown products to avoid repeating the same card.
-    - Product search replies send up to three matching images and then a Details/Add/More Similar action list.
+    - Welcome menu is text-first without a logo image to keep WhatsApp message order clean.
+    - Product search replies send a concise intro, up to four matching images, and then a Details/Add/More Similar action list.
+    - Order tracking uses a text progress bar and lists being-delivered items in the status card.
     - Product-name/category conflict guard rejects bad product data such as Necklace-named items in Bangles results.
     - `/product/{productId}` source-tracked links are public SPA routes, record campaign lead visits, and show the product page.
     - Public product listing category filters accept DB codes and display/category aliases.
