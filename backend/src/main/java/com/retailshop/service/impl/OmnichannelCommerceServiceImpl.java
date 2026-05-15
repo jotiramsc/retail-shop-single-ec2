@@ -37,6 +37,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -119,8 +120,10 @@ public class OmnichannelCommerceServiceImpl implements OmnichannelCommerceServic
         String normalizedCategory = normalizeText(request.getCategory());
         String normalizedOccasion = normalizeText(request.getOccasion());
         boolean inStockOnly = request.getInStockOnly() == null || request.getInStockOnly();
+        List<UUID> excludeIds = request.getExcludeProductIds() == null ? List.of() : request.getExcludeProductIds();
 
         List<Product> matches = productRepository.findAll().stream()
+                .filter(product -> excludeIds.isEmpty() || !excludeIds.contains(product.getId()))
                 .filter(product -> !inStockOnly || isInStock(product))
                 .filter(product -> matchesCategory(product, normalizedCategory))
                 .filter(product -> matchesPrice(product, request.getMinPrice(), request.getMaxPrice()))
@@ -296,8 +299,25 @@ public class OmnichannelCommerceServiceImpl implements OmnichannelCommerceServic
         if (!hasText(category)) {
             return true;
         }
-        return normalizeText(product.getCategory()).contains(category)
-                || normalizeText(product.getName()).contains(category);
+        String nCat = normalizeText(category);
+        String pCat = normalizeText(product.getCategory());
+        String pName = normalizeText(product.getName());
+        if (!hasText(nCat)) {
+            return true;
+        }
+        if (hasText(pCat) && (pCat.contains(nCat) || nCat.contains(pCat))) {
+            return true;
+        }
+        if (hasText(pName) && pName.contains(nCat)) {
+            return true;
+        }
+        String haystack = pCat + " " + pName;
+        for (String token : words(category)) {
+            if (hasText(token) && haystack.contains(token)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean matchesPrice(Product product, BigDecimal minPrice, BigDecimal maxPrice) {

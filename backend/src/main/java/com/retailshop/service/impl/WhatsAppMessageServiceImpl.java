@@ -583,7 +583,7 @@ public class WhatsAppMessageServiceImpl implements WhatsAppMessageService, OtpDe
                     if (hasText(row.description())) {
                         option.put("description", truncate(row.description(), 72));
                     }
-                    option.put("postbackText", firstText(row.id(), row.title()));
+                    option.put("postbackText", firstText(row.title(), row.id()));
                     options.add(option);
                 }
                 if (!options.isEmpty()) {

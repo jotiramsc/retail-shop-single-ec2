@@ -71,6 +71,7 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
     private static final Pattern ORDER_NUMBER_PATTERN = Pattern.compile("\\b(?:KPS\\d+|ORD[-A-Z0-9]+)\\b", Pattern.CASE_INSENSITIVE);
     private static final Duration INBOUND_DEDUP_TTL = Duration.ofMinutes(15);
     private static final Duration BOT_SESSION_TTL = Duration.ofMinutes(45);
+    private static final int SHOWN_PRODUCT_HISTORY_CAP = 40;
     private static final Map<String, Instant> RECENT_INBOUND_MESSAGES = new ConcurrentHashMap<>();
     private static final Map<String, BotSession> BOT_SESSIONS = new ConcurrentHashMap<>();
     private static final Set<String> STOP_WORDS = Set.of(
@@ -198,7 +199,8 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
         }
         OmnichannelLeadResponse lead = captureLead(message, payload);
         BotSession session = sessionFor(message.from());
-        BotReply actionReply = buildProductActionReply(message.text(), session, lead);
+        boolean moreRequested = isMoreRequest(normalize(message.text()));
+        BotReply actionReply = buildProductActionReply(message.text(), session, lead, message.from());
         if (actionReply != null) {
             BotInboundMessage botInbound = buildBotInbound(message, lead);
             BotUnderstanding actionUnderstanding = new BotUnderstanding(
@@ -209,7 +211,7 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
                     positiveAmountOrNull(session.lastMaxPrice()),
                     null
             );
-            updateSession(message.from(), message.text(), actionUnderstanding, actionReply);
+            updateSession(message.from(), message.text(), actionUnderstanding, actionReply, moreRequested);
             SendResult sendResult = sendReply(message.from(), actionReply);
             saveOutboundMessage(lead.getLeadId(), actionReply.text(), sendResult);
             rememberWithOrchestrator(botInbound, actionReply.text());
@@ -230,9 +232,9 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
         BotInboundMessage botInbound = buildBotInbound(contextualMessage, lead);
         BotIntentClassification classification = classifyWithOrchestrator(botInbound);
         BotUnderstanding understanding = mergeOrchestratedUnderstanding(contextualMessage.text(), understandMessage(contextualMessage.text()), classification);
-        BotReply reply = buildReply(understanding, lead);
+        BotReply reply = buildReply(understanding, lead, message.from(), moreRequested);
         reply = polishReplyWithOrchestrator(botInbound, classification, reply);
-        updateSession(message.from(), message.text(), understanding, reply);
+        updateSession(message.from(), message.text(), understanding, reply, moreRequested);
         SendResult sendResult = sendReply(message.from(), reply);
         saveOutboundMessage(lead.getLeadId(), reply.text(), sendResult);
         rememberWithOrchestrator(botInbound, reply.text());
@@ -282,9 +284,9 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
         cleanupBotSessions();
         String key = sessionKey(from);
         if (!hasText(key)) {
-            return new BotSession(null, null, null, null, null, Instant.now());
+            return new BotSession(null, null, null, null, null, List.of(), Instant.now());
         }
-        return BOT_SESSIONS.getOrDefault(key, new BotSession(null, null, null, null, null, Instant.now()));
+        return BOT_SESSIONS.getOrDefault(key, new BotSession(null, null, null, null, null, List.of(), Instant.now()));
     }
 
     private InboundMessage contextualizeMessage(InboundMessage message, BotSession session) {
@@ -317,7 +319,7 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
         return message;
     }
 
-    private void updateSession(String from, String rawText, BotUnderstanding understanding, BotReply reply) {
+    private void updateSession(String from, String rawText, BotUnderstanding understanding, BotReply reply, boolean moreRequested) {
         String key = sessionKey(from);
         if (!hasText(key) || understanding == null) {
             return;
@@ -339,7 +341,29 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
         if (understanding.intent() == BotIntent.CATEGORY_BROWSE && hasText(detectCategory(normalize(rawText)))) {
             category = detectCategory(normalize(rawText));
         }
-        BOT_SESSIONS.put(key, new BotSession(category, maxPrice, minPrice, intent, recentProduct, Instant.now()));
+        List<UUID> history = mergeShownProductHistory(previous.shownProductHistory(), reply, moreRequested);
+        BOT_SESSIONS.put(key, new BotSession(category, maxPrice, minPrice, intent, recentProduct, history, Instant.now()));
+    }
+
+    private List<UUID> mergeShownProductHistory(List<UUID> previous, BotReply reply, boolean moreRequested) {
+        List<UUID> base = moreRequested && previous != null && !previous.isEmpty()
+                ? new ArrayList<>(previous)
+                : new ArrayList<>();
+        if (reply == null || reply.products() == null) {
+            return List.copyOf(base);
+        }
+        for (OmnichannelProductCardResponse card : reply.products()) {
+            if (card.getProductId() == null) {
+                continue;
+            }
+            if (!base.contains(card.getProductId())) {
+                base.add(card.getProductId());
+            }
+            if (base.size() >= SHOWN_PRODUCT_HISTORY_CAP) {
+                break;
+            }
+        }
+        return List.copyOf(base);
     }
 
     private void cleanupBotSessions() {
@@ -355,7 +379,7 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
         return digits;
     }
 
-    private BotReply buildReply(BotUnderstanding understanding, OmnichannelLeadResponse lead) {
+    private BotReply buildReply(BotUnderstanding understanding, OmnichannelLeadResponse lead, String from, boolean moreRequested) {
         if (understanding.intent() == BotIntent.GREETING) {
             return buildWelcomeReply();
         }
@@ -368,7 +392,7 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
                         understanding.minPrice(),
                         understanding.maxPrice(),
                         understanding.occasion()
-                ), lead);
+                ), lead, from, false);
             }
             return new BotReply(
                     buildCategoryMenuReply(),
@@ -401,10 +425,10 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
             return new BotReply(buildFallbackMenuReply(), 0, List.of());
         }
 
-        return buildProductSearchReply(understanding, lead);
+        return buildProductSearchReply(understanding, lead, from, moreRequested);
     }
 
-    private BotReply buildProductSearchReply(BotUnderstanding understanding, OmnichannelLeadResponse lead) {
+    private BotReply buildProductSearchReply(BotUnderstanding understanding, OmnichannelLeadResponse lead, String from, boolean moreRequested) {
         OmnichannelProductSearchRequest searchRequest = new OmnichannelProductSearchRequest();
         searchRequest.setLeadId(lead.getLeadId());
         searchRequest.setChannel("WHATSAPP");
@@ -417,6 +441,12 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
         searchRequest.setMaxPrice(understanding.maxPrice());
         searchRequest.setInStockOnly(wantsOnlyReadyStock(understanding));
         searchRequest.setLimit(5);
+        if (moreRequested && hasText(from)) {
+            BotSession session = sessionFor(from);
+            if (session.shownProductHistory() != null && !session.shownProductHistory().isEmpty()) {
+                searchRequest.setExcludeProductIds(new ArrayList<>(session.shownProductHistory()));
+            }
+        }
 
         OmnichannelProductSearchResponse products = omnichannelCommerceService.searchProducts(searchRequest);
         if (products == null || products.getProducts() == null || products.getProducts().isEmpty()) {
@@ -438,7 +468,7 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
         );
     }
 
-    private BotReply buildProductActionReply(String rawText, BotSession session, OmnichannelLeadResponse lead) {
+    private BotReply buildProductActionReply(String rawText, BotSession session, OmnichannelLeadResponse lead, String from) {
         String normalized = normalize(rawText);
         if (!hasText(normalized)) {
             return null;
@@ -451,7 +481,7 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
                     positiveAmountOrNull(session.lastMinPrice()),
                     positiveAmountOrNull(session.lastMaxPrice()),
                     null
-            ), lead);
+            ), lead, from, true);
         }
 
         boolean isProductAction = containsAny(normalized, "view", "detail", "buy", "add", "cart", "select");
@@ -1206,28 +1236,28 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
             return null;
         }
         String text = firstNonBlank(
+                payload.path("payload").path("postbackText").asText(null),
+                payload.path("postbackText").asText(null),
                 payload.path("payload").path("id").asText(null),
                 payload.path("payload").path("payload").asText(null),
                 payload.path("payload").path("selectedRowId").asText(null),
                 payload.path("payload").path("postback").path("id").asText(null),
-                payload.path("payload").path("postbackText").asText(null),
                 payload.path("payload").path("button").path("id").asText(null),
                 payload.path("payload").path("button").path("payload").asText(null),
                 payload.path("payload").path("title").asText(null),
                 payload.path("payload").path("button").path("text").asText(null),
-                payload.path("payload").path("list_reply").path("id").asText(null),
                 payload.path("payload").path("list_reply").path("title").asText(null),
+                payload.path("payload").path("list_reply").path("id").asText(null),
                 payload.path("payload").path("text").asText(null),
                 payload.path("id").asText(null),
                 payload.path("payload").asText(null),
                 payload.path("selectedRowId").asText(null),
-                payload.path("postbackText").asText(null),
                 payload.path("title").asText(null),
                 payload.path("button").path("id").asText(null),
                 payload.path("button").path("payload").asText(null),
                 payload.path("button").path("text").asText(null),
-                payload.path("list_reply").path("id").asText(null),
                 payload.path("list_reply").path("title").asText(null),
+                payload.path("list_reply").path("id").asText(null),
                 payload.path("text").asText(null),
                 payload.path("message").asText(null)
         );
@@ -1252,10 +1282,10 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
         }
         String text = firstNonBlank(
                 message.path("text").path("body").asText(null),
-                message.path("interactive").path("button_reply").path("id").asText(null),
-                message.path("interactive").path("list_reply").path("id").asText(null),
-                message.path("interactive").path("button_reply").path("title").asText(null),
                 message.path("interactive").path("list_reply").path("title").asText(null),
+                message.path("interactive").path("list_reply").path("id").asText(null),
+                message.path("interactive").path("button_reply").path("id").asText(null),
+                message.path("interactive").path("button_reply").path("title").asText(null),
                 message.path("button").path("text").asText(null)
         );
         String from = message.path("from").asText(null);
@@ -1738,8 +1768,10 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
 
     private OmnichannelProductSearchResponse fallbackProductSearch(OmnichannelProductSearchRequest request, BotUnderstanding understanding) {
         int limit = request.getLimit() == null ? 5 : Math.max(1, request.getLimit());
+        List<UUID> exclude = request.getExcludeProductIds() == null ? List.of() : request.getExcludeProductIds();
         List<Product> catalog = productRepository.findAll();
         List<OmnichannelProductCardResponse> products = catalog.stream()
+                .filter(product -> exclude.isEmpty() || !exclude.contains(product.getId()))
                 .filter(product -> isCatalogProductAvailable(product, request))
                 .map(product -> new ScoredProduct(product, scoreProduct(product, understanding)))
                 .filter(scored -> scored.score() > 0)
@@ -1755,6 +1787,7 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
                 .toList();
         if (products.isEmpty() && isBroadShoppingRequest(understanding)) {
             products = catalog.stream()
+                    .filter(product -> exclude.isEmpty() || !exclude.contains(product.getId()))
                     .filter(product -> isCatalogProductAvailable(product, request))
                     .sorted(Comparator.comparing(Product::getQuantity, Comparator.nullsLast(Comparator.reverseOrder())))
                     .limit(limit)
@@ -2289,6 +2322,7 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
                               BigDecimal lastMinPrice,
                               String lastIntent,
                               String lastProductId,
+                              List<UUID> shownProductHistory,
                               Instant updatedAt) {
     }
 

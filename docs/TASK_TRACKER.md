@@ -2,11 +2,11 @@
 
 ## In Progress
 
-- TASK-1: Campaign Lead Tracking Backend
+None
 
 ## Completed
 
-None yet.
+- TASK-1: Campaign Lead Tracking Backend
 
 ## Pending
 

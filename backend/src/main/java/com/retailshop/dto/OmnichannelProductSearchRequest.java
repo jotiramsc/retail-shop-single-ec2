@@ -4,6 +4,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 
 @Getter
@@ -21,4 +22,8 @@ public class OmnichannelProductSearchRequest {
     private String campaign;
     private String couponCode;
     private Integer limit;
+    /**
+     * Product ids to omit from results (e.g. WhatsApp "More options" pagination).
+     */
+    private List<UUID> excludeProductIds;
 }

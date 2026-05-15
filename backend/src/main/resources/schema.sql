@@ -476,6 +476,21 @@ create table if not exists campaign_analytics (
 create index if not exists idx_campaign_analytics_platform_fetched_at on campaign_analytics(platform, fetched_at desc);
 create index if not exists idx_campaign_analytics_content_fetched_at on campaign_analytics(campaign_content_id, fetched_at desc);
 
+create table if not exists campaign_lead_visits (
+    id uuid primary key,
+    campaign_id uuid not null,
+    source varchar(30) not null,
+    product_id uuid,
+    offer_id uuid,
+    session_id varchar(255) not null,
+    visited_at timestamp not null,
+    created_at timestamp not null
+);
+
+create index if not exists idx_campaign_lead_visits_campaign_visited on campaign_lead_visits(campaign_id, visited_at desc);
+create index if not exists idx_campaign_lead_visits_source_visited on campaign_lead_visits(source, visited_at desc);
+create index if not exists idx_campaign_lead_visits_session on campaign_lead_visits(session_id);
+
 create table if not exists omnichannel_leads (
     id uuid primary key,
     channel varchar(50) not null,
