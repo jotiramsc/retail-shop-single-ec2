@@ -17,6 +17,8 @@ const createBlankProduct = (defaultCategory = '') => ({
   quantity: '',
   lowStockThreshold: '5',
   imageDataUrl: '',
+  showOnWebsite: true,
+  useForBilling: true,
   showInEditorsPicks: false,
   showInNewRelease: false,
   showInCustomerAccess: false,
@@ -139,6 +141,8 @@ export default function ProductsPage() {
       quantity: mode === 'restock' ? '' : product.quantity,
       lowStockThreshold: product.lowStockThreshold,
       imageDataUrl: product.imageDataUrl || '',
+      showOnWebsite: product.showOnWebsite !== false,
+      useForBilling: product.useForBilling !== false,
       showInEditorsPicks: Boolean(product.showInEditorsPicks),
       showInNewRelease: Boolean(product.showInNewRelease),
       showInCustomerAccess: Boolean(product.showInCustomerAccess),
@@ -443,6 +447,22 @@ export default function ProductsPage() {
             <label className="toggle-field">
               <input
                 type="checkbox"
+                checked={form.showOnWebsite !== false}
+                onChange={(e) => setForm({ ...form, showOnWebsite: e.target.checked })}
+              />
+              <span>Show on Website</span>
+            </label>
+            <label className="toggle-field">
+              <input
+                type="checkbox"
+                checked={form.useForBilling !== false}
+                onChange={(e) => setForm({ ...form, useForBilling: e.target.checked })}
+              />
+              <span>Use for Shop Billing</span>
+            </label>
+            <label className="toggle-field">
+              <input
+                type="checkbox"
                 checked={Boolean(form.showInShopCollection)}
                 onChange={(e) => setForm({ ...form, showInShopCollection: e.target.checked })}
               />
@@ -535,6 +555,16 @@ export default function ProductsPage() {
                   render: (row) => currency(row.websitePrice ?? row.sellingPrice)
                 },
                 { key: 'quantity', label: 'Stock' },
+                {
+                  key: 'showOnWebsite',
+                  label: 'Website',
+                  render: (row) => row.showOnWebsite !== false ? 'On' : 'Off'
+                },
+                {
+                  key: 'useForBilling',
+                  label: 'Billing',
+                  render: (row) => row.useForBilling !== false ? 'On' : 'Off'
+                },
                 {
                   key: 'showInShopCollection',
                   label: 'Collection',

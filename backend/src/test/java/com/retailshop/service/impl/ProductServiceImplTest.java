@@ -20,6 +20,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -71,6 +72,30 @@ class ProductServiceImplTest {
         assertEquals(BigDecimal.valueOf(100.00).setScale(2), response.getSellingPrice());
         assertEquals(BigDecimal.valueOf(10.00).setScale(2), response.getWebsitePricePercentage());
         assertEquals(BigDecimal.valueOf(110.00).setScale(2), response.getWebsitePrice());
+    }
+
+    @Test
+    void shouldDefaultNewProductsToWebsiteAndBillingVisibility() {
+        ProductRequest request = new ProductRequest();
+        request.setName("Daily Bangles");
+        request.setCategory("JEWELLERY");
+        request.setSku("JEW-BNG-001");
+        request.setCostPrice(BigDecimal.valueOf(70));
+        request.setSellingPrice(BigDecimal.valueOf(150));
+        request.setQuantity(4);
+        request.setLowStockThreshold(2);
+
+        when(productRepository.findBySku("JEW-BNG-001")).thenReturn(Optional.empty());
+        when(productRepository.save(any(Product.class))).thenAnswer(invocation -> {
+            Product saved = invocation.getArgument(0);
+            saved.prePersist();
+            return saved;
+        });
+
+        var response = productService.createProduct(request);
+
+        assertTrue(response.getShowOnWebsite());
+        assertTrue(response.getUseForBilling());
     }
 
     @Test
@@ -161,5 +186,42 @@ class ProductServiceImplTest {
 
         assertEquals(List.of(soldOut.getId(), bestSeller.getId()), trendingProducts.stream().map(product -> product.getId()).toList());
         assertEquals(List.of(bestSeller.getId(), fallback.getId()), publicTrending.stream().map(product -> product.getId()).toList());
+    }
+
+    @Test
+    void shouldKeepProductsHiddenFromWebsiteOutOfPublicSurfaces() {
+        Product visible = new Product();
+        visible.setId(UUID.randomUUID());
+        visible.setName("Website Necklace");
+        visible.setCategory("JEWELLERY");
+        visible.setSku("JEW-WEB-001");
+        visible.setSellingPrice(BigDecimal.valueOf(900));
+        visible.setQuantity(5);
+        visible.setLowStockThreshold(2);
+        visible.setCreatedAt(LocalDateTime.now());
+        visible.prePersist();
+
+        Product localOnly = new Product();
+        localOnly.setId(UUID.randomUUID());
+        localOnly.setName("Billing Only Bangle");
+        localOnly.setCategory("JEWELLERY");
+        localOnly.setSku("JEW-LOCAL-001");
+        localOnly.setSellingPrice(BigDecimal.valueOf(300));
+        localOnly.setQuantity(5);
+        localOnly.setLowStockThreshold(2);
+        localOnly.setShowOnWebsite(false);
+        localOnly.setCreatedAt(LocalDateTime.now().minusDays(1));
+        localOnly.prePersist();
+
+        when(productRepository.findAll()).thenReturn(List.of(visible, localOnly));
+        when(productRepository.findById(localOnly.getId())).thenReturn(Optional.of(localOnly));
+        when(orderItemRepository.findTrendingProductSales(any())).thenReturn(List.of(
+                new Object[]{localOnly.getId(), 20L},
+                new Object[]{visible.getId(), 10L}
+        ));
+
+        assertEquals(List.of(visible.getId()), productService.getPublicCatalog().stream().map(product -> product.getId()).toList());
+        assertEquals(List.of(visible.getId()), productService.getPublicTrendingProducts(5).stream().map(product -> product.getId()).toList());
+        assertThrows(com.retailshop.exception.ResourceNotFoundException.class, () -> productService.getPublicProduct(localOnly.getId()));
     }
 }

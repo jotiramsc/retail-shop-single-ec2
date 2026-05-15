@@ -189,9 +189,16 @@ Notable product/storefront additions:
 
 - `website_price_percentage`
 - `website_price`
+- `show_on_website` controls public storefront visibility and defaults true
+- `use_for_billing` controls local shop billing visibility and defaults true
 - multiple storefront visibility flags such as `show_in_editors_picks`, `show_in_new_release`, `show_in_shop_collection`, and related booleans
 - `image_data_url` on products
 - low-stock threshold per product
+
+Product visibility rules:
+
+- Public storefront catalog, home, trending, and product detail APIs return only `showOnWebsite=true` products.
+- Billing/POS product selectors use only `useForBilling=true` products.
 
 ## Frontend Structure Summary
 

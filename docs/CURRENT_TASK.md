@@ -1,18 +1,18 @@
 # CURRENT TASK
 
-## TASK-A: Campaign Offer WhatsApp Delivery
+## TASK-C: Inventory Visibility Checkboxes
 
 Status: Completed
 
 Scope:
-- Fix Campaign Studio WhatsApp offer delivery so all selected/available customer numbers are attempted.
-- Reuse the same WhatsApp/Gupshup send path used by support messages.
-- Track success/failure per recipient and show delivery details in Campaign Studio.
+- Add product visibility controls for public website and local shop billing.
+- Default both options to enabled for new and existing products.
+- Keep hidden website products out of public storefront APIs.
+- Keep local-shop-only disabled products out of billing product pickers.
 
 Implementation:
-- Campaign WhatsApp broadcast normalizes and de-duplicates recipient numbers before sending.
-- Campaign broadcast sends each number individually through `sendImage` or `sendText`, matching the working support-message path.
-- Relative campaign media URLs are converted to public `https://kpskrishnai.com/...` URLs; data URLs are not sent as WhatsApp media.
-- Broadcast result includes total recipients, sent count, failed count, first error, and a compact per-number delivery report.
-- Campaign Studio content cards display the latest WhatsApp delivery report/error from publish logs.
-- WhatsApp campaign publish is marked successful only when every attempted recipient succeeds, so partial delivery is visible instead of hidden.
+- Products now store `showOnWebsite` and `useForBilling`, mapped to `show_on_website` and `use_for_billing`.
+- Database defaults both flags to true, preserving existing inventory visibility.
+- Inventory form shows "Show on Website" and "Use for Shop Billing" checkboxes, both selected for new products.
+- Public catalog, homepage, trending, and direct product lookup only return products with `showOnWebsite=true`.
+- Billing loads only products with `useForBilling=true`.

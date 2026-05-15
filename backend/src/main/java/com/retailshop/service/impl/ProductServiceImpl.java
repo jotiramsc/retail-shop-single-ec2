@@ -94,6 +94,7 @@ public class ProductServiceImpl implements ProductService {
     public List<PublicProductResponse> getPublicTrendingProducts(int limit) {
         List<PublicProductResponse> trending = getTrendingProducts(limit * 2)
                 .stream()
+                .filter(product -> Boolean.TRUE.equals(product.getShowOnWebsite()))
                 .filter(product -> isInStock(product.getQuantity()))
                 .map(product -> PublicProductResponse.builder()
                         .id(product.getId())
@@ -124,6 +125,7 @@ public class ProductServiceImpl implements ProductService {
         List<UUID> selectedIds = trending.stream().map(PublicProductResponse::getId).toList();
         List<PublicProductResponse> fallback = productRepository.findAll()
                 .stream()
+                .filter(this::isVisibleOnWebsite)
                 .filter(product -> isInStock(product.getQuantity()))
                 .filter(product -> !selectedIds.contains(product.getId()))
                 .sorted((left, right) -> right.getCreatedAt().compareTo(left.getCreatedAt()))
@@ -184,6 +186,7 @@ public class ProductServiceImpl implements ProductService {
     public List<PublicProductResponse> getPublicCatalog() {
         return productRepository.findAll()
                 .stream()
+                .filter(this::isVisibleOnWebsite)
                 .sorted((left, right) -> right.getCreatedAt().compareTo(left.getCreatedAt()))
                 .map(this::mapToPublicResponse)
                 .toList();
@@ -194,6 +197,7 @@ public class ProductServiceImpl implements ProductService {
     public List<PublicProductResponse> getPublicHomepageCatalog() {
         List<Product> products = productRepository.findAll()
                 .stream()
+                .filter(this::isVisibleOnWebsite)
                 .sorted((left, right) -> right.getCreatedAt().compareTo(left.getCreatedAt()))
                 .toList();
 
@@ -221,6 +225,7 @@ public class ProductServiceImpl implements ProductService {
     @Transactional(readOnly = true)
     public PublicProductResponse getPublicProduct(UUID id) {
         return productRepository.findById(id)
+                .filter(this::isVisibleOnWebsite)
                 .map(this::mapToPublicResponse)
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
     }
@@ -236,6 +241,8 @@ public class ProductServiceImpl implements ProductService {
         product.setQuantity(request.getQuantity());
         product.setLowStockThreshold(request.getLowStockThreshold());
         product.setImageDataUrl(request.getImageDataUrl());
+        product.setShowOnWebsite(request.getShowOnWebsite() == null || Boolean.TRUE.equals(request.getShowOnWebsite()));
+        product.setUseForBilling(request.getUseForBilling() == null || Boolean.TRUE.equals(request.getUseForBilling()));
         product.setShowInEditorsPicks(Boolean.TRUE.equals(request.getShowInEditorsPicks()));
         product.setShowInNewRelease(Boolean.TRUE.equals(request.getShowInNewRelease()));
         product.setShowInCustomerAccess(Boolean.TRUE.equals(request.getShowInCustomerAccess()));
@@ -259,6 +266,8 @@ public class ProductServiceImpl implements ProductService {
                 .quantity(product.getQuantity())
                 .lowStockThreshold(product.getLowStockThreshold())
                 .imageDataUrl(product.getImageDataUrl())
+                .showOnWebsite(product.getShowOnWebsite())
+                .useForBilling(product.getUseForBilling())
                 .showInEditorsPicks(product.getShowInEditorsPicks())
                 .showInNewRelease(product.getShowInNewRelease())
                 .showInCustomerAccess(product.getShowInCustomerAccess())
@@ -298,6 +307,10 @@ public class ProductServiceImpl implements ProductService {
             return imageDataUrl;
         }
         return imageDataUrl.startsWith("data:image/") ? null : imageDataUrl;
+    }
+
+    private boolean isVisibleOnWebsite(Product product) {
+        return Boolean.TRUE.equals(product.getShowOnWebsite());
     }
 
     private void syncCustomerAccessProduct(Product activeProduct) {

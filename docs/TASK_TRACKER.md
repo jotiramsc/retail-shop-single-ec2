@@ -93,6 +93,24 @@ None
   - Testing:
     - `backend ./mvnw test` passed: 63 tests.
     - `frontend npm run build` passed.
+- TASK-C: Inventory Visibility Checkboxes
+  - Changed files:
+    - `backend/src/main/java/com/retailshop/entity/Product.java`
+    - `backend/src/main/java/com/retailshop/dto/ProductRequest.java`
+    - `backend/src/main/java/com/retailshop/dto/ProductResponse.java`
+    - `backend/src/main/java/com/retailshop/service/impl/ProductServiceImpl.java`
+    - `backend/src/main/resources/schema.sql`
+    - `backend/src/test/java/com/retailshop/service/impl/ProductServiceImplTest.java`
+    - `frontend/src/pages/ProductsPage.jsx`
+    - `frontend/src/pages/BillingPage.jsx`
+  - Implementation notes:
+    - Added `showOnWebsite` and `useForBilling` product flags with database defaults true.
+    - Inventory create/edit form now has "Show on Website" and "Use for Shop Billing" checkboxes, both enabled by default.
+    - Public catalog, homepage, trending, and product detail APIs exclude products with `showOnWebsite=false`.
+    - Billing product and trending pickers exclude products with `useForBilling=false`.
+  - Testing:
+    - `backend ./mvnw test` passed: 65 tests.
+    - `frontend npm run build` passed.
 
 ## Pending
 

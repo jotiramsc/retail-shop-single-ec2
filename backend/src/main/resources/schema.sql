@@ -10,6 +10,8 @@ create table if not exists products (
     quantity integer not null,
     low_stock_threshold integer not null,
     image_data_url text,
+    show_on_website boolean not null default true,
+    use_for_billing boolean not null default true,
     show_in_editors_picks boolean not null default false,
     show_in_new_release boolean not null default false,
     show_in_customer_access boolean not null default false,
@@ -39,6 +41,8 @@ create table if not exists image_assets (
     created_at timestamp not null
 );
 
+alter table products add column if not exists show_on_website boolean not null default true;
+alter table products add column if not exists use_for_billing boolean not null default true;
 alter table products add column if not exists show_in_editors_picks boolean not null default false;
 alter table products add column if not exists show_in_new_release boolean not null default false;
 alter table products add column if not exists show_in_customer_access boolean not null default false;

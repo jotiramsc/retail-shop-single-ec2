@@ -43,6 +43,10 @@ public class ProductRequest {
 
     private String imageDataUrl;
 
+    private Boolean showOnWebsite;
+
+    private Boolean useForBilling;
+
     private Boolean showInEditorsPicks;
 
     private Boolean showInNewRelease;

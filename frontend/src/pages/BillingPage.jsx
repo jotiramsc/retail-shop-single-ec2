@@ -65,8 +65,8 @@ export default function BillingPage() {
       retailService.getSalesPeople()
     ])
       .then(([allProducts, trending, settings, offersPage, salesPeopleList]) => {
-        setProducts(allProducts.items || []);
-        setTrendingProducts(trending);
+        setProducts((allProducts.items || []).filter((product) => product.useForBilling !== false));
+        setTrendingProducts((trending || []).filter((product) => product.useForBilling !== false));
         setReceiptSettings(settings);
         setOffers(offersPage.items || []);
         setSalesPeople(salesPeopleList || []);

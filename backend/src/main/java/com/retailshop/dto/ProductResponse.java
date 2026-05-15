@@ -21,6 +21,8 @@ public class ProductResponse {
     private Integer quantity;
     private Integer lowStockThreshold;
     private String imageDataUrl;
+    private Boolean showOnWebsite;
+    private Boolean useForBilling;
     private Boolean showInEditorsPicks;
     private Boolean showInNewRelease;
     private Boolean showInCustomerAccess;

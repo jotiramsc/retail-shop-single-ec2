@@ -52,6 +52,12 @@ public class Product {
     @Column(name = "image_data_url")
     private String imageDataUrl;
 
+    @Column(name = "show_on_website", nullable = false)
+    private Boolean showOnWebsite;
+
+    @Column(name = "use_for_billing", nullable = false)
+    private Boolean useForBilling;
+
     @Column(name = "show_in_editors_picks", nullable = false)
     private Boolean showInEditorsPicks;
 
@@ -88,6 +94,12 @@ public class Product {
             createdAt = LocalDateTime.now();
         }
         normalizePricing();
+        if (showOnWebsite == null) {
+            showOnWebsite = Boolean.TRUE;
+        }
+        if (useForBilling == null) {
+            useForBilling = Boolean.TRUE;
+        }
         if (showInEditorsPicks == null) {
             showInEditorsPicks = Boolean.FALSE;
         }
