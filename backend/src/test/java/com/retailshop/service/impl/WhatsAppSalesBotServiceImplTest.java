@@ -11,11 +11,13 @@ import com.retailshop.entity.OmnichannelConversation;
 import com.retailshop.entity.OmnichannelConversationMessage;
 import com.retailshop.entity.OmnichannelLead;
 import com.retailshop.entity.Product;
+import com.retailshop.entity.ProductCategoryOption;
 import com.retailshop.repository.CustomerOrderRepository;
 import com.retailshop.repository.OfferRepository;
 import com.retailshop.repository.OmnichannelConversationMessageRepository;
 import com.retailshop.repository.OmnichannelConversationRepository;
 import com.retailshop.repository.OmnichannelLeadRepository;
+import com.retailshop.repository.ProductCategoryOptionRepository;
 import com.retailshop.repository.ProductRepository;
 import com.retailshop.service.MarketingChannelResult;
 import com.retailshop.service.OmnichannelCommerceService;
@@ -56,6 +58,9 @@ class WhatsAppSalesBotServiceImplTest {
 
     @Mock
     private ProductRepository productRepository;
+
+    @Mock
+    private ProductCategoryOptionRepository productCategoryOptionRepository;
 
     @Mock
     private OmnichannelLeadRepository leadRepository;
@@ -251,9 +256,9 @@ class WhatsAppSalesBotServiceImplTest {
         assertTrue(response.isAccepted());
         assertFalse(response.isSent());
         assertEquals(0, response.getProductCount());
-        assertTrue(response.getReplyText().contains("Shop Products"));
-        assertTrue(response.getReplyText().contains("My Orders"));
-        assertTrue(response.getReplyText().contains("Connect to Agent"));
+        assertTrue(response.getReplyText().contains("View Collections"));
+        assertTrue(response.getReplyText().contains("Track Order"));
+        assertTrue(response.getReplyText().contains("Talk to Shop"));
         verify(omnichannelCommerceService, never()).searchProducts(any());
     }
 
@@ -263,20 +268,20 @@ class WhatsAppSalesBotServiceImplTest {
         mockOutboundConversation();
 
         var categoryResponse = service.handleWebhook("""
-                {"from":"919175834000","name":"Customer","text":"2","messageId":"wamid.menu2"}
+                {"from":"919175834000","name":"Customer","text":"5","messageId":"wamid.menu5"}
                 """, null);
 
         assertTrue(categoryResponse.isAccepted());
         assertTrue(categoryResponse.getReplyText().contains("Choose a category"));
         verify(omnichannelCommerceService, never()).searchProducts(any());
 
-        var paymentResponse = service.handleWebhook("""
-                {"from":"919175834000","name":"Customer","text":"5","messageId":"wamid.menu5"}
+        var orderResponse = service.handleWebhook("""
+                {"from":"919175834000","name":"Customer","text":"3","messageId":"wamid.menu3"}
                 """, null);
 
-        assertTrue(paymentResponse.isAccepted());
-        assertTrue(paymentResponse.getReplyText().contains("payment"));
-        assertTrue(paymentResponse.getReplyText().contains("order number"));
+        assertTrue(orderResponse.isAccepted());
+        assertTrue(orderResponse.getReplyText().contains("order number"));
+        assertTrue(orderResponse.getReplyText().contains("Track Order"));
     }
 
     @Test
@@ -286,12 +291,48 @@ class WhatsAppSalesBotServiceImplTest {
         mockOutboundConversation();
 
         var response = service.handleWebhook("""
-                {"from":"919175834000","name":"Customer","text":"2","messageId":"wamid.categories"}
+                {"from":"919175834000","name":"Customer","text":"browse categories","messageId":"wamid.categories"}
                 """, null);
 
         assertTrue(response.isAccepted());
         assertTrue(response.getReplyText().contains("- Necklace"));
         assertFalse(response.getReplyText().contains("- NECKALACE"));
+    }
+
+    @Test
+    void shouldRenderWhatsAppCategoriesFromConfiguredDatabaseOptions() {
+        MarketingProperties properties = new MarketingProperties();
+        properties.getAi().setEnabled(false);
+        WhatsAppSalesBotServiceImpl categoryBackedService = new WhatsAppSalesBotServiceImpl(
+                properties,
+                omnichannelCommerceService,
+                orderRepository,
+                offerRepository,
+                productRepository,
+                leadRepository,
+                conversationRepository,
+                messageRepository,
+                whatsAppMessageService,
+                new ObjectMapper(),
+                java.net.http.HttpClient.newBuilder().build(),
+                null,
+                null,
+                productCategoryOptionRepository
+        );
+        ProductCategoryOption bangles = categoryOption("BGL", "Bangles");
+        when(productCategoryOptionRepository.findByActiveTrueOrderByDisplayNameAsc()).thenReturn(List.of(bangles));
+        when(productRepository.findAll()).thenReturn(List.of(product("Green Kada Set", "BGL")));
+        mockLeadCapture("Customer");
+        mockOutboundConversation();
+
+        var response = categoryBackedService.handleWebhook("""
+                {"from":"919175834000","name":"Customer","text":"browse categories","messageId":"wamid.dynamic-categories"}
+                """, null);
+
+        assertTrue(response.isAccepted());
+        assertTrue(response.getReplyText().contains("- Bangles"));
+        assertFalse(response.getReplyText().contains("- Necklace"));
+        assertFalse(response.getReplyText().contains("- Cosmetics"));
     }
 
     @Test
@@ -424,5 +465,14 @@ class WhatsAppSalesBotServiceImplTest {
         product.setSellingPrice(BigDecimal.valueOf(1000));
         product.setQuantity(10);
         return product;
+    }
+
+    private ProductCategoryOption categoryOption(String code, String displayName) {
+        ProductCategoryOption option = new ProductCategoryOption();
+        option.setId(UUID.randomUUID());
+        option.setCode(code);
+        option.setDisplayName(displayName);
+        option.setActive(true);
+        return option;
     }
 }

@@ -15,6 +15,19 @@ None
 - TASK-7: Product listing cards.
 - TASK-8: Product detail screen.
 - TASK-9: Cart and order tracking UI.
+- WhatsApp Bot Dynamic Category/Menu/Product Flow
+  - Changed files:
+    - `backend/src/main/java/com/retailshop/service/impl/WhatsAppSalesBotServiceImpl.java`
+    - `backend/src/test/java/com/retailshop/service/impl/WhatsAppSalesBotServiceImplTest.java`
+    - `docs/CURRENT_TASK.md`
+    - `docs/TASK_TRACKER.md`
+    - `docs/krishnai.md`
+  - Implementation notes:
+    - Categories load from active `product_categories` first.
+    - Live product categories are used as a fallback only.
+    - Static fallback category menu rows were removed.
+    - Main WhatsApp menu matches View Collections / Offers / Track Order / Talk to Shop / Show More.
+    - Regression test covers dynamic `BGL -> Bangles` category rendering.
 
 ## Pending
 

@@ -19,6 +19,7 @@ import com.retailshop.entity.OmnichannelConversation;
 import com.retailshop.entity.OmnichannelConversationMessage;
 import com.retailshop.entity.OmnichannelLead;
 import com.retailshop.entity.Product;
+import com.retailshop.entity.ProductCategoryOption;
 import com.retailshop.entity.ReceiptSettings;
 import com.retailshop.enums.WhatsAppBotIntent;
 import com.retailshop.repository.CustomerOrderRepository;
@@ -26,6 +27,7 @@ import com.retailshop.repository.OfferRepository;
 import com.retailshop.repository.OmnichannelConversationMessageRepository;
 import com.retailshop.repository.OmnichannelConversationRepository;
 import com.retailshop.repository.OmnichannelLeadRepository;
+import com.retailshop.repository.ProductCategoryOptionRepository;
 import com.retailshop.repository.ProductRepository;
 import com.retailshop.repository.ReceiptSettingsRepository;
 import com.retailshop.service.OmnichannelCommerceService;
@@ -92,6 +94,7 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
     private final CustomerOrderRepository orderRepository;
     private final OfferRepository offerRepository;
     private final ProductRepository productRepository;
+    private final ProductCategoryOptionRepository productCategoryOptionRepository;
     private final OmnichannelLeadRepository leadRepository;
     private final OmnichannelConversationRepository conversationRepository;
     private final OmnichannelConversationMessageRepository messageRepository;
@@ -112,7 +115,7 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
                                        WhatsAppMessageService whatsAppMessageService,
                                        ObjectMapper objectMapper) {
         this(marketingProperties, omnichannelCommerceService, orderRepository, offerRepository, productRepository, leadRepository, conversationRepository, messageRepository, whatsAppMessageService, objectMapper,
-                HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(20)).build(), null, null);
+                HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(20)).build(), null, null, null);
     }
 
     @Autowired
@@ -125,11 +128,12 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
                                        OmnichannelConversationRepository conversationRepository,
                                        OmnichannelConversationMessageRepository messageRepository,
                                        WhatsAppMessageService whatsAppMessageService,
+                                       ProductCategoryOptionRepository productCategoryOptionRepository,
                                        ReceiptSettingsRepository receiptSettingsRepository,
                                        ObjectMapper objectMapper,
                                        ObjectProvider<BotOrchestratorService> botOrchestratorProvider) {
         this(marketingProperties, omnichannelCommerceService, orderRepository, offerRepository, productRepository, leadRepository, conversationRepository, messageRepository, whatsAppMessageService, objectMapper,
-                HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(20)).build(), receiptSettingsRepository, botOrchestratorProvider.getIfAvailable());
+                HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(20)).build(), receiptSettingsRepository, botOrchestratorProvider.getIfAvailable(), productCategoryOptionRepository);
     }
 
     WhatsAppSalesBotServiceImpl(MarketingProperties marketingProperties,
@@ -144,7 +148,7 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
                                 ObjectMapper objectMapper,
                                 HttpClient httpClient) {
         this(marketingProperties, omnichannelCommerceService, orderRepository, offerRepository, productRepository, leadRepository, conversationRepository, messageRepository, whatsAppMessageService,
-                objectMapper, httpClient, null, null);
+                objectMapper, httpClient, null, null, null);
     }
 
     WhatsAppSalesBotServiceImpl(MarketingProperties marketingProperties,
@@ -160,11 +164,30 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
                                 HttpClient httpClient,
                                 ReceiptSettingsRepository receiptSettingsRepository,
                                 BotOrchestratorService botOrchestratorService) {
+        this(marketingProperties, omnichannelCommerceService, orderRepository, offerRepository, productRepository, leadRepository, conversationRepository, messageRepository, whatsAppMessageService,
+                objectMapper, httpClient, receiptSettingsRepository, botOrchestratorService, null);
+    }
+
+    WhatsAppSalesBotServiceImpl(MarketingProperties marketingProperties,
+                                OmnichannelCommerceService omnichannelCommerceService,
+                                CustomerOrderRepository orderRepository,
+                                OfferRepository offerRepository,
+                                ProductRepository productRepository,
+                                OmnichannelLeadRepository leadRepository,
+                                OmnichannelConversationRepository conversationRepository,
+                                OmnichannelConversationMessageRepository messageRepository,
+                                WhatsAppMessageService whatsAppMessageService,
+                                ObjectMapper objectMapper,
+                                HttpClient httpClient,
+                                ReceiptSettingsRepository receiptSettingsRepository,
+                                BotOrchestratorService botOrchestratorService,
+                                ProductCategoryOptionRepository productCategoryOptionRepository) {
         this.marketingProperties = marketingProperties;
         this.omnichannelCommerceService = omnichannelCommerceService;
         this.orderRepository = orderRepository;
         this.offerRepository = offerRepository;
         this.productRepository = productRepository;
+        this.productCategoryOptionRepository = productCategoryOptionRepository;
         this.leadRepository = leadRepository;
         this.conversationRepository = conversationRepository;
         this.messageRepository = messageRepository;
@@ -606,20 +629,18 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
         return "Namaste. Welcome to Krishnai Pearl Shopee.\n"
                 + "I can help like a shop salesperson with products, orders, delivery, payments, offers, and support.\n\n"
                 + "Reply with one option:\n"
-                + "1. Shop Products\n"
-                + "2. Browse Categories\n"
-                + "3. My Orders\n"
-                + "4. Track Delivery\n"
-                + "5. Payments / Refunds\n"
-                + "6. Offers\n"
-                + "7. Connect to Agent\n\n"
+                + "1. View Collections\n"
+                + "2. Offers\n"
+                + "3. Track Order\n"
+                + "4. Talk to Shop\n"
+                + "5. Show More\n\n"
                 + "You can also type naturally, like: necklace under 1500, bridal set, payment status, or my latest order.";
     }
 
     private String buildCategoryMenuReply() {
         List<String> categories = availableCategories().stream().limit(6).toList();
         String categoryText = categories.isEmpty()
-                ? "- Necklace\n- Earrings\n- Bangles\n- Rings\n- Cosmetics\n- New arrivals"
+                ? "- New categories will appear here as products are added."
                 : String.join("\n", categories.stream().map(category -> "- " + displayCategoryName(category)).toList());
         return "Sure. Choose a category, or send your budget/style and I will shortlist the best pieces:\n\n"
                 + categoryText + "\n\n"
@@ -631,15 +652,22 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
     }
 
     private List<WhatsAppInteractiveSection> mainMenuSections() {
-        return List.of(new WhatsAppInteractiveSection("How can I help?", List.of(
-                new WhatsAppInteractiveOption("Shop Products", "Shop Products", "Featured and recommended picks"),
-                new WhatsAppInteractiveOption("Browse Categories", "Browse Categories", "Jewellery, cosmetics, gifts"),
-                new WhatsAppInteractiveOption("My Orders", "My Orders", "Recent orders and bills"),
-                new WhatsAppInteractiveOption("Track Delivery", "Track Delivery", "Current delivery status"),
-                new WhatsAppInteractiveOption("Payments / Refunds", "Payments / Refunds", "Payment and refund help"),
+        List<WhatsAppInteractiveSection> sections = new ArrayList<>();
+        sections.add(new WhatsAppInteractiveSection("Main menu", List.of(
+                new WhatsAppInteractiveOption("View Collections", "View Collections", "Browse product categories"),
                 new WhatsAppInteractiveOption("Offers", "Offers", "Active coupons and deals"),
-                new WhatsAppInteractiveOption("Connect to Agent", "Connect to Agent", "Talk to store support")
+                new WhatsAppInteractiveOption("Track Order", "Track Order", "Order and delivery status"),
+                new WhatsAppInteractiveOption("Talk to Shop", "Talk to Shop", "Connect with store support"),
+                new WhatsAppInteractiveOption("Show More", "Show More", "More categories and cart")
         )));
+        List<WhatsAppInteractiveOption> dynamicCategories = availableCategories().stream()
+                .limit(6)
+                .map(category -> new WhatsAppInteractiveOption(category, displayCategoryName(category), displayCategoryDescription(category)))
+                .toList();
+        if (!dynamicCategories.isEmpty()) {
+            sections.add(new WhatsAppInteractiveSection("More", dynamicCategories));
+        }
+        return sections;
     }
 
     private List<WhatsAppInteractiveSection> categorySections() {
@@ -648,60 +676,26 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
                 .map(category -> new WhatsAppInteractiveOption(category, displayCategoryName(category), displayCategoryDescription(category)))
                 .toList();
         if (categoryOptions.isEmpty()) {
-            categoryOptions = List.of(
-                    new WhatsAppInteractiveOption("Cosmetics", "Cosmetics", "Beauty and daily-use picks"),
-                    new WhatsAppInteractiveOption("Jewellery", "Jewellery", "Necklaces, earrings, bangles"),
-                    new WhatsAppInteractiveOption("Necklace", "Necklace", "Premium necklace picks"),
-                    new WhatsAppInteractiveOption("Earrings", "Earrings", "Party and daily wear")
-            );
+            return List.of();
         }
         return List.of(new WhatsAppInteractiveSection("Categories", categoryOptions));
     }
 
     private String displayCategoryName(String category) {
+        String configuredName = configuredCategoryDisplayName(category);
+        if (hasText(configuredName)) {
+            return configuredName;
+        }
         String normalized = normalize(category);
-        if (normalized.contains("neck") || normalized.contains("mala") || normalized.contains("haar")) {
-            return "Necklace";
-        }
-        if (normalized.contains("ear") || normalized.contains("jhumka")) {
-            return "Earrings";
-        }
-        if (normalized.contains("bangle")) {
-            return "Bangles";
-        }
-        if (normalized.contains("ring")) {
-            return "Rings";
-        }
-        if (normalized.contains("cosmetic") || normalized.contains("makeup")) {
-            return "Cosmetics";
-        }
-        if (normalized.contains("bridal")) {
-            return "Bridal";
-        }
-        if (normalized.contains("gift")) {
-            return "Gifts";
+        String canonical = canonicalCategoryTerm(normalized);
+        if (hasText(canonical) && !canonical.equalsIgnoreCase(category)) {
+            return titleCaseLabel(canonical);
         }
         return titleCaseLabel(category);
     }
 
     private String displayCategoryDescription(String category) {
-        String normalized = normalize(category);
-        if (normalized.contains("neck")) {
-            return "Premium necklaces and sets";
-        }
-        if (normalized.contains("ear") || normalized.contains("jhumka")) {
-            return "Daily, party, and festive picks";
-        }
-        if (normalized.contains("bangle")) {
-            return "Bangles and hand jewellery";
-        }
-        if (normalized.contains("ring")) {
-            return "Elegant rings and gift picks";
-        }
-        if (normalized.contains("cosmetic") || normalized.contains("makeup")) {
-            return "Beauty and styling essentials";
-        }
-        return "View products";
+        return "View " + displayCategoryName(category) + " products";
     }
 
     private String titleCaseLabel(String value) {
@@ -1152,20 +1146,16 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
     private BotUnderstanding understandMenuSelection(String normalizedText, String originalText) {
         String value = normalize(normalizedText);
         return switch (value) {
-            case "1", "one", "shop products", "shop product" ->
+            case "1", "one", "shop products", "shop product", "view collections", "collections", "view collection" ->
                     new BotUnderstanding(BotIntent.PRODUCT_SEARCH, null, "featured trending new arrival jewellery cosmetics", null, null, null);
-            case "2", "two", "browse categories", "browse category" ->
-                    new BotUnderstanding(BotIntent.CATEGORY_BROWSE, null, firstNonBlank(originalText, "categories"), null, null, null);
-            case "3", "three", "my orders", "orders" ->
-                    new BotUnderstanding(BotIntent.ORDER_SUPPORT, null, firstNonBlank(originalText, "my orders"), null, null, null);
-            case "4", "four", "track delivery", "delivery" ->
-                    new BotUnderstanding(BotIntent.ORDER_SUPPORT, null, firstNonBlank(originalText, "track delivery"), null, null, null);
-            case "5", "five", "payments", "payment", "refunds", "payments refunds", "payment refunds" ->
-                    new BotUnderstanding(BotIntent.PAYMENT_SUPPORT, null, firstNonBlank(originalText, "payment status"), null, null, null);
-            case "6", "six", "offers", "offer" ->
+            case "2", "two", "offers", "offer" ->
                     new BotUnderstanding(BotIntent.OFFER_INQUIRY, null, firstNonBlank(originalText, "offers"), null, null, null);
-            case "7", "seven", "connect to agent", "agent" ->
+            case "3", "three", "track order", "track delivery", "delivery", "my orders", "orders", "my cart", "cart" ->
+                    new BotUnderstanding(BotIntent.ORDER_SUPPORT, null, firstNonBlank(originalText, "track delivery"), null, null, null);
+            case "4", "four", "talk to shop", "connect to agent", "agent", "support" ->
                     new BotUnderstanding(BotIntent.HUMAN_HANDOFF, null, firstNonBlank(originalText, "connect to agent"), null, null, null);
+            case "5", "five", "show more", "more", "browse categories", "browse category" ->
+                    new BotUnderstanding(BotIntent.CATEGORY_BROWSE, null, firstNonBlank(originalText, "categories"), null, null, null);
             default -> null;
         };
     }
@@ -2146,12 +2136,42 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
     }
 
     private List<String> availableCategories() {
-        LinkedHashSet<String> categories = productRepository.findAll().stream()
+        LinkedHashSet<String> categories = new LinkedHashSet<>();
+        if (productCategoryOptionRepository != null) {
+            try {
+                productCategoryOptionRepository.findByActiveTrueOrderByDisplayNameAsc().stream()
+                        .map(option -> firstNonBlank(option.getCode(), option.getDisplayName()))
+                        .filter(this::hasText)
+                        .forEach(categories::add);
+            } catch (Exception exception) {
+                log.debug("Unable to load configured WhatsApp categories", exception);
+            }
+        }
+        productRepository.findAll().stream()
                 .sorted(Comparator.comparing(Product::getCategory, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)))
                 .map(Product::getCategory)
                 .filter(this::hasText)
-                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+                .forEach(categories::add);
         return new ArrayList<>(categories);
+    }
+
+    private String configuredCategoryDisplayName(String category) {
+        if (productCategoryOptionRepository == null || !hasText(category)) {
+            return null;
+        }
+        String normalized = normalize(category);
+        try {
+            return productCategoryOptionRepository.findByActiveTrueOrderByDisplayNameAsc().stream()
+                    .filter(option -> normalize(option.getCode()).equals(normalized)
+                            || normalize(option.getDisplayName()).equals(normalized))
+                    .map(ProductCategoryOption::getDisplayName)
+                    .filter(this::hasText)
+                    .findFirst()
+                    .orElse(null);
+        } catch (Exception exception) {
+            log.debug("Unable to resolve configured WhatsApp category label", exception);
+            return null;
+        }
     }
 
     private boolean containsAny(String value, String... needles) {

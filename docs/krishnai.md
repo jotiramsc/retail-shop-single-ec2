@@ -303,6 +303,7 @@ It already covers:
 - webhook handling
 - website deep links with auto-add and coupon support
 - site visit capture and geo-enriched interaction reporting
+- WhatsApp bot category menus are dynamic: active `product_categories` drive category rows and labels, with live product categories as fallback.
 
 ## External Integrations Present In Code/Config
 
@@ -419,4 +420,3 @@ If continuing work, start with these files:
 - `backend/src/main/resources/schema.sql`
 - `docs/marketing-automation-setup.md`
 - `docs/omnichannel-commerce-configuration.md`
-
