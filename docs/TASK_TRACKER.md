@@ -28,6 +28,7 @@ None
     - Static fallback category menu rows were removed.
     - Main WhatsApp menu matches View Collections / Offers / Track Order / Talk to Shop / Show More.
     - Regression test covers dynamic `BGL -> Bangles` category rendering.
+    - Regression test covers Bangles selection rejecting a returned Necklace card and falling back to matching Bangles products.
 
 ## Pending
 

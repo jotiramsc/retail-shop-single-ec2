@@ -472,10 +472,18 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
         }
 
         OmnichannelProductSearchResponse products = omnichannelCommerceService.searchProducts(searchRequest);
-        if (products == null || products.getProducts() == null || products.getProducts().isEmpty()) {
+        List<OmnichannelProductCardResponse> productCards = filterProductCardsForRequestedCategory(
+                products == null || products.getProducts() == null ? List.of() : products.getProducts(),
+                understanding.category()
+        );
+        if (products == null || productCards.isEmpty()) {
             products = fallbackProductSearch(searchRequest, understanding);
+            productCards = filterProductCardsForRequestedCategory(
+                    products.getProducts() == null ? List.of() : products.getProducts(),
+                    understanding.category()
+            );
         }
-        List<OmnichannelProductCardResponse> productCards = products.getProducts() == null ? List.of() : products.getProducts();
+        products = withProductCards(products, productCards);
         List<WhatsAppInteractiveSection> productSections = productSections(productCards);
         List<WhatsAppInteractiveOption> productButtons = productSections.isEmpty() ? productActionButtons(productCards) : List.of();
         return new BotReply(
@@ -1807,6 +1815,9 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
         if (product == null) {
             return false;
         }
+        if (!productMatchesRequestedCategory(request.getCategory(), product.getCategory(), product.getName(), product.getSku())) {
+            return false;
+        }
         if (Boolean.TRUE.equals(request.getInStockOnly()) && (product.getQuantity() == null || product.getQuantity() <= 0)) {
             return false;
         }
@@ -1865,6 +1876,68 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
                 .buyNowUrl(buyNowUrl)
                 .checkoutUrl(buyNowUrl.replace("redirect=cart", "redirect=checkout"))
                 .build();
+    }
+
+    private OmnichannelProductSearchResponse withProductCards(OmnichannelProductSearchResponse response,
+                                                              List<OmnichannelProductCardResponse> productCards) {
+        if (response == null) {
+            return OmnichannelProductSearchResponse.builder()
+                    .query("Recommended products")
+                    .totalMatches(productCards.size())
+                    .products(productCards)
+                    .build();
+        }
+        return OmnichannelProductSearchResponse.builder()
+                .query(response.getQuery())
+                .totalMatches(productCards.size())
+                .introMessage(response.getIntroMessage())
+                .products(productCards)
+                .build();
+    }
+
+    private List<OmnichannelProductCardResponse> filterProductCardsForRequestedCategory(List<OmnichannelProductCardResponse> productCards,
+                                                                                       String requestedCategory) {
+        if (!hasText(requestedCategory) || productCards == null || productCards.isEmpty()) {
+            return productCards == null ? List.of() : productCards;
+        }
+        return productCards.stream()
+                .filter(card -> productMatchesRequestedCategory(requestedCategory, card.getCategory(), card.getName(), card.getSku()))
+                .toList();
+    }
+
+    private boolean productMatchesRequestedCategory(String requestedCategory,
+                                                    String productCategory,
+                                                    String productName,
+                                                    String sku) {
+        if (!hasText(requestedCategory)) {
+            return true;
+        }
+        String haystack = normalize(productCategory + " " + productName + " " + sku);
+        for (String term : categoryMatchTerms(requestedCategory)) {
+            String normalizedTerm = normalize(term);
+            if (!hasText(normalizedTerm)) {
+                continue;
+            }
+            if (categoryLooksLike(normalizedTerm, productCategory)
+                    || categoryLooksLike(normalizedTerm, productName)
+                    || haystack.contains(normalizedTerm)) {
+                return true;
+            }
+            for (String token : meaningfulTokens(normalizedTerm)) {
+                if (haystack.contains(token)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private List<String> categoryMatchTerms(String requestedCategory) {
+        List<String> terms = new ArrayList<>();
+        addUniqueTerm(terms, requestedCategory);
+        addUniqueTerm(terms, configuredCategoryDisplayName(requestedCategory));
+        addUniqueTerm(terms, canonicalCategoryTerm(requestedCategory));
+        return terms;
     }
 
     private String publicImageUrl(String imageUrl) {

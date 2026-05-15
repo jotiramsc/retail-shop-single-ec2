@@ -304,6 +304,7 @@ It already covers:
 - website deep links with auto-add and coupon support
 - site visit capture and geo-enriched interaction reporting
 - WhatsApp bot category menus are dynamic: active `product_categories` drive category rows and labels, with live product categories as fallback.
+- WhatsApp product cards must be filtered against the selected/requested category before sending images or list rows; mismatched search results are discarded and catalog fallback is used.
 
 ## External Integrations Present In Code/Config
 

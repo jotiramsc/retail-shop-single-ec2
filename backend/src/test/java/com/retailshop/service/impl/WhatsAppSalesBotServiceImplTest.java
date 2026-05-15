@@ -373,6 +373,70 @@ class WhatsAppSalesBotServiceImplTest {
     }
 
     @Test
+    void shouldNotShowNecklaceWhenBanglesCategoryIsSelected() {
+        MarketingProperties properties = new MarketingProperties();
+        properties.getAi().setEnabled(false);
+        WhatsAppSalesBotServiceImpl categoryBackedService = new WhatsAppSalesBotServiceImpl(
+                properties,
+                omnichannelCommerceService,
+                orderRepository,
+                offerRepository,
+                productRepository,
+                leadRepository,
+                conversationRepository,
+                messageRepository,
+                whatsAppMessageService,
+                new ObjectMapper(),
+                java.net.http.HttpClient.newBuilder().build(),
+                null,
+                null,
+                productCategoryOptionRepository
+        );
+        when(productCategoryOptionRepository.findByActiveTrueOrderByDisplayNameAsc()).thenReturn(List.of(categoryOption("BGL", "Bangles")));
+        when(productRepository.findAll()).thenReturn(List.of(product("Green Bangles", "BGL")));
+        when(omnichannelCommerceService.searchProducts(any(OmnichannelProductSearchRequest.class))).thenReturn(
+                OmnichannelProductSearchResponse.builder()
+                        .query("Bangles")
+                        .totalMatches(1)
+                        .products(List.of(OmnichannelProductCardResponse.builder()
+                                .productId(UUID.randomUUID())
+                                .name("Bridal Necklace")
+                                .category("NECKALACE")
+                                .price(BigDecimal.valueOf(66))
+                                .stockLabel("Available now")
+                                .imageUrl("https://kpskrishnai.com/api/images/products/necklace.png")
+                                .build()))
+                        .build()
+        );
+        mockLeadCapture("Customer");
+        mockOutboundConversation();
+
+        var response = categoryBackedService.handleWebhook("""
+                {
+                  "payload": {
+                    "source": "918390968506",
+                    "sender": {"name": "Customer"},
+                    "id": "wamid.bangles-row",
+                    "payload": {
+                      "selectedRowId": "BGL",
+                      "title": "Bangles"
+                    }
+                  }
+                }
+                """, null);
+
+        assertTrue(response.isAccepted());
+        assertEquals(1, response.getProductCount());
+        assertTrue(response.getReplyText().contains("Green Bangles"));
+        assertFalse(response.getReplyText().contains("Bridal Necklace"));
+        verify(whatsAppMessageService, never()).sendImage(any(), any(), any());
+
+        ArgumentCaptor<OmnichannelProductSearchRequest> searchCaptor = ArgumentCaptor.forClass(OmnichannelProductSearchRequest.class);
+        verify(omnichannelCommerceService).searchProducts(searchCaptor.capture());
+        assertEquals("BGL", searchCaptor.getValue().getCategory());
+    }
+
+    @Test
     void shouldSendInteractiveListWhenMultipleProductsReturned() {
         mockLeadCapture("Aarti");
         when(productRepository.findAll()).thenReturn(List.of(product("Pearl Earrings", "Earrings"), product("Classic Necklace", "Necklace")));
