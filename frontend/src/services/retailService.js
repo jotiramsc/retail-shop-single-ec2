@@ -31,6 +31,7 @@ export const retailService = {
   },
   getPublicCatalog: () => api.get('/products/catalog').then((res) => res.data),
   getPublicProduct: (id) => api.get(`/products/catalog/${encodeURIComponent(id)}`).then((res) => res.data),
+  recordCampaignLeadVisit: (payload) => api.post('/campaign-leads/visits', payload).then((res) => res.data),
   getPublicHomepageCatalog: () => api.get('/products/catalog/home').then((res) => res.data),
   getPublicTrendingCatalog: () => api.get('/products/catalog/trending').then((res) => res.data),
   getCart: () => api.get('/cart').then((res) => res.data),

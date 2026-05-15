@@ -29,6 +29,11 @@ None
     - Main WhatsApp menu matches View Collections / Offers / Track Order / Talk to Shop / Show More.
     - Regression test covers dynamic `BGL -> Bangles` category rendering.
     - Regression test covers Bangles selection rejecting a returned Necklace card and falling back to matching Bangles products.
+    - Welcome uses quick buttons plus a Show More list.
+    - Same-category product replies exclude already shown products to avoid repeating the same card.
+    - Product-name/category conflict guard rejects bad product data such as Necklace-named items in Bangles results.
+    - `/product/{productId}` source-tracked links record campaign lead visits and show the product page.
+    - Public product listing category filters accept DB codes and display/category aliases.
 
 ## Pending
 

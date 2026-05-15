@@ -393,7 +393,10 @@ class WhatsAppSalesBotServiceImplTest {
                 productCategoryOptionRepository
         );
         when(productCategoryOptionRepository.findByActiveTrueOrderByDisplayNameAsc()).thenReturn(List.of(categoryOption("BGL", "Bangles")));
-        when(productRepository.findAll()).thenReturn(List.of(product("Green Bangles", "BGL")));
+        when(productRepository.findAll()).thenReturn(List.of(
+                product("Green Bangles", "BGL"),
+                product("Bridal Necklace", "BANGLES")
+        ));
         when(omnichannelCommerceService.searchProducts(any(OmnichannelProductSearchRequest.class))).thenReturn(
                 OmnichannelProductSearchResponse.builder()
                         .query("Bangles")
@@ -401,7 +404,7 @@ class WhatsAppSalesBotServiceImplTest {
                         .products(List.of(OmnichannelProductCardResponse.builder()
                                 .productId(UUID.randomUUID())
                                 .name("Bridal Necklace")
-                                .category("NECKALACE")
+                                .category("BANGLES")
                                 .price(BigDecimal.valueOf(66))
                                 .stockLabel("Available now")
                                 .imageUrl("https://kpskrishnai.com/api/images/products/necklace.png")

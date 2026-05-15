@@ -28,6 +28,19 @@ function productImage(product) {
   return product?.imageDataUrl || fallbackImages[0];
 }
 
+function isUuid(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ''));
+}
+
+function campaignSessionId() {
+  const key = 'krishnai_campaign_session_id';
+  const existing = window.localStorage.getItem(key);
+  if (existing) return existing;
+  const generated = window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  window.localStorage.setItem(key, generated);
+  return generated;
+}
+
 export default function PublicProductDetailPage({ branding }) {
   const { productId } = useParams();
   const [searchParams] = useSearchParams();
@@ -68,6 +81,21 @@ export default function PublicProductDetailPage({ branding }) {
       cancelled = true;
     };
   }, [productId]);
+
+  useEffect(() => {
+    const campaignId = searchParams.get('campaignId');
+    const source = (searchParams.get('source') || '').toLowerCase();
+    if (!isUuid(campaignId) || !['facebook', 'instagram', 'whatsapp', 'direct'].includes(source) || !isUuid(productId)) {
+      return;
+    }
+    retailService.recordCampaignLeadVisit({
+      campaignId,
+      source,
+      productId,
+      sessionId: campaignSessionId(),
+      timestamp: new Date().toISOString()
+    }).catch(() => {});
+  }, [productId, searchParams]);
 
   useEffect(() => {
     if (customerSession?.token) {

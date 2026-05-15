@@ -96,6 +96,24 @@ function buildPublicCategories(categoryOptions, products) {
   return [{ id: 'all', name: 'All' }, ...Array.from(byId.values())];
 }
 
+function categoryIdsForProduct(product, categoryOptions) {
+  const ids = new Set([normalizeId(titleCaseCategory(product.category)), normalizeId(product.category)]);
+  const productCategory = normalizeId(product.category);
+  (Array.isArray(categoryOptions) ? categoryOptions : []).forEach((option) => {
+    const code = normalizeId(option.code);
+    const display = normalizeId(option.displayName || option.code);
+    if (productCategory === code || productCategory === display) {
+      ids.add(code);
+      ids.add(display);
+    }
+    if (display && productCategory.includes(display)) {
+      ids.add(code);
+      ids.add(display);
+    }
+  });
+  return ids;
+}
+
 function priceRangeLabel(price) {
   if (price < 500) return 'Under Rs. 500';
   if (price <= 1000) return 'Rs. 500 - Rs. 1,000';
@@ -206,8 +224,8 @@ export default function PublicProductsPage({ branding }) {
   const filteredProducts = useMemo(() => {
     return products
       .filter((product) => {
-        const categoryId = normalizeId(titleCaseCategory(product.category));
-        const matchesCategory = activeCategory === 'all' || categoryId === activeCategory;
+        const categoryIds = categoryIdsForProduct(product, categoryOptions);
+        const matchesCategory = activeCategory === 'all' || categoryIds.has(activeCategory);
         const matchesSearch = !searchQuery.trim()
           || `${product.name} ${product.sku} ${product.category}`.toLowerCase().includes(searchQuery.trim().toLowerCase());
         const matchesPrice = activePriceRange === 'All Prices'
@@ -230,7 +248,7 @@ export default function PublicProductsPage({ branding }) {
 
         return new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
       });
-  }, [products, activeCategory, searchQuery, activePriceRange, activeSort]);
+  }, [products, categoryOptions, activeCategory, searchQuery, activePriceRange, activeSort]);
 
   const heroTitle = activeCategory === 'all'
     ? 'All Collections'

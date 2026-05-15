@@ -207,6 +207,7 @@ export default function App() {
       <Route path="/customer-login" element={<CustomerLoginPage />} />
       <Route path="/" element={<PublicHomePage branding={branding} siteVisitCount={siteVisitCount} />} />
       <Route path="/products" element={<PublicProductsPage branding={branding} />} />
+      <Route path="/product/:productId" element={<PublicProductDetailPage branding={branding} />} />
       <Route path="/products/:productId" element={<PublicProductDetailPage branding={branding} />} />
       <Route path="/cart" element={<CartPage />} />
       <Route path="/wishlist" element={<WishlistPage />} />
