@@ -22,6 +22,9 @@ public class MarketingContentResponse {
     private String imageUrl;
     private MarketingContentStatus status;
     private String rejectionReason;
+    private String deliveryStatus;
+    private String deliveryReport;
+    private String deliveryError;
     private LocalDateTime scheduledAt;
     private LocalDateTime publishedAt;
     private String externalPostId;

@@ -74,6 +74,25 @@ None
   - Testing:
     - `backend ./mvnw test` passed: 62 tests.
     - `frontend npm run build` passed.
+- TASK-A: Campaign Offer WhatsApp Delivery
+  - Changed files:
+    - `backend/src/main/java/com/retailshop/service/MarketingChannelResult.java`
+    - `backend/src/main/java/com/retailshop/service/impl/WhatsAppMessageServiceImpl.java`
+    - `backend/src/main/java/com/retailshop/service/impl/WhatsAppPublisher.java`
+    - `backend/src/main/java/com/retailshop/dto/MarketingContentResponse.java`
+    - `backend/src/main/java/com/retailshop/service/impl/MarketingAutomationServiceImpl.java`
+    - `backend/src/test/java/com/retailshop/service/impl/WhatsAppMessageServiceImplTest.java`
+    - `frontend/src/pages/CampaignsPage.jsx`
+    - `frontend/src/styles/global.css`
+  - Implementation notes:
+    - Campaign WhatsApp broadcast now normalizes/de-duplicates mobiles and sends each recipient through the same `sendImage`/`sendText` Gupshup path used by support.
+    - Relative campaign media URLs are converted to public website URLs before WhatsApp media send.
+    - Broadcast result includes total, sent, failed, first error, and compact per-number delivery details.
+    - Campaign Studio WhatsApp content cards show latest delivery report/error from publish logs.
+    - Partial failures mark the WhatsApp publish failed so missed numbers are visible.
+  - Testing:
+    - `backend ./mvnw test` passed: 63 tests.
+    - `frontend npm run build` passed.
 
 ## Pending
 

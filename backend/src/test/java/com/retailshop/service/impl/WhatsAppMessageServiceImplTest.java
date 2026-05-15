@@ -2,6 +2,8 @@ package com.retailshop.service.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.retailshop.config.AppProperties;
+import com.retailshop.entity.Campaign;
+import com.retailshop.entity.Customer;
 import com.retailshop.service.MarketingChannelResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -13,6 +15,7 @@ import java.net.http.HttpResponse;
 import java.net.URLDecoder;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Flow;
 import java.util.concurrent.TimeUnit;
@@ -143,6 +146,49 @@ class WhatsAppMessageServiceImplTest {
         assertTrue(body.contains("\"caption\":\"Pearl Earrings\""));
     }
 
+    @Test
+    void shouldBroadcastCampaignToEveryUniqueWhatsAppRecipientAndReportFailures() throws Exception {
+        appProperties.setWhatsappProvider("GUPSHUP");
+        appProperties.getGupshup().setApiKey("gupshup-key");
+        appProperties.getGupshup().setSourceNumber("918830461523");
+        appProperties.getGupshup().setAppName("KPSKrishnai");
+        WhatsAppMessageServiceImpl service = new WhatsAppMessageServiceImpl(appProperties, objectMapper, httpClient);
+        HttpResponse<String> firstResponse = mockResponse(202, """
+                {"status":"submitted","messageId":"gupshup-1"}
+                """);
+        HttpResponse<String> secondResponse = mockResponse(400, """
+                {"message":"Invalid destination"}
+                """);
+        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenReturn(firstResponse)
+                .thenReturn(secondResponse);
+        Campaign campaign = new Campaign();
+        campaign.setContent("Gudi Padwa Offer");
+        campaign.setMediaUrl("/api/images/marketing-campaigns/offer.png");
+        Customer first = customer("+91 9175834000");
+        Customer duplicate = customer("9175834000");
+        Customer second = customer("8390968506");
+
+        MarketingChannelResult result = service.publishCampaign(campaign, List.of(first, duplicate, second));
+
+        assertEquals(false, result.isSuccess());
+        assertEquals(2, result.getTotalRecipients());
+        assertEquals(1, result.getSentCount());
+        assertEquals(1, result.getFailedCount());
+        assertTrue(result.getDeliveryReport().contains("919175834000=SENT"));
+        assertTrue(result.getDeliveryReport().contains("918390968506=FAILED"));
+        assertTrue(result.getErrorMessage().contains("Invalid destination"));
+
+        var requestCaptor = org.mockito.ArgumentCaptor.forClass(HttpRequest.class);
+        verify(httpClient, org.mockito.Mockito.times(2)).send(requestCaptor.capture(), any(HttpResponse.BodyHandler.class));
+        List<HttpRequest> requests = requestCaptor.getAllValues();
+        String firstBody = URLDecoder.decode(readBody(requests.get(0)), StandardCharsets.UTF_8);
+        String secondBody = URLDecoder.decode(readBody(requests.get(1)), StandardCharsets.UTF_8);
+        assertTrue(firstBody.contains("destination=919175834000"));
+        assertTrue(secondBody.contains("destination=918390968506"));
+        assertTrue(firstBody.contains("\"originalUrl\":\"https://kpskrishnai.com/api/images/marketing-campaigns/offer.png\""));
+    }
+
     @SuppressWarnings("unchecked")
     private HttpResponse<String> mockResponse(int statusCode, String body) {
         HttpResponse<String> response = mock(HttpResponse.class);
@@ -180,5 +226,11 @@ class WhatsAppMessageServiceImplTest {
         });
         completed.get(3, TimeUnit.SECONDS);
         return output.toString(StandardCharsets.UTF_8);
+    }
+
+    private Customer customer(String mobile) {
+        Customer customer = new Customer();
+        customer.setMobile(mobile);
+        return customer;
     }
 }

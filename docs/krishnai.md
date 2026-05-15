@@ -313,6 +313,7 @@ It already covers:
 - Products whose names clearly conflict with the selected category are rejected even if stored under that category, preventing bad admin data from leaking into WhatsApp cards.
 - Source-tracked product links use public SPA route `/product/{productId}?campaignId={campaignId}&source={source}`; the storefront records valid campaign/source visits before showing the product.
 - Campaign Studio create form shows validation/API errors next to the Save buttons and scrolls them into view, so blocked submissions are visible without checking Network.
+- Campaign Studio WhatsApp publishing sends each unique customer mobile through the same Gupshup/WhatsApp sender path used by support messages. It stores compact per-number sent/failed delivery reports in publish logs and surfaces the latest report on WhatsApp content cards.
 - WhatsApp support inbox is single-agent and reuses omnichannel conversation/message tables. Admins can view unread/open chats, reply to WhatsApp, mark resolved, and send inventory products from `/app/support`. The first implementation uses REST polling instead of WebSocket.
 - Support product suggestions search existing inventory by name, category, SKU, and simple price filters. Product suggestions are sent through the existing WhatsApp sender with image when publicly available, product link, support-team note, and structured conversation metadata for product/status history.
 

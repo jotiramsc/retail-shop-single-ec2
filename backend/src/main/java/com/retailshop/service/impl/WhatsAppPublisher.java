@@ -43,7 +43,7 @@ public class WhatsAppPublisher implements SocialPublisher {
                 result.isSuccess(),
                 result.getResponseId(),
                 buildRequestPayload(content),
-                result.getResponseId(),
+                safe(result.getDeliveryReport(), result.getResponseId()),
                 result.getErrorMessage()
         );
     }
@@ -58,5 +58,9 @@ public class WhatsAppPublisher implements SocialPublisher {
 
     private String safe(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    private String safe(String value, String fallback) {
+        return safe(value).isEmpty() ? safe(fallback) : safe(value);
     }
 }

@@ -875,6 +875,13 @@ export default function CampaignsPage() {
           </div>
         </div>
         {content.rejectionReason ? <p className="error-text">Rejected: {content.rejectionReason}</p> : null}
+        {content.platform === 'WHATSAPP' && (content.deliveryReport || content.deliveryError) ? (
+          <div className={`marketing-delivery-report ${content.deliveryStatus === 'PUBLISHED' ? 'is-success' : 'is-failed'}`}>
+            <strong>WhatsApp delivery: {content.deliveryStatus || content.status}</strong>
+            {content.deliveryReport ? <p>{content.deliveryReport}</p> : null}
+            {content.deliveryError ? <small>{content.deliveryError}</small> : null}
+          </div>
+        ) : null}
         <div className="marketing-content-actions">
           <button type="button" className="ghost-btn compact-btn" onClick={() => saveContentDraft(content.id)}>
             Save edits

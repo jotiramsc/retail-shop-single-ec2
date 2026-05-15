@@ -29,9 +29,11 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @Slf4j
@@ -355,38 +357,50 @@ public class WhatsAppMessageServiceImpl implements WhatsAppMessageService, OtpDe
                     .errorMessage(whatsAppConfigurationError())
                     .build();
         }
-        List<Customer> recipients = customers == null ? List.of() : customers.stream()
-                .filter(customer -> hasText(customer.getMobile()))
-                .toList();
+        List<String> recipients = normalizeBroadcastRecipients(customers);
         if (recipients.isEmpty()) {
             return MarketingChannelResult.builder()
                     .success(false)
                     .errorMessage("No WhatsApp recipients available")
+                    .totalRecipients(0)
+                    .sentCount(0)
+                    .failedCount(0)
                     .build();
         }
 
         int sentCount = 0;
-        String firstMessageId = null;
+        int failedCount = 0;
         String firstError = null;
-        boolean hasImage = hasText(imageUrl);
-        for (Customer customer : recipients) {
+        List<String> deliveryRows = new ArrayList<>();
+        String publicImageUrl = publicImageUrl(imageUrl);
+        boolean hasImage = hasText(publicImageUrl);
+        for (String mobile : recipients) {
             MarketingChannelResult result = hasImage
-                    ? sendImage(customer.getMobile(), imageUrl, body)
-                    : sendSingleTextMessage(customer.getMobile(), body);
+                    ? sendImage(mobile, publicImageUrl, body)
+                    : sendSingleTextMessage(mobile, body);
             if (result.isSuccess()) {
                 sentCount++;
-                if (!hasText(firstMessageId)) {
-                    firstMessageId = result.getResponseId();
+                deliveryRows.add(mobile + "=SENT" + (hasText(result.getResponseId()) ? "(" + result.getResponseId() + ")" : ""));
+            } else {
+                failedCount++;
+                String error = defaultString(result.getErrorMessage(), "Unknown WhatsApp send failure");
+                deliveryRows.add(mobile + "=FAILED(" + error + ")");
+                if (!hasText(firstError)) {
+                    firstError = error;
                 }
-            } else if (!hasText(firstError)) {
-                firstError = result.getErrorMessage();
             }
         }
 
+        String summary = "sent=" + sentCount + "/" + recipients.size() + ";failed=" + failedCount;
+        String report = summary + ";details=" + String.join(",", deliveryRows);
         return MarketingChannelResult.builder()
-                .success(sentCount > 0)
-                .responseId(hasText(firstMessageId) ? firstMessageId : "broadcast:sent=" + sentCount + "/" + recipients.size())
-                .errorMessage(sentCount == recipients.size() ? null : firstError)
+                .success(failedCount == 0)
+                .responseId("broadcast:" + summary)
+                .errorMessage(failedCount == 0 ? null : firstError)
+                .totalRecipients(recipients.size())
+                .sentCount(sentCount)
+                .failedCount(failedCount)
+                .deliveryReport(report.length() > 8000 ? report.substring(0, 7997) + "..." : report)
                 .build();
     }
 
@@ -1039,6 +1053,41 @@ public class WhatsAppMessageServiceImpl implements WhatsAppMessageService, OtpDe
             return "91" + digits;
         }
         return digits;
+    }
+
+    private List<String> normalizeBroadcastRecipients(List<Customer> customers) {
+        if (customers == null || customers.isEmpty()) {
+            return List.of();
+        }
+        Set<String> recipients = new LinkedHashSet<>();
+        for (Customer customer : customers) {
+            String mobile = customer == null ? null : customer.getMobile();
+            String formatted = formatWhatsAppRecipient(mobile);
+            if (hasText(formatted)) {
+                recipients.add(formatted);
+            }
+        }
+        return new ArrayList<>(recipients);
+    }
+
+    private String publicImageUrl(String imageUrl) {
+        if (!hasText(imageUrl)) {
+            return null;
+        }
+        String trimmed = imageUrl.trim();
+        if (trimmed.startsWith("data:")) {
+            return null;
+        }
+        if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+            return trimmed;
+        }
+        if (trimmed.startsWith("/")) {
+            return appWebsiteUrl() + trimmed;
+        }
+        if (trimmed.startsWith("api/")) {
+            return appWebsiteUrl() + "/" + trimmed;
+        }
+        return trimmed;
     }
 
     private String digitsOnly(String value) {

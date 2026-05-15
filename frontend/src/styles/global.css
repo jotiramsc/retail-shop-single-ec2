@@ -5889,6 +5889,33 @@ th {
   color: rgba(122, 92, 74, 0.88);
 }
 
+.marketing-delivery-report {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.75rem;
+  padding: 0.8rem;
+  border-radius: 14px;
+  border: 1px solid rgba(184, 115, 58, 0.16);
+  background: rgba(255, 251, 247, 0.9);
+}
+
+.marketing-delivery-report p,
+.marketing-delivery-report small {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: rgba(82, 58, 44, 0.88);
+}
+
+.marketing-delivery-report.is-success {
+  border-color: rgba(34, 127, 85, 0.22);
+  background: rgba(234, 250, 243, 0.9);
+}
+
+.marketing-delivery-report.is-failed {
+  border-color: rgba(184, 71, 58, 0.24);
+  background: rgba(255, 241, 238, 0.9);
+}
+
 .marketing-status-badge {
   display: inline-flex;
   align-items: center;

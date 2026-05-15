@@ -1,19 +1,18 @@
 # CURRENT TASK
 
-## TASK-17: Support Page Product Suggestion and WhatsApp Forwarding
+## TASK-A: Campaign Offer WhatsApp Delivery
 
 Status: Completed
 
 Scope:
-- Allow the single-agent support inbox to search inventory and forward selected products to the customer's WhatsApp chat.
-- Reuse existing inventory/product data and existing WhatsApp sender integration.
-- Do not create duplicate products or new campaign/support modules.
+- Fix Campaign Studio WhatsApp offer delivery so all selected/available customer numbers are attempted.
+- Reuse the same WhatsApp/Gupshup send path used by support messages.
+- Track success/failure per recipient and show delivery details in Campaign Studio.
 
 Implementation:
-- Support product picker searches loaded inventory by product name, category, SKU/item code, and simple price filters such as `under 2000`, `above 1000`, or `1000-3000`.
-- Product picker cards show image, name, category, SKU, price/offer price, stock status, and quantity.
-- Send button is labeled "Send to WhatsApp".
-- Out-of-stock products show a warning and require confirmation before sending.
-- WhatsApp product suggestion includes image when a public image URL exists, product name, price/offer price, stock, product link, and "Suggested by Krishnai support team".
-- Conversation history stores productId, product name, sentBy, timestamp, customer mobile, provider message id, and WhatsApp send status in message metadata.
-- Support chat displays product send status in the message history.
+- Campaign WhatsApp broadcast normalizes and de-duplicates recipient numbers before sending.
+- Campaign broadcast sends each number individually through `sendImage` or `sendText`, matching the working support-message path.
+- Relative campaign media URLs are converted to public `https://kpskrishnai.com/...` URLs; data URLs are not sent as WhatsApp media.
+- Broadcast result includes total recipients, sent count, failed count, first error, and a compact per-number delivery report.
+- Campaign Studio content cards display the latest WhatsApp delivery report/error from publish logs.
+- WhatsApp campaign publish is marked successful only when every attempted recipient succeeds, so partial delivery is visible instead of hidden.

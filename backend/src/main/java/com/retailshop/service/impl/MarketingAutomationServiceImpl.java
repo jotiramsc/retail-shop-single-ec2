@@ -727,6 +727,10 @@ public class MarketingAutomationServiceImpl implements MarketingAutomationServic
                         .actionAt(entry.getActionAt())
                         .build())
                 .toList();
+        PublishLog latestPublishLog = publishLogRepository.findByCampaignContentIdOrderByCreatedAtDesc(content.getId())
+                .stream()
+                .findFirst()
+                .orElse(null);
 
         return MarketingContentResponse.builder()
                 .id(content.getId())
@@ -739,6 +743,9 @@ public class MarketingAutomationServiceImpl implements MarketingAutomationServic
                 .imageUrl(content.getImageUrl())
                 .status(content.getStatus())
                 .rejectionReason(content.getRejectionReason())
+                .deliveryStatus(latestPublishLog == null ? null : latestPublishLog.getStatus())
+                .deliveryReport(latestPublishLog == null ? null : latestPublishLog.getResponsePayload())
+                .deliveryError(latestPublishLog == null ? null : latestPublishLog.getErrorMessage())
                 .scheduledAt(content.getScheduledAt())
                 .publishedAt(content.getPublishedAt())
                 .externalPostId(content.getExternalPostId())
