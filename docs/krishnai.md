@@ -200,6 +200,12 @@ Product visibility rules:
 - Public storefront catalog, home, trending, and product detail APIs return only `showOnWebsite=true` products.
 - Billing/POS product selectors use only `useForBilling=true` products.
 
+WhatsApp greeting/menu:
+
+- Greeting sends `/assets/krishnai-whatsapp-greeting.png` first.
+- The greeting menu is a single WhatsApp list card with View Collections, Offers, Track Order, and Show More.
+- Show More opens Talk to Shop, dynamic categories, My Cart, and Support in one secondary list.
+
 ## Frontend Structure Summary
 
 ### Admin pages

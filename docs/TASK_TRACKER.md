@@ -115,6 +115,23 @@ None
     - EC2 deployment succeeded from commit `956adfb33c693794608d55fc2e5672ce21fe63d8`.
     - Live `https://kpskrishnai.com/actuator/health` returned `{"status":"UP"}`.
     - Live homepage returned HTTP 200.
+- TASK-D: WhatsApp Greeting/Menu Fixes
+  - Changed files:
+    - `backend/src/main/java/com/retailshop/service/impl/WhatsAppSalesBotServiceImpl.java`
+    - `backend/src/test/java/com/retailshop/service/impl/WhatsAppSalesBotServiceImplTest.java`
+    - `frontend/public/assets/krishnai-whatsapp-greeting.png`
+    - `docs/CURRENT_TASK.md`
+    - `docs/TASK_TRACKER.md`
+    - `docs/krishnai.md`
+  - Implementation notes:
+    - Greeting now attaches the provided Krishnai banner as media before the menu.
+    - Main greeting menu is one list card: View Collections, Offers, Track Order, Show More.
+    - Show More opens a secondary list with Talk to Shop, dynamic categories, My Cart, and Support.
+    - Removed the greeting path that sent both quick buttons and a list card together.
+  - Testing:
+    - `backend ./mvnw -Dtest=WhatsAppSalesBotServiceImplTest test` passed: 11 tests.
+    - `backend ./mvnw test` passed: 65 tests.
+    - `frontend npm run build` passed.
 
 ## Pending
 

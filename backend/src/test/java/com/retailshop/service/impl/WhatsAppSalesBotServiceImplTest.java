@@ -23,6 +23,7 @@ import com.retailshop.service.MarketingChannelResult;
 import com.retailshop.service.OmnichannelCommerceService;
 import com.retailshop.service.WhatsAppMessageService;
 import com.retailshop.dto.whatsapp.WhatsAppInteractiveOption;
+import com.retailshop.dto.whatsapp.WhatsAppInteractiveSection;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -253,6 +254,14 @@ class WhatsAppSalesBotServiceImplTest {
     @Test
     void shouldAnswerGreetingWithAvailableCategories() {
         mockLeadCapture("Customer");
+        when(whatsAppMessageService.sendImage(any(), any(), any())).thenReturn(MarketingChannelResult.builder()
+                .success(true)
+                .responseId("welcome-image")
+                .build());
+        when(whatsAppMessageService.sendListMessage(any(), any(), any(), any(), any())).thenReturn(MarketingChannelResult.builder()
+                .success(true)
+                .responseId("welcome-list")
+                .build());
         mockOutboundConversation();
 
         var response = service.handleWebhook("""
@@ -260,11 +269,16 @@ class WhatsAppSalesBotServiceImplTest {
                 """, null);
 
         assertTrue(response.isAccepted());
-        assertFalse(response.isSent());
+        assertTrue(response.isSent());
         assertEquals(0, response.getProductCount());
-        assertTrue(response.getReplyText().contains("View Collections"));
-        assertTrue(response.getReplyText().contains("Track Order"));
-        assertTrue(response.getReplyText().contains("Talk to Shop"));
+        assertTrue(response.getReplyText().contains("Namaskar"));
+        verify(whatsAppMessageService).sendImage(any(), any(), any());
+        ArgumentCaptor<List<WhatsAppInteractiveSection>> sectionCaptor = ArgumentCaptor.forClass(List.class);
+        verify(whatsAppMessageService).sendListMessage(any(), any(), any(), any(), sectionCaptor.capture());
+        List<WhatsAppInteractiveOption> menuOptions = sectionCaptor.getValue().get(0).options();
+        assertEquals(List.of("View Collections", "Offers", "Track Order", "Show More"),
+                menuOptions.stream().map(WhatsAppInteractiveOption::title).toList());
+        verify(whatsAppMessageService, never()).sendReplyButtons(any(), any(), any());
         verify(omnichannelCommerceService, never()).searchProducts(any());
     }
 
@@ -278,7 +292,7 @@ class WhatsAppSalesBotServiceImplTest {
                 """, null);
 
         assertTrue(categoryResponse.isAccepted());
-        assertTrue(categoryResponse.getReplyText().contains("Choose a category"));
+        assertTrue(categoryResponse.getReplyText().contains("More options below"));
         verify(omnichannelCommerceService, never()).searchProducts(any());
 
         var orderResponse = service.handleWebhook("""

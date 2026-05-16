@@ -1,19 +1,18 @@
 # CURRENT TASK
 
-## TASK-C: Inventory Visibility Checkboxes
+## TASK-D: WhatsApp Greeting/Menu Fixes
 
 Status: Completed
 
 Scope:
-- Add product visibility controls for public website and local shop billing.
-- Default both options to enabled for new and existing products.
-- Keep hidden website products out of public storefront APIs.
-- Keep local-shop-only disabled products out of billing product pickers.
+- Fix WhatsApp greeting image/banner delivery.
+- Remove duplicate greeting menu cards.
+- Keep the greeting menu in one clean WhatsApp list card.
+- Make Show More open the secondary options menu.
 
 Implementation:
-- Products now store `showOnWebsite` and `useForBilling`, mapped to `show_on_website` and `use_for_billing`.
-- Database defaults both flags to true, preserving existing inventory visibility.
-- Inventory form shows "Show on Website" and "Use for Shop Billing" checkboxes, both selected for new products.
-- Public catalog, homepage, trending, and direct product lookup only return products with `showOnWebsite=true`.
-- Billing loads only products with `useForBilling=true`.
-- Deployed to EC2 from commit `956adfb33c693794608d55fc2e5672ce21fe63d8`; live health returned `UP`.
+- Added the provided Krishnai greeting banner as `/assets/krishnai-whatsapp-greeting.png`.
+- Greeting sends the banner image first, then one list card with View Collections, Offers, Track Order, and Show More.
+- Greeting no longer sends separate quick-button and list menu cards together.
+- Show More opens one list containing Talk to Shop, dynamic categories, My Cart, and Support.
+- WhatsApp image-send null responses are handled safely before falling back to interactive/text delivery.

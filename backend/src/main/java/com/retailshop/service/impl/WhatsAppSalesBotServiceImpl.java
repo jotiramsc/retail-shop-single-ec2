@@ -422,6 +422,9 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
                         understanding.occasion()
                 ), lead, from, false);
             }
+            if (isShowMoreSelection(understanding.searchText())) {
+                return buildShowMoreReply();
+            }
             return new BotReply(
                     buildCategoryMenuReply(),
                     0,
@@ -643,15 +646,29 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
     }
 
     private BotReply buildWelcomeReply() {
-        String text = "Namaskar! Tell me what you want or tap a collection. I understand Marathi, Hindi, English and spelling mistakes.\n\n"
-                + "Quick actions: View Collections, Offers, Track Order. Use Show More for Talk to Shop, My Cart, Support, and more collections.";
+        String text = "Namaskar! Welcome to Krishnai Pearl Shopee.\n"
+                + "Tell me what you want or tap an option below. I understand Marathi, Hindi, English and spelling mistakes.";
         return new BotReply(
                 text,
                 0,
                 List.of(),
+                welcomeImageUrl(),
+                "Namaste. I can help with shopping, orders, offers, payments, and support.",
+                List.of(),
+                mainMenuSections(),
+                "Krishnai Assistant",
+                "Choose"
+        );
+    }
+
+    private BotReply buildShowMoreReply() {
+        return new BotReply(
+                "More options below.",
+                0,
+                List.of(),
                 null,
                 null,
-                mainMenuButtons(),
+                List.of(),
                 showMoreMenuSections(),
                 "Krishnai Assistant",
                 "Show More"
@@ -685,22 +702,12 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
     }
 
     private List<WhatsAppInteractiveSection> mainMenuSections() {
-        List<WhatsAppInteractiveSection> sections = new ArrayList<>();
-        sections.add(new WhatsAppInteractiveSection("Main menu", List.of(
+        return List.of(new WhatsAppInteractiveSection("Main menu", List.of(
                 new WhatsAppInteractiveOption("View Collections", "View Collections", "Browse product categories"),
                 new WhatsAppInteractiveOption("Offers", "Offers", "Active coupons and deals"),
                 new WhatsAppInteractiveOption("Track Order", "Track Order", "Order and delivery status"),
-                new WhatsAppInteractiveOption("Talk to Shop", "Talk to Shop", "Connect with store support"),
                 new WhatsAppInteractiveOption("Show More", "Show More", "More categories and cart")
         )));
-        List<WhatsAppInteractiveOption> dynamicCategories = availableCategories().stream()
-                .limit(6)
-                .map(category -> new WhatsAppInteractiveOption(category, displayCategoryName(category), displayCategoryDescription(category)))
-                .toList();
-        if (!dynamicCategories.isEmpty()) {
-            sections.add(new WhatsAppInteractiveSection("More", dynamicCategories));
-        }
-        return sections;
     }
 
     private List<WhatsAppInteractiveOption> mainMenuButtons() {
@@ -1445,7 +1452,7 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
                     publicImageUrl(reply.mediaUrl()),
                     defaultString(reply.mediaCaption(), reply.text())
             );
-            mediaResult = new SendResult(result.isSuccess(), result.getResponseId(), result.getErrorMessage());
+            mediaResult = toSendResult(result);
             if (!hasInteractiveReply(reply)) {
                 if (mediaResult.success()) {
                     return mediaResult;
@@ -1672,22 +1679,24 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
     }
 
     private String welcomeImageUrl() {
+        String configuredGreeting = publicImageUrl("/assets/krishnai-whatsapp-greeting.png");
         if (receiptSettingsRepository == null) {
-            return null;
+            return configuredGreeting;
         }
         try {
             return receiptSettingsRepository.findAll().stream()
                     .findFirst()
                     .map(settings -> firstNonBlank(
+                            configuredGreeting,
                             publicImageUrl(settings.getHeroPrimaryImageUrl()),
                             publicImageUrl(settings.getHeroSecondaryImageUrl()),
                             publicImageUrl(settings.getLogoUrl())
                     ))
                     .filter(this::hasText)
-                    .orElse(null);
+                    .orElse(configuredGreeting);
         } catch (Exception exception) {
             log.debug("Unable to load WhatsApp welcome image", exception);
-            return null;
+            return configuredGreeting;
         }
     }
 
@@ -2564,6 +2573,14 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
                 || "shopping".equals(value)
                 || "order".equals(value)
                 || "payment".equals(value);
+    }
+
+    private boolean isShowMoreSelection(String text) {
+        String value = normalize(text);
+        return "5".equals(value)
+                || "five".equals(value)
+                || "show more".equals(value)
+                || "more".equals(value);
     }
 
     private boolean isCategoryBrowseRequest(String normalizedText) {
