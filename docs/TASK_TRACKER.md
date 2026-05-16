@@ -111,6 +111,10 @@ None
   - Testing:
     - `backend ./mvnw test` passed: 65 tests.
     - `frontend npm run build` passed.
+  - Deployment:
+    - EC2 deployment succeeded from commit `956adfb33c693794608d55fc2e5672ce21fe63d8`.
+    - Live `https://kpskrishnai.com/actuator/health` returned `{"status":"UP"}`.
+    - Live homepage returned HTTP 200.
 
 ## Pending
 

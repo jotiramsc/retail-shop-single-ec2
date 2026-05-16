@@ -16,3 +16,4 @@ Implementation:
 - Inventory form shows "Show on Website" and "Use for Shop Billing" checkboxes, both selected for new products.
 - Public catalog, homepage, trending, and direct product lookup only return products with `showOnWebsite=true`.
 - Billing loads only products with `useForBilling=true`.
+- Deployed to EC2 from commit `956adfb33c693794608d55fc2e5672ce21fe63d8`; live health returned `UP`.
