@@ -16,3 +16,4 @@ Implementation:
 - Greeting no longer sends separate quick-button and list menu cards together.
 - Show More opens one list containing Talk to Shop, dynamic categories, My Cart, and Support.
 - WhatsApp image-send null responses are handled safely before falling back to interactive/text delivery.
+- Deployed to EC2 from commit `6839f2ea9b3328666146b95ea07116d552e2be6b`; live health returned `UP` and greeting asset returned HTTP 200.

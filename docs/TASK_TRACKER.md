@@ -132,6 +132,10 @@ None
     - `backend ./mvnw -Dtest=WhatsAppSalesBotServiceImplTest test` passed: 11 tests.
     - `backend ./mvnw test` passed: 65 tests.
     - `frontend npm run build` passed.
+  - Deployment:
+    - EC2 deployment succeeded from commit `6839f2ea9b3328666146b95ea07116d552e2be6b`.
+    - Live `https://kpskrishnai.com/actuator/health` returned `{"status":"UP"}`.
+    - Live greeting asset `/assets/krishnai-whatsapp-greeting.png` returned HTTP 200.
 
 ## Pending
 
