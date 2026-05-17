@@ -58,12 +58,14 @@ public class ReportServiceImpl implements ReportService {
         LocalDateTime start = rangeStart.atStartOfDay();
         LocalDateTime end = rangeEnd.atTime(LocalTime.MAX);
         String normalizedSalesPerson = normalizeSalesPersonName(salesPersonName);
+        boolean websiteSalesPerson = isWebsiteSalesPersonFilter(normalizedSalesPerson);
         List<Invoice> invoices = invoiceRepository.findByCreatedAtBetweenOrderByCreatedAtDesc(start, end).stream()
+                .filter(invoice -> !websiteSalesPerson)
                 .filter(invoice -> matchesSalesPerson(normalizedSalesPerson, invoice.getSalesPersonName()))
                 .toList();
         List<CustomerOrder> websiteOrders = customerOrderRepository.findByCreatedAtBetweenOrderByCreatedAtDesc(start, end).stream()
                 .filter(order -> order.getSource() == OrderSource.WEBSITE)
-                .filter(order -> matchesSalesPerson(normalizedSalesPerson, order.getSalesPersonName()))
+                .filter(order -> websiteSalesPerson || matchesSalesPerson(normalizedSalesPerson, order.getSalesPersonName()))
                 .toList();
 
         return DailyReportResponse.builder()
@@ -105,10 +107,12 @@ public class ReportServiceImpl implements ReportService {
         LocalDateTime end = rangeEnd.atTime(LocalTime.MAX);
         String normalizedName = customerName == null || customerName.isBlank() ? null : customerName.trim();
         String normalizedSalesPerson = normalizeSalesPersonName(salesPersonName);
+        boolean websiteSalesPerson = isWebsiteSalesPersonFilter(normalizedSalesPerson);
 
         List<Invoice> invoices = (normalizedName == null
                 ? invoiceRepository.findByCreatedAtBetweenOrderByCreatedAtDesc(start, end)
                 : invoiceRepository.findByCreatedAtBetweenAndCustomer_NameContainingIgnoreCaseOrderByCreatedAtDesc(start, end, normalizedName)).stream()
+                .filter(invoice -> !websiteSalesPerson)
                 .filter(invoice -> matchesSalesPerson(normalizedSalesPerson, invoice.getSalesPersonName()))
                 .toList();
 
@@ -116,10 +120,10 @@ public class ReportServiceImpl implements ReportService {
                 ? customerOrderRepository.findByCreatedAtBetweenOrderByCreatedAtDesc(start, end)
                 : customerOrderRepository.findByCreatedAtBetweenAndCustomer_NameContainingIgnoreCaseOrderByCreatedAtDesc(start, end, normalizedName)).stream()
                 .filter(order -> order.getSource() == OrderSource.WEBSITE)
-                .filter(order -> matchesSalesPerson(normalizedSalesPerson, order.getSalesPersonName()))
+                .filter(order -> websiteSalesPerson || matchesSalesPerson(normalizedSalesPerson, order.getSalesPersonName()))
                 .toList();
 
-        if ("WEBSITE".equalsIgnoreCase(normalizedSalesPerson)) {
+        if (websiteSalesPerson) {
             List<ReportOrderRowResponse> pendingWebsiteRows = websiteOrders.stream()
                     .filter(order -> isPendingWebsiteOrder(order.getStatus()))
                     .map(this::mapWebsiteOrderRow)
@@ -191,13 +195,15 @@ public class ReportServiceImpl implements ReportService {
         LocalDateTime start = periodSelection.fromDate().atStartOfDay();
         LocalDateTime end = periodSelection.toDate().atTime(LocalTime.MAX);
         String normalizedSalesPerson = normalizeSalesPersonName(salesPersonName);
+        boolean websiteSalesPerson = isWebsiteSalesPersonFilter(normalizedSalesPerson);
 
         List<Invoice> invoices = invoiceRepository.findByCreatedAtBetweenOrderByCreatedAtDesc(start, end).stream()
+                .filter(invoice -> !websiteSalesPerson)
                 .filter(invoice -> matchesSalesPerson(normalizedSalesPerson, invoice.getSalesPersonName()))
                 .toList();
         List<CustomerOrder> websiteOrders = customerOrderRepository.findByCreatedAtBetweenOrderByCreatedAtDesc(start, end).stream()
                 .filter(order -> order.getSource() == OrderSource.WEBSITE)
-                .filter(order -> matchesSalesPerson(normalizedSalesPerson, order.getSalesPersonName()))
+                .filter(order -> websiteSalesPerson || matchesSalesPerson(normalizedSalesPerson, order.getSalesPersonName()))
                 .toList();
 
         Map<String, SalesAccumulator> rowsByKey = new LinkedHashMap<>();
@@ -483,8 +489,15 @@ public class ReportServiceImpl implements ReportService {
         return safeText(salesPersonName);
     }
 
+    private boolean isWebsiteSalesPersonFilter(String salesPersonName) {
+        String normalized = safeText(salesPersonName).replaceAll("[^A-Za-z0-9]+", "").toUpperCase(Locale.ROOT);
+        return "WEBSITE".equals(normalized);
+    }
+
     private boolean matchesSalesPerson(String filterValue, String recordValue) {
-        return filterValue.isBlank() || safeText(recordValue).equalsIgnoreCase(filterValue);
+        return filterValue.isBlank()
+                || isWebsiteSalesPersonFilter(filterValue)
+                || safeText(recordValue).equalsIgnoreCase(filterValue);
     }
 
     private static final class SalesAccumulator {

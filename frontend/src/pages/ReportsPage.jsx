@@ -84,6 +84,9 @@ export default function ReportsPage() {
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState(null);
 
+  const salesPersonValue = (salesPerson) => salesPerson.id === 'WEBSITE' ? 'WEBSITE' : salesPerson.displayName;
+  const isWebsiteOrderView = salesPersonFilter === 'WEBSITE';
+
   const loadReports = async (fromDate = reportFromDate, lowStockPageNumber = 0, invoicePageNumber = 0) => {
     setError('');
     try {
@@ -452,7 +455,7 @@ export default function ReportsPage() {
               <select value={salesPersonFilter} onChange={(e) => setSalesPersonFilter(e.target.value)}>
                 <option value="">All sales persons</option>
                 {salesPeople.map((salesPerson) => (
-                  <option key={salesPerson.id} value={salesPerson.displayName}>{salesPerson.displayName}</option>
+                  <option key={salesPerson.id} value={salesPersonValue(salesPerson)}>{salesPerson.displayName}</option>
                 ))}
               </select>
             </label>
@@ -713,7 +716,7 @@ export default function ReportsPage() {
               <select value={salesPersonFilter} onChange={(e) => setSalesPersonFilter(e.target.value)}>
                 <option value="">All sales persons</option>
                 {salesPeople.map((salesPerson) => (
-                  <option key={salesPerson.id} value={salesPerson.displayName}>{salesPerson.displayName}</option>
+                  <option key={salesPerson.id} value={salesPersonValue(salesPerson)}>{salesPerson.displayName}</option>
                 ))}
               </select>
             </label>
@@ -751,7 +754,12 @@ export default function ReportsPage() {
             />
           </Panel>
 
-          <Panel title="Orders in selected range" subtitle="Review both website orders and billing orders in the chosen date range, with live delivery status for online purchases.">
+          <Panel
+            title={isWebsiteOrderView ? 'Website order priority queue' : 'Orders in selected range'}
+            subtitle={isWebsiteOrderView
+              ? "Showing pending website orders first. If none are pending, today's website orders are shown."
+              : 'Review both website orders and billing orders in the chosen date range, with live delivery status for online purchases.'}
+          >
             {orderStatusFeedback ? (
               <p className="storefront-feedback" role="status" aria-live="polite">
                 {orderStatusFeedback}

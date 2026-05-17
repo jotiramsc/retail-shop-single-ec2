@@ -81,7 +81,12 @@ function buildPublicCategories(categoryOptions, products) {
     const name = titleCaseCategory(option.displayName || option.code);
     const id = normalizeId(name);
     if (!byId.has(id)) {
-      byId.set(id, { id, name });
+      byId.set(id, { id, name, iconImageUrl: option.iconImageUrl || '' });
+      return;
+    }
+    const current = byId.get(id);
+    if (!current.iconImageUrl && option.iconImageUrl) {
+      byId.set(id, { ...current, iconImageUrl: option.iconImageUrl });
     }
   });
 
@@ -89,7 +94,7 @@ function buildPublicCategories(categoryOptions, products) {
     const name = titleCaseCategory(product.category);
     const id = normalizeId(name);
     if (!byId.has(id)) {
-      byId.set(id, { id, name });
+      byId.set(id, { id, name, iconImageUrl: '' });
     }
   });
 
@@ -213,7 +218,8 @@ export default function PublicProductsPage({ branding }) {
       { to: '/products', label: 'Collections' },
       ...categories.slice(1, 3).map((category) => ({
         to: `/products?category=${category.id}`,
-        label: category.name
+        label: category.name,
+        iconImageUrl: category.iconImageUrl
       }))
     ],
     [categories]
@@ -440,7 +446,12 @@ export default function PublicProductsPage({ branding }) {
                 onClick={() => updateCategory(category.id)}
                 className={activeCategory === category.id ? 'is-active' : ''}
               >
-                {category.name}
+                {category.iconImageUrl ? (
+                  <span className="glow-category-icon" aria-hidden="true">
+                    <img src={category.iconImageUrl} alt="" loading="lazy" decoding="async" />
+                  </span>
+                ) : null}
+                <span>{category.name}</span>
               </button>
             ))}
           </div>

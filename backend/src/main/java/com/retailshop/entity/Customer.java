@@ -67,6 +67,9 @@ public class Customer {
     @Column(name = "alternate_mobile")
     private String alternateMobile;
 
+    @Column(name = "customer_source", nullable = false)
+    private String customerSource = "BOTH";
+
     @PrePersist
     public void prePersist() {
         if (id == null) {
@@ -80,6 +83,9 @@ public class Customer {
         }
         if (authProvider == null || authProvider.isBlank()) {
             authProvider = "OTP";
+        }
+        if (customerSource == null || customerSource.isBlank()) {
+            customerSource = "BOTH";
         }
     }
 

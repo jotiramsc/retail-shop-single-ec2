@@ -21,6 +21,7 @@ import com.retailshop.entity.OmnichannelLead;
 import com.retailshop.entity.Product;
 import com.retailshop.entity.ProductCategoryOption;
 import com.retailshop.entity.ReceiptSettings;
+import com.retailshop.enums.OrderStatus;
 import com.retailshop.enums.WhatsAppBotIntent;
 import com.retailshop.repository.CustomerOrderRepository;
 import com.retailshop.repository.OfferRepository;
@@ -437,6 +438,9 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
                     "Choose category"
             );
         }
+        if (understanding.intent() == BotIntent.CART_SUPPORT) {
+            return buildCartSupportReply();
+        }
         if (understanding.intent() == BotIntent.ORDER_SUPPORT) {
             return buildOrderSupportBotReply(understanding.searchText(), lead);
         }
@@ -645,6 +649,24 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
         );
     }
 
+    private BotReply buildCartSupportReply() {
+        String cartUrl = publicImageUrl("/cart");
+        return new BotReply(
+                "Your cart is ready on the website.\n\nOpen cart: " + cartUrl + "\n\nYou can add products from WhatsApp product cards, then checkout securely on the website.",
+                0,
+                List.of(),
+                null,
+                null,
+                List.of(
+                        new WhatsAppInteractiveOption("Browse Categories", "Browse Categories", "Find products"),
+                        new WhatsAppInteractiveOption("Support", "Support", "Need help")
+                ),
+                List.of(),
+                null,
+                null
+        );
+    }
+
     private BotReply buildWelcomeReply() {
         String text = "Namaskar! Welcome to Krishnai Pearl Shopee.\n"
                 + "Tell me what you want or tap an option below. I understand Marathi, Hindi, English and spelling mistakes.";
@@ -703,10 +725,11 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
 
     private List<WhatsAppInteractiveSection> mainMenuSections() {
         return List.of(new WhatsAppInteractiveSection("Main menu", List.of(
-                new WhatsAppInteractiveOption("View Collections", "View Collections", "Browse product categories"),
-                new WhatsAppInteractiveOption("Offers", "Offers", "Active coupons and deals"),
-                new WhatsAppInteractiveOption("Track Order", "Track Order", "Order and delivery status"),
-                new WhatsAppInteractiveOption("Show More", "Show More", "More categories and cart")
+                new WhatsAppInteractiveOption("Browse Categories", "Browse Categories", "Browse product categories"),
+                new WhatsAppInteractiveOption("My Cart", "My Cart", "Cart and checkout"),
+                new WhatsAppInteractiveOption("Track Orders", "Track Orders", "Order and delivery status"),
+                new WhatsAppInteractiveOption("Talk to Agent", "Talk to Agent", "Connect with store"),
+                new WhatsAppInteractiveOption("Support", "Support", "Need help")
         )));
     }
 
@@ -720,13 +743,13 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
 
     private List<WhatsAppInteractiveSection> showMoreMenuSections() {
         List<WhatsAppInteractiveOption> options = new ArrayList<>();
-        options.add(new WhatsAppInteractiveOption("Talk to Shop", "Talk to Shop", "Connect with store"));
+        options.add(new WhatsAppInteractiveOption("Talk to Agent", "Talk to Agent", "Connect with store"));
+        options.add(new WhatsAppInteractiveOption("My Cart", "My Cart", "Cart and checkout"));
+        options.add(new WhatsAppInteractiveOption("Support", "Support", "Need help"));
         availableCategories().stream()
                 .limit(6)
                 .map(category -> new WhatsAppInteractiveOption(category, displayCategoryName(category), displayCategoryDescription(category)))
                 .forEach(options::add);
-        options.add(new WhatsAppInteractiveOption("My Cart", "My Cart", "Cart and checkout"));
-        options.add(new WhatsAppInteractiveOption("Support", "Support", "Need help"));
         return List.of(new WhatsAppInteractiveSection("Show More", options));
     }
 
@@ -874,8 +897,13 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
             List<OmnichannelProductCardResponse> itemCards = orderItemCards(order);
             return new BotReply(formatOrderCard(order, true), itemCards.size(), itemCards);
         }
-        List<CustomerOrder> orders = findRecentOrdersByMobile(firstNonBlank(text, lead == null ? null : lead.getMobile(), lead == null ? null : lead.getExternalUserId()));
+        List<CustomerOrder> orders = findRecentInProgressOrdersByMobile(firstNonBlank(text, lead == null ? null : lead.getMobile(), lead == null ? null : lead.getExternalUserId()));
         if (!orders.isEmpty()) {
+            if (orders.size() == 1 && !isOrderSummaryQuestion(text)) {
+                CustomerOrder order = orders.get(0);
+                List<OmnichannelProductCardResponse> itemCards = orderItemCards(order);
+                return new BotReply(formatOrderCard(order, true), itemCards.size(), itemCards);
+            }
             StringBuilder reply = new StringBuilder();
             if (isOrderSummaryQuestion(text)) {
                 BigDecimal totalSpent = orders.stream()
@@ -894,15 +922,15 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
             for (CustomerOrder order : orders) {
                 reply.append(formatOrderCard(order, false)).append("\n\n");
             }
-            reply.append("Reply with an order number for full details, or type Track Order / Reorder / Connect to Agent.");
+            reply.append("Reply with an order number for full details, or type Track Orders / Connect to Agent.");
             return new BotReply(reply.toString().trim(), 0, List.of());
         }
-        return new BotReply("I could not find an order for this WhatsApp number yet. Please share your order number like KPS100 or your registered mobile number.\n\nNext actions: Track Order, Payment Status, Connect to Agent.", 0, List.of());
+        return new BotReply("I could not find an in-progress order for this WhatsApp number yet. Please share your order number like KPS100 or your registered mobile number.\n\nNext actions: Browse Categories, My Cart, Connect to Agent.", 0, List.of());
     }
 
     private String buildPaymentSupportReply(String text, OmnichannelLeadResponse lead) {
         Optional<CustomerOrder> orderByNumber = findOrderByNumber(text);
-        CustomerOrder order = orderByNumber.orElseGet(() -> findRecentOrdersByMobile(firstNonBlank(text, lead == null ? null : lead.getMobile(), lead == null ? null : lead.getExternalUserId())).stream().findFirst().orElse(null));
+        CustomerOrder order = orderByNumber.orElseGet(() -> findRecentInProgressOrdersByMobile(firstNonBlank(text, lead == null ? null : lead.getMobile(), lead == null ? null : lead.getExternalUserId())).stream().findFirst().orElse(null));
         if (order == null) {
             return "I can check payment or refund status for you. Please share your order number or registered mobile number.\n\nNext actions: Retry Payment, My Orders, Connect to Agent.";
         }
@@ -963,6 +991,19 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
         return orderRepository.findTop3ByCustomer_MobileContainingOrderByCreatedAtDesc(lastTenDigits);
     }
 
+    private List<CustomerOrder> findRecentInProgressOrdersByMobile(String text) {
+        return findRecentOrdersByMobile(text).stream()
+                .filter(order -> order.getStatus() == null || !Set.of(
+                        OrderStatus.DELIVERED,
+                        OrderStatus.COMPLETED,
+                        OrderStatus.CANCELLED,
+                        OrderStatus.RETURNED,
+                        OrderStatus.REFUND_INITIATED,
+                        OrderStatus.PAYMENT_FAILED
+                ).contains(order.getStatus()))
+                .toList();
+    }
+
     private boolean isOrderSummaryQuestion(String text) {
         String normalized = normalize(text);
         return containsAny(normalized, "total", "spent", "how many", "history", "previous", "all orders", "last 5", "recent");
@@ -972,13 +1013,15 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
         String status = order.getStatus() == null ? "" : order.getStatus().name();
         int currentStep = switch (status) {
             case "CREATED", "PENDING" -> 1;
-            case "CONFIRMED" -> 1;
-            case "PACKED" -> 2;
-            case "SHIPPED", "DISPATCHED", "OUT_FOR_DELIVERY" -> 3;
-            case "DELIVERED", "COMPLETED" -> 4;
+            case "CONFIRMED" -> 2;
+            case "PROCESSING" -> 3;
+            case "PACKED" -> 4;
+            case "SHIPPED", "DISPATCHED" -> 5;
+            case "OUT_FOR_DELIVERY" -> 6;
+            case "DELIVERED", "COMPLETED" -> 7;
             default -> 1;
         };
-        List<String> steps = List.of("Placed", "Packed", "Shipped", "Delivered");
+        List<String> steps = List.of("Placed", "Confirmed", "Processing", "Packed", "Shipped", "Out For Delivery", "Delivered");
         StringBuilder progress = new StringBuilder("Delivery progress\n");
         progress.append(progressBar(currentStep, steps.size())).append("\n");
         for (int index = 0; index < steps.size(); index++) {
@@ -1023,6 +1066,8 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
                 .append("Status: ").append(defaultString(order.getStatus() == null ? null : order.getStatus().name(), "Not available")).append("\n")
                 .append("Payment: ").append(defaultString(order.getPaymentStatus(), "Not available")).append("\n")
                 .append(deliveryProgress(order)).append("\n");
+        reply.append("Tracking ID: ").append(defaultString(order.getPaymentOrderId(), "Not assigned yet")).append("\n")
+                .append("Expected delivery: ").append(order.getCreatedAt() == null ? "To be confirmed" : order.getCreatedAt().plusDays(5).format(DateTimeFormatter.ofPattern("dd MMM yyyy"))).append("\n");
         if (includeItems && order.getItems() != null && !order.getItems().isEmpty()) {
             reply.append("Being delivered:\n");
             order.getItems().stream().limit(4).forEach(item ->
@@ -1174,7 +1219,8 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
             case OFFERS_AND_COUPONS -> BotIntent.OFFER_INQUIRY;
             case ORDER_HISTORY, LATEST_ORDER, ORDER_DETAILS, TOTAL_ORDER_VALUE, ORDER_COUNT, DELIVERY_STATUS, REORDER -> BotIntent.ORDER_SUPPORT;
             case PAYMENT_STATUS, REFUND_STATUS -> BotIntent.PAYMENT_SUPPORT;
-            case ACCOUNT_HELP, CART_CHECKOUT_HELP, AGENT_HANDOFF -> BotIntent.HUMAN_HANDOFF;
+            case CART_CHECKOUT_HELP -> BotIntent.CART_SUPPORT;
+            case ACCOUNT_HELP, AGENT_HANDOFF -> BotIntent.HUMAN_HANDOFF;
             case FALLBACK -> fallback == null ? BotIntent.UNKNOWN : fallback.intent();
         };
         if (mappedIntent == BotIntent.UNKNOWN) {
@@ -1202,7 +1248,7 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
                     Map.of("role", "system", "content", """
                             You classify WhatsApp sales queries for an Indian retail shop selling jewellery, cosmetics, and gifts.
                             Return strict JSON only:
-                            {"intent":"PRODUCT_SEARCH|CATEGORY_BROWSE|ORDER_SUPPORT|PAYMENT_SUPPORT|OFFER_INQUIRY|GREETING|HUMAN_HANDOFF|THANKS|UNKNOWN","category":string|null,"searchText":string,"minPrice":number|null,"maxPrice":number|null,"occasion":string|null}
+                            {"intent":"PRODUCT_SEARCH|CATEGORY_BROWSE|ORDER_SUPPORT|PAYMENT_SUPPORT|OFFER_INQUIRY|CART_SUPPORT|GREETING|HUMAN_HANDOFF|THANKS|UNKNOWN","category":string|null,"searchText":string,"minPrice":number|null,"maxPrice":number|null,"occasion":string|null}
                             Extract category and price from English, Hindi, Hinglish, or Marathi.
                             Correct obvious customer spelling mistakes before returning searchText/category, for example neckalce/neckalace/neckless -> necklace, earings -> earrings, bangels -> bangles.
                             Examples:
@@ -1258,6 +1304,9 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
         if (containsAny(normalized, "thanks", "thank you", "धन्यवाद", "shukriya")) {
             return new BotUnderstanding(BotIntent.THANKS, null, text, null, null, null);
         }
+        if (containsAny(normalized, "my cart", "cart", "checkout")) {
+            return new BotUnderstanding(BotIntent.CART_SUPPORT, null, text, null, null, null);
+        }
         if (isCategoryBrowseRequest(normalized)) {
             String category = detectCategory(normalized);
             return new BotUnderstanding(BotIntent.CATEGORY_BROWSE, category, text, null, null, null);
@@ -1286,15 +1335,19 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
     private BotUnderstanding understandMenuSelection(String normalizedText, String originalText) {
         String value = normalize(normalizedText);
         return switch (value) {
-            case "1", "one", "shop products", "shop product", "view collections", "collections", "view collection" ->
-                    new BotUnderstanding(BotIntent.PRODUCT_SEARCH, null, "featured trending new arrival jewellery cosmetics", null, null, null);
-            case "2", "two", "offers", "offer" ->
-                    new BotUnderstanding(BotIntent.OFFER_INQUIRY, null, firstNonBlank(originalText, "offers"), null, null, null);
-            case "3", "three", "track order", "track delivery", "delivery", "my orders", "orders", "my cart", "cart", "checkout" ->
+            case "1", "one", "shop products", "shop product", "view collections", "collections", "view collection", "browse categories", "browse category" ->
+                    new BotUnderstanding(BotIntent.CATEGORY_BROWSE, null, firstNonBlank(originalText, "categories"), null, null, null);
+            case "2", "two", "my cart", "cart", "checkout" ->
+                    new BotUnderstanding(BotIntent.CART_SUPPORT, null, firstNonBlank(originalText, "cart"), null, null, null);
+            case "3", "three", "track order", "track orders", "track delivery", "delivery", "my orders", "orders" ->
                     new BotUnderstanding(BotIntent.ORDER_SUPPORT, null, firstNonBlank(originalText, "track delivery"), null, null, null);
-            case "4", "four", "talk to shop", "connect to agent", "agent", "support" ->
+            case "4", "four", "talk to shop", "talk to agent", "connect to agent", "agent" ->
                     new BotUnderstanding(BotIntent.HUMAN_HANDOFF, null, firstNonBlank(originalText, "connect to agent"), null, null, null);
-            case "5", "five", "show more", "more", "browse categories", "browse category" ->
+            case "5", "five", "support", "help" ->
+                    new BotUnderstanding(BotIntent.HUMAN_HANDOFF, null, firstNonBlank(originalText, "support"), null, null, null);
+            case "offers", "offer" ->
+                    new BotUnderstanding(BotIntent.OFFER_INQUIRY, null, firstNonBlank(originalText, "offers"), null, null, null);
+            case "show more", "more" ->
                     new BotUnderstanding(BotIntent.CATEGORY_BROWSE, null, firstNonBlank(originalText, "categories"), null, null, null);
             default -> null;
         };
@@ -2725,6 +2778,7 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
         ORDER_SUPPORT,
         PAYMENT_SUPPORT,
         OFFER_INQUIRY,
+        CART_SUPPORT,
         HUMAN_HANDOFF,
         THANKS,
         UNKNOWN

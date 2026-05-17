@@ -38,12 +38,13 @@ public class CustomerServiceImpl implements CustomerService {
     @Override
     @Transactional
     public CustomerResponse createCustomer(CustomerRequest request) {
-        customerRepository.findByMobile(request.getMobile()).ifPresent(customer -> {
+        findCustomerByMobile(request.getMobile()).ifPresent(customer -> {
             throw new BusinessException("Customer with this mobile already exists");
         });
         Customer customer = new Customer();
         customer.setName(request.getName());
         customer.setMobile(request.getMobile());
+        customer.setCustomerSource("BILLING");
         return mapToResponse(customerRepository.save(customer));
     }
 
@@ -105,7 +106,7 @@ public class CustomerServiceImpl implements CustomerService {
     @Override
     @Transactional(readOnly = true)
     public List<PurchaseHistoryResponse> getPurchaseHistory(String mobile) {
-        Customer customer = customerRepository.findByMobile(mobile)
+        Customer customer = findCustomerByMobile(mobile)
                 .orElseThrow(() -> new ResourceNotFoundException("Customer not found"));
         return invoiceRepository.findByCustomerIdOrderByCreatedAtDesc(customer.getId())
                 .stream()
@@ -121,7 +122,7 @@ public class CustomerServiceImpl implements CustomerService {
     @Override
     @Transactional(readOnly = true)
     public CustomerLookupResponse lookupCustomer(String mobile) {
-        Customer customer = customerRepository.findByMobile(mobile)
+        Customer customer = findCustomerByMobile(mobile)
                 .orElseThrow(() -> new ResourceNotFoundException("Customer not found"));
         var invoices = invoiceRepository.findByCustomerIdOrderByCreatedAtDesc(customer.getId());
         return CustomerLookupResponse.builder()
@@ -142,17 +143,19 @@ public class CustomerServiceImpl implements CustomerService {
     @Override
     @Transactional
     public Customer findOrCreateCustomer(String name, String mobile) {
-        return customerRepository.findByMobile(mobile)
+        return findCustomerByMobile(mobile)
                 .map(existing -> {
                     if (existing.getName() == null || !existing.getName().equals(name)) {
                         existing.setName(name);
                     }
+                    existing.setCustomerSource(mergeCustomerSource(existing.getCustomerSource(), "BILLING"));
                     return customerRepository.save(existing);
                 })
                 .orElseGet(() -> {
                     Customer customer = new Customer();
                     customer.setName(name);
                     customer.setMobile(mobile);
+                    customer.setCustomerSource("BILLING");
                     return customerRepository.save(customer);
                 });
     }
@@ -173,6 +176,32 @@ public class CustomerServiceImpl implements CustomerService {
                 .findFirst()
                 .map(this::formatAddress)
                 .orElse("");
+    }
+
+    private Optional<Customer> findCustomerByMobile(String mobile) {
+        String normalized = normalizedLastTen(mobile);
+        if (normalized.isBlank()) {
+            return Optional.empty();
+        }
+        return customerRepository.findByNormalizedMobile(normalized)
+                .or(() -> customerRepository.findByMobile(mobile));
+    }
+
+    private String normalizedLastTen(String mobile) {
+        String digits = mobile == null ? "" : mobile.replaceAll("\\D", "");
+        if (digits.length() < 10) {
+            return "";
+        }
+        return digits.substring(digits.length() - 10);
+    }
+
+    private String mergeCustomerSource(String current, String incoming) {
+        String safeCurrent = current == null || current.isBlank() ? incoming : current.trim().toUpperCase();
+        String safeIncoming = incoming == null || incoming.isBlank() ? safeCurrent : incoming.trim().toUpperCase();
+        if (safeCurrent.equals(safeIncoming)) {
+            return safeCurrent;
+        }
+        return "BOTH";
     }
 
     private String formatAddress(Address address) {

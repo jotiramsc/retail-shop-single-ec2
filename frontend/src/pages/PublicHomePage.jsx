@@ -116,7 +116,12 @@ function buildMenuCategories(categoryOptions, categoryGroups) {
     const name = titleCaseCategory(option.displayName || option.code);
     const id = normalizeId(name);
     if (!normalized.has(id)) {
-      normalized.set(id, { id, name });
+      normalized.set(id, { id, name, iconImageUrl: option.iconImageUrl || '' });
+      return;
+    }
+    const current = normalized.get(id);
+    if (!current.iconImageUrl && option.iconImageUrl) {
+      normalized.set(id, { ...current, iconImageUrl: option.iconImageUrl });
     }
   });
 
@@ -126,7 +131,8 @@ function buildMenuCategories(categoryOptions, categoryGroups) {
 
   return categoryGroups.map((category) => ({
     id: category.id,
-    name: category.name
+    name: category.name,
+    iconImageUrl: category.iconImageUrl || ''
   }));
 }
 
@@ -267,7 +273,8 @@ export default function PublicHomePage({ branding, siteVisitCount }) {
       { to: '/products', label: 'Collections' },
       ...menuCategories.slice(0, 3).map((category) => ({
         to: `/products?category=${category.id}`,
-        label: category.name
+        label: category.name,
+        iconImageUrl: category.iconImageUrl
       }))
     ],
     [menuCategories]

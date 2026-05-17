@@ -26,6 +26,13 @@ class SpaForwardingControllerTest {
     }
 
     @Test
+    void forwardsDirectCartAddRouteToIndex() throws Exception {
+        mockMvc.perform(get("/cart/add").queryParam("productId", "00000000-0000-0000-0000-000000000000"))
+                .andExpect(status().isOk())
+                .andExpect(forwardedUrl("/index.html"));
+    }
+
+    @Test
     void forwardsAdminRouteToIndex() throws Exception {
         mockMvc.perform(get("/app/products"))
                 .andExpect(status().isOk())

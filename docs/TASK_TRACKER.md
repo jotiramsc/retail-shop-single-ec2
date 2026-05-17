@@ -159,23 +159,35 @@
 - Remaining Task Batch: Support, Cart Links, Reports, Profile, Icons
   - Changed files:
     - `backend/src/main/java/com/retailshop/config/SecurityConfig.java`
+    - `backend/src/main/java/com/retailshop/controller/SpaForwardingController.java`
     - `backend/src/main/java/com/retailshop/controller/ProductCategoryOptionController.java`
     - `backend/src/main/java/com/retailshop/dto/CategoryIconGenerationRequest.java`
     - `backend/src/main/java/com/retailshop/dto/CategoryIconOptionResponse.java`
     - `backend/src/main/java/com/retailshop/dto/CustomerOtpVerifyRequest.java`
     - `backend/src/main/java/com/retailshop/dto/ProductCategoryOptionRequest.java`
     - `backend/src/main/java/com/retailshop/dto/ProductCategoryOptionResponse.java`
+    - `backend/src/main/java/com/retailshop/entity/Customer.java`
     - `backend/src/main/java/com/retailshop/entity/ProductCategoryOption.java`
     - `backend/src/main/java/com/retailshop/service/ProductCategoryOptionService.java`
+    - `backend/src/main/java/com/retailshop/service/impl/CustomerAuthServiceImpl.java`
+    - `backend/src/main/java/com/retailshop/service/impl/CustomerServiceImpl.java`
     - `backend/src/main/java/com/retailshop/service/impl/ProductCategoryOptionServiceImpl.java`
     - `backend/src/main/java/com/retailshop/service/impl/ReportServiceImpl.java`
+    - `backend/src/main/java/com/retailshop/service/impl/WhatsAppSalesBotServiceImpl.java`
     - `backend/src/main/java/com/retailshop/service/impl/SupportInboxServiceImpl.java`
     - `backend/src/main/resources/schema.sql`
+    - `backend/src/test/java/com/retailshop/controller/SpaForwardingControllerTest.java`
+    - `backend/src/test/java/com/retailshop/service/impl/WhatsAppSalesBotServiceImplTest.java`
     - `frontend/src/App.jsx`
     - `frontend/src/pages/CartAddPage.jsx`
     - `frontend/src/pages/CustomerLoginPage.jsx`
+    - `frontend/src/pages/CustomersPage.jsx`
+    - `frontend/src/pages/PublicHomePage.jsx`
+    - `frontend/src/pages/PublicProductsPage.jsx`
     - `frontend/src/pages/ProductsPage.jsx`
+    - `frontend/src/pages/ReportsPage.jsx`
     - `frontend/src/pages/SupportInboxPage.jsx`
+    - `frontend/src/components/StorefrontHeader.jsx`
     - `frontend/src/services/retailService.js`
     - `frontend/src/styles/global.css`
     - `docs/CURRENT_TASK.md`
@@ -187,10 +199,15 @@
     - Support inbox filters product suggestions to website-visible inventory, supports Enter send / Shift+Enter newline, auto-scroll, loading state, and global unread popup.
     - Signup OTP flow validates 4-8 digit OTPs and asks only for name after signup verification, with skip allowed.
     - Inventory/category forms now add required/numeric guardrails and disable category submit while saving.
-    - Product categories now store optional icons and admin can generate/select four category icon options.
-    - WEBSITE report filter shows pending website orders first; if none, today’s website orders.
+    - Product categories now store optional icons and admin generates/selects four OpenAI image category icon options uploaded to CloudFront.
+    - Public storefront header/category filters render saved category icons as small rounded chips when configured.
+    - WEBSITE/Website report filter shows pending website orders first; if none, today’s website orders, and the UI labels this view as the website order priority queue.
+    - Direct `/cart/add` SPA route is forwarded by Spring so WhatsApp Add to Cart links open the React cart handler.
+    - Billing-created customers resolve as real profiles on the customer details screen; profile and purchase history load independently so invoice-history misses do not hide customer info.
+    - Customer identity uses normalized last-10 mobile matching across billing, website OTP, and Google/mobile linking, with `customer_source` tracking website/billing/both.
+    - TASK-S welcome menu now uses Browse Categories, My Cart, Track Orders, Talk to Agent, Support; My Cart opens the website cart and Track Orders shows in-progress order cards/progress only.
   - Testing:
-    - `backend ./mvnw test` passed: 65 tests.
+    - `backend ./mvnw -Dtest=WhatsAppSalesBotServiceImplTest test` passed: 11 tests.
     - `frontend npm run build` passed.
 
 ## Pending

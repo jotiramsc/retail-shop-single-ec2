@@ -12,6 +12,7 @@ public class SpaForwardingController {
             "/customer-login",
             "/products",
             "/product/**",
+            "/cart/add",
             "/cart",
             "/wishlist",
             "/checkout",

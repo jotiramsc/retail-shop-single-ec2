@@ -47,7 +47,12 @@ export default function StorefrontHeader({ logo, shopName, navLinks = [], cartCo
           <nav className="glow-nav" aria-label="Store sections">
             {uniqueLinks.map((link) => (
               <Link key={`${link.to}-${link.label}`} to={link.to}>
-                {link.label}
+                {link.iconImageUrl ? (
+                  <span className="glow-nav-icon" aria-hidden="true">
+                    <img src={link.iconImageUrl} alt="" loading="lazy" decoding="async" />
+                  </span>
+                ) : null}
+                <span>{link.label}</span>
               </Link>
             ))}
           </nav>

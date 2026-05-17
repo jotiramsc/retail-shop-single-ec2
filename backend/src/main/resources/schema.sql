@@ -79,6 +79,7 @@ create table if not exists customers (
     gender varchar(40),
     profile_image_url varchar(1000),
     alternate_mobile varchar(20),
+    customer_source varchar(20) not null default 'BOTH',
     created_at timestamp not null
 );
 
@@ -96,10 +97,13 @@ alter table customers add column if not exists date_of_birth date;
 alter table customers add column if not exists gender varchar(40);
 alter table customers add column if not exists profile_image_url varchar(1000);
 alter table customers add column if not exists alternate_mobile varchar(20);
+alter table customers add column if not exists customer_source varchar(20) not null default 'BOTH';
 update customers set auth_provider = 'OTP' where auth_provider is null or trim(auth_provider) = '';
 update customers set updated_at = created_at where updated_at is null;
+update customers set customer_source = 'BOTH' where customer_source is null or trim(customer_source) = '';
 create unique index if not exists idx_customers_email_unique on customers (lower(email)) where email is not null and trim(email) <> '';
 create unique index if not exists idx_customers_google_subject_unique on customers (google_subject) where google_subject is not null and trim(google_subject) <> '';
+create index if not exists idx_customers_mobile_last10 on customers (right(regexp_replace(coalesce(mobile, ''), '[^0-9]', '', 'g'), 10));
 
 create table if not exists customer_otps (
     mobile varchar(20) primary key,

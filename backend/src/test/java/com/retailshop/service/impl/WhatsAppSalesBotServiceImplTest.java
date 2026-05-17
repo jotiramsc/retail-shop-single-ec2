@@ -276,7 +276,7 @@ class WhatsAppSalesBotServiceImplTest {
         ArgumentCaptor<List<WhatsAppInteractiveSection>> sectionCaptor = ArgumentCaptor.forClass(List.class);
         verify(whatsAppMessageService).sendListMessage(any(), any(), any(), any(), sectionCaptor.capture());
         List<WhatsAppInteractiveOption> menuOptions = sectionCaptor.getValue().get(0).options();
-        assertEquals(List.of("View Collections", "Offers", "Track Order", "Show More"),
+        assertEquals(List.of("Browse Categories", "My Cart", "Track Orders", "Talk to Agent", "Support"),
                 menuOptions.stream().map(WhatsAppInteractiveOption::title).toList());
         verify(whatsAppMessageService, never()).sendReplyButtons(any(), any(), any());
         verify(omnichannelCommerceService, never()).searchProducts(any());
@@ -288,11 +288,11 @@ class WhatsAppSalesBotServiceImplTest {
         mockOutboundConversation();
 
         var categoryResponse = service.handleWebhook("""
-                {"from":"919175834000","name":"Customer","text":"5","messageId":"wamid.menu5"}
+                {"from":"919175834000","name":"Customer","text":"1","messageId":"wamid.menu1"}
                 """, null);
 
         assertTrue(categoryResponse.isAccepted());
-        assertTrue(categoryResponse.getReplyText().contains("More options below"));
+        assertTrue(categoryResponse.getReplyText().contains("Choose a category"));
         verify(omnichannelCommerceService, never()).searchProducts(any());
 
         var orderResponse = service.handleWebhook("""
@@ -301,7 +301,7 @@ class WhatsAppSalesBotServiceImplTest {
 
         assertTrue(orderResponse.isAccepted());
         assertTrue(orderResponse.getReplyText().contains("order number"));
-        assertTrue(orderResponse.getReplyText().contains("Track Order"));
+        assertTrue(orderResponse.getReplyText().contains("Browse Categories"));
     }
 
     @Test

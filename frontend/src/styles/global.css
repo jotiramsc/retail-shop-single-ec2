@@ -3354,12 +3354,42 @@ th {
 
 .glow-nav a,
 .glow-footer-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
   color: rgba(92, 68, 58, 0.88);
   text-decoration: none;
   text-transform: uppercase;
   letter-spacing: 0.24em;
   font-size: 0.75rem;
   font-weight: 800;
+}
+
+.glow-nav-icon,
+.glow-category-icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: linear-gradient(135deg, rgba(255, 250, 245, 0.96), rgba(252, 235, 219, 0.9));
+  border: 1px solid rgba(201, 131, 69, 0.2);
+  box-shadow: 0 8px 20px rgba(76, 52, 37, 0.1);
+}
+
+.glow-nav-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 12px;
+  padding: 0.12rem;
+}
+
+.glow-nav-icon img,
+.glow-category-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .glow-nav a:hover,
@@ -4438,6 +4468,16 @@ th {
   border-radius: 14px;
   font-weight: 700;
   box-shadow: none;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.glow-category-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  padding: 0.14rem;
 }
 
 .glow-products-filter-group button.is-active,

@@ -161,6 +161,7 @@ public class CustomerAuthServiceImpl implements CustomerAuthService {
         Customer customer = existingCustomer.orElseGet(() -> createOtpCustomer(mobile));
         customer.setMobile(formatDisplayMobile(mobile));
         customer.setMobileVerified(true);
+        customer.setCustomerSource(mergeCustomerSource(customer.getCustomerSource(), "WEBSITE"));
         if (!hasText(customer.getAuthProvider())) {
             customer.setAuthProvider("OTP");
         }
@@ -188,6 +189,7 @@ public class CustomerAuthServiceImpl implements CustomerAuthService {
         customer.setMobile(formatDisplayMobile(mobile));
         customer.setMobileVerified(true);
         customer.setAuthProvider("GOOGLE");
+        customer.setCustomerSource(mergeCustomerSource(customer.getCustomerSource(), "WEBSITE"));
         applyProfileCompletion(customer);
         return mapAuthResponse(customerRepository.save(customer));
     }
@@ -208,6 +210,7 @@ public class CustomerAuthServiceImpl implements CustomerAuthService {
 
         customer.setMobile(formatDisplayMobile(mobile));
         customer.setMobileVerified(true);
+        customer.setCustomerSource(mergeCustomerSource(customer.getCustomerSource(), "WEBSITE"));
         applyProfileCompletion(customer);
         return mapAuthResponse(customerRepository.save(customer));
     }
@@ -239,6 +242,7 @@ public class CustomerAuthServiceImpl implements CustomerAuthService {
         customer.setEmail(email);
         customer.setEmailVerified(true);
         customer.setAuthProvider("GOOGLE");
+        customer.setCustomerSource(mergeCustomerSource(customer.getCustomerSource(), "WEBSITE"));
         if (hasText(name) && !hasText(customer.getName())) {
             customer.setName(name);
         }
@@ -259,6 +263,7 @@ public class CustomerAuthServiceImpl implements CustomerAuthService {
     private Customer createOtpCustomer(String mobile) {
         Customer created = new Customer();
         created.setMobile(formatDisplayMobile(mobile));
+        created.setCustomerSource("WEBSITE");
         try {
             return customerRepository.saveAndFlush(created);
         } catch (DataIntegrityViolationException exception) {
@@ -403,6 +408,15 @@ public class CustomerAuthServiceImpl implements CustomerAuthService {
 
     private String formatDisplayMobile(String mobile) {
         return "+91 " + mobile;
+    }
+
+    private String mergeCustomerSource(String current, String incoming) {
+        String safeCurrent = current == null || current.isBlank() ? incoming : current.trim().toUpperCase();
+        String safeIncoming = incoming == null || incoming.isBlank() ? safeCurrent : incoming.trim().toUpperCase();
+        if (safeCurrent.equals(safeIncoming)) {
+            return safeCurrent;
+        }
+        return "BOTH";
     }
 
     private String normalizeEmail(String value) {

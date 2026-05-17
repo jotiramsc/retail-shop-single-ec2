@@ -41,13 +41,16 @@ export default function CustomersPage() {
     setError('');
     setLoadingDetails(true);
     try {
-      const [details, purchaseHistory] = await Promise.all([
-        retailService.getCustomerDetails(customer.id),
-        retailService.getCustomerHistory(customer.mobile)
-      ]);
+      const details = await retailService.getCustomerDetails(customer.id);
       setCustomerDetails(details);
-      setHistory(purchaseHistory);
+      try {
+        setHistory(await retailService.getCustomerHistory(details.mobile || customer.mobile));
+      } catch {
+        setHistory([]);
+      }
     } catch (requestError) {
+      setCustomerDetails(null);
+      setHistory([]);
       setError(getApiErrorMessage(requestError, 'Unable to load customer details.'));
     } finally {
       setLoadingDetails(false);

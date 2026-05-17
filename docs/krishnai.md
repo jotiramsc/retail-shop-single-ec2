@@ -333,8 +333,8 @@ It already covers:
 - Support chat has Enter-to-send, Shift+Enter newline, auto-scroll, loading states, unread badge polling, and a global admin popup when unread WhatsApp support messages arrive outside `/app/support`.
 - Customer signup by OTP asks only for name after OTP verification and allows immediate skip/continue; OTP validation accepts 4-8 numeric digits.
 - Admin customer details show name, mobile, email, latest address, total orders, pending orders, total spent, order history, and purchase history.
-- Product categories can store `icon_image_url`; Inventory can generate four selectable luxury-style icon options and saved category icons are returned by category APIs for website and WhatsApp category surfaces.
-- Reports with salesperson filter `WEBSITE` show pending website orders first; if none exist, they show today's website orders. Delivered/completed/cancelled/returned orders are excluded from the pending-first view.
+- Product categories can store `icon_image_url`; Inventory generates four selectable category icon options through OpenAI image generation and stores the selected CloudFront image URL for website and WhatsApp category surfaces.
+- Reports with salesperson filter `WEBSITE`/`Website` show pending website orders first; if none exist, they show today's website orders. Delivered/completed/cancelled/returned orders are excluded from the pending-first view, and the Reports UI labels this as the website order priority queue.
 
 ## External Integrations Present In Code/Config
 
@@ -404,6 +404,15 @@ Useful existing references:
 - `docs/aws-secrets-migration-inventory.md`
 
 ## Current State / In-progress Signals
+
+## Latest Production Decisions
+
+- Customer mobile is treated as the shared identity for billing and website accounts. Backend lookups compare the last 10 normalized digits so `+91`, `91`, and 10-digit forms resolve to the same customer; billing-created customers remain valid customer profiles and website verification marks them as website/both source without blocking browsing.
+- WhatsApp welcome now sends the configured greeting banner and one menu list only: Browse Categories, My Cart, Track Orders, Talk to Agent, Support. Category/product/order flows use dynamic DB data and session context before falling back.
+- WhatsApp order tracking focuses on in-progress orders, excludes completed/delivered/cancelled failures, and shows a 7-step progress tracker: Placed, Confirmed, Processing, Packed, Shipped, Out For Delivery, Delivered.
+- Public storefront category navigation and product filters show the saved category icon as a small rounded visual chip when one is configured.
+- Product category icon generation uses OpenAI image generation and uploads selected options to CloudFront; backend hardcoded SVG/data URI icon generation is no longer used.
+- Website order reports use the `WEBSITE` salesperson filter to show pending website orders first, then today's website orders when there are no pending website orders.
 
 The worktree is currently dirty and the codebase is actively evolving. Based on the current diff, these areas appear to be in motion:
 
