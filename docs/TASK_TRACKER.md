@@ -2,12 +2,13 @@
 
 ## In Progress
 
-- Final EC2 deployment for the remaining task batch.
+- Post-deploy WhatsApp/live validation for the remaining task batch.
   - Current status:
     - Implementation complete.
-    - Backend `./mvnw test` passed: 65 tests.
+    - Backend `./mvnw test` passed: 66 tests.
     - Frontend `npm run build` passed.
-    - Deployment pending because user asked to complete all remaining tasks first and deploy once.
+    - EC2 deployment completed from commit `f313351469acec02dbaf611ef783d210a1398956`.
+    - Live checks passed for `/actuator/health`, `/`, `/products`, and `/cart/add`.
 
 ## Completed
 
@@ -208,8 +209,14 @@
     - TASK-S welcome menu now uses Browse Categories, My Cart, Track Orders, Talk to Agent, Support; My Cart opens the website cart and Track Orders shows in-progress order cards/progress only.
   - Testing:
     - `backend ./mvnw -Dtest=WhatsAppSalesBotServiceImplTest test` passed: 11 tests.
+    - `backend ./mvnw test` passed: 66 tests.
     - `frontend npm run build` passed.
+  - Deployment:
+    - EC2 deployment succeeded from commit `f313351469acec02dbaf611ef783d210a1398956`.
+    - SSM command `08e39ef9-c352-4cc3-a510-f8ea17eafb33` completed successfully.
+    - Live `https://kpskrishnai.com/actuator/health` returned `{"status":"UP"}`.
+    - Live `/`, `/products`, and `/cart/add?productId=...&source=whatsapp-support` returned HTTP 200.
 
 ## Pending
 
-- Final EC2 deploy and live health check for the remaining task batch.
+- Live WhatsApp manual UX validation on the connected phone for the latest menu/order/cart flow.
