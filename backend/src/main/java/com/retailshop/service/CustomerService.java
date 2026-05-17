@@ -1,6 +1,7 @@
 package com.retailshop.service;
 
 import com.retailshop.dto.CustomerRequest;
+import com.retailshop.dto.CustomerDetailsResponse;
 import com.retailshop.dto.CustomerResponse;
 import com.retailshop.dto.CustomerLookupResponse;
 import com.retailshop.dto.PurchaseHistoryResponse;
@@ -14,6 +15,7 @@ public interface CustomerService {
     CustomerResponse createCustomer(CustomerRequest request);
     PaginatedResponse<CustomerResponse> getAllCustomers(Pageable pageable);
     List<CustomerResponse> searchCustomers(String query);
+    CustomerDetailsResponse getCustomerDetails(java.util.UUID customerId);
     List<PurchaseHistoryResponse> getPurchaseHistory(String mobile);
     CustomerLookupResponse lookupCustomer(String mobile);
     Customer findOrCreateCustomer(String name, String mobile);

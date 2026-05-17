@@ -91,6 +91,7 @@ export const retailService = {
   getCustomers: (params) => api.get(`/customers?${buildPageParams(params)}`).then((res) => res.data),
   searchCustomers: (query) => api.get(`/customers/search?q=${encodeURIComponent(query)}`).then((res) => res.data),
   createCustomer: (payload) => api.post('/customers', payload).then((res) => res.data),
+  getCustomerDetails: (customerId) => api.get(`/customers/${customerId}/details`).then((res) => res.data),
   lookupCustomer: (mobile) => api.get(`/customers/lookup?mobile=${mobile}`).then((res) => res.data),
   getCustomerHistory: (mobile) => api.get(`/customers/history?mobile=${mobile}`).then((res) => res.data),
   previewInvoice: (payload) => api.post('/billing/preview', payload).then((res) => res.data),

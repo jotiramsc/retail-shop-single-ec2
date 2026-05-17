@@ -1,11 +1,16 @@
 package com.retailshop.service.impl;
 
 import com.retailshop.dto.CustomerRequest;
+import com.retailshop.dto.CustomerDetailsResponse;
 import com.retailshop.dto.CustomerResponse;
 import com.retailshop.dto.CustomerLookupResponse;
 import com.retailshop.dto.PaginatedResponse;
 import com.retailshop.dto.PurchaseHistoryResponse;
+import com.retailshop.entity.Address;
 import com.retailshop.entity.Customer;
+import com.retailshop.enums.OrderStatus;
+import com.retailshop.repository.AddressRepository;
+import com.retailshop.repository.CustomerOrderRepository;
 import com.retailshop.exception.BusinessException;
 import com.retailshop.exception.ResourceNotFoundException;
 import com.retailshop.repository.CustomerRepository;
@@ -18,6 +23,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
+import java.math.BigDecimal;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -25,6 +32,8 @@ public class CustomerServiceImpl implements CustomerService {
 
     private final CustomerRepository customerRepository;
     private final InvoiceRepository invoiceRepository;
+    private final CustomerOrderRepository customerOrderRepository;
+    private final AddressRepository addressRepository;
 
     @Override
     @Transactional
@@ -58,6 +67,39 @@ public class CustomerServiceImpl implements CustomerService {
                 .limit(8)
                 .map(this::mapToResponse)
                 .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public CustomerDetailsResponse getCustomerDetails(java.util.UUID customerId) {
+        Customer customer = customerRepository.findById(customerId)
+                .orElseThrow(() -> new ResourceNotFoundException("Customer not found"));
+        var orders = customerOrderRepository.findByCustomerIdOrderByCreatedAtDesc(customer.getId());
+        var invoices = invoiceRepository.findByCustomerIdOrderByCreatedAtDesc(customer.getId());
+        Set<OrderStatus> closedStatuses = Set.of(OrderStatus.DELIVERED, OrderStatus.CANCELLED);
+
+        return CustomerDetailsResponse.builder()
+                .id(customer.getId())
+                .name(customer.getName())
+                .mobile(customer.getMobile())
+                .email(customer.getEmail())
+                .fullAddress(latestAddress(customer.getId()))
+                .totalOrders(orders.size())
+                .pendingOrders(orders.stream().filter(order -> !closedStatuses.contains(order.getStatus())).count())
+                .totalSpent(invoices.stream()
+                        .map(invoice -> Optional.ofNullable(invoice.getFinalAmount()).orElse(BigDecimal.ZERO))
+                        .reduce(BigDecimal.ZERO, BigDecimal::add))
+                .orderHistory(orders.stream()
+                        .limit(12)
+                        .map(order -> CustomerDetailsResponse.OrderSummary.builder()
+                                .id(order.getId())
+                                .orderNumber(order.getOrderNumber())
+                                .createdAt(order.getCreatedAt())
+                                .amount(order.getFinalAmount())
+                                .status(order.getStatus() == null ? "UNKNOWN" : order.getStatus().name())
+                                .build())
+                        .toList())
+                .build();
     }
 
     @Override
@@ -120,7 +162,30 @@ public class CustomerServiceImpl implements CustomerService {
                 .id(customer.getId())
                 .name(customer.getName())
                 .mobile(customer.getMobile())
+                .email(customer.getEmail())
                 .createdAt(customer.getCreatedAt())
                 .build();
+    }
+
+    private String latestAddress(java.util.UUID customerId) {
+        return addressRepository.findByCustomerIdOrderByCreatedAtDesc(customerId)
+                .stream()
+                .findFirst()
+                .map(this::formatAddress)
+                .orElse("");
+    }
+
+    private String formatAddress(Address address) {
+        return String.join(", ", List.of(
+                        address.getRecipientName(),
+                        address.getLine1(),
+                        Optional.ofNullable(address.getLine2()).orElse(""),
+                        Optional.ofNullable(address.getLandmark()).orElse(""),
+                        address.getCity(),
+                        address.getState(),
+                        address.getPincode()
+                ).stream()
+                .filter(value -> value != null && !value.isBlank())
+                .toList());
     }
 }

@@ -12,5 +12,6 @@ public class CustomerResponse {
     private UUID id;
     private String name;
     private String mobile;
+    private String email;
     private LocalDateTime createdAt;
 }

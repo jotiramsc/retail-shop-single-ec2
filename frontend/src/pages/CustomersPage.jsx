@@ -15,6 +15,9 @@ export default function CustomersPage() {
   const [customersPage, setCustomersPage] = useState({ items: [], page: 0, totalPages: 0, totalItems: 0, hasNext: false, hasPrevious: false });
   const [history, setHistory] = useState([]);
   const [selectedMobile, setSelectedMobile] = useState('');
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [customerDetails, setCustomerDetails] = useState(null);
+  const [loadingDetails, setLoadingDetails] = useState(false);
   const [form, setForm] = useState(blankCustomer);
   const [search, setSearch] = useState('');
   const [error, setError] = useState('');
@@ -32,13 +35,22 @@ export default function CustomersPage() {
     loadCustomers();
   }, []);
 
-  const loadHistory = async (mobile) => {
-    setSelectedMobile(mobile);
+  const loadCustomerDetails = async (customer) => {
+    setSelectedCustomer(customer);
+    setSelectedMobile(customer.mobile);
     setError('');
+    setLoadingDetails(true);
     try {
-      setHistory(await retailService.getCustomerHistory(mobile));
+      const [details, purchaseHistory] = await Promise.all([
+        retailService.getCustomerDetails(customer.id),
+        retailService.getCustomerHistory(customer.mobile)
+      ]);
+      setCustomerDetails(details);
+      setHistory(purchaseHistory);
     } catch (requestError) {
-      setError(getApiErrorMessage(requestError, 'Unable to load purchase history.'));
+      setError(getApiErrorMessage(requestError, 'Unable to load customer details.'));
+    } finally {
+      setLoadingDetails(false);
     }
   };
 
@@ -108,11 +120,12 @@ export default function CustomersPage() {
             columns={[
               { key: 'name', label: 'Name' },
               { key: 'mobile', label: 'Mobile' },
+              { key: 'email', label: 'Email', render: (row) => row.email || '—' },
               {
                 key: 'action',
-                label: 'History',
+                label: 'Details',
                 render: (row) => (
-                  <button className="ghost-btn" onClick={() => loadHistory(row.mobile)}>
+                  <button className="ghost-btn" onClick={() => loadCustomerDetails(row)}>
                     View
                   </button>
                 )
@@ -125,17 +138,76 @@ export default function CustomersPage() {
         </Panel>
 
         <Panel
-          title="Purchase history"
-          subtitle={selectedMobile ? `Showing invoices for ${selectedMobile}` : 'Choose a customer to load invoice history.'}
+          title="Customer details"
+          subtitle={selectedMobile ? `Showing profile for ${selectedMobile}` : 'Choose a customer to load profile, orders, and invoice history.'}
         >
-          <DataTable
-            columns={[
-              { key: 'invoiceNumber', label: 'Invoice' },
-              { key: 'finalAmount', label: 'Amount', render: (row) => currency(row.finalAmount) },
-              { key: 'createdAt', label: 'Purchased On', render: (row) => formatDate(row.createdAt) }
-            ]}
-            rows={history}
-          />
+          {loadingDetails ? <p className="field-note">Loading customer details...</p> : null}
+          {customerDetails ? (
+            <div className="customer-detail-stack">
+              <div className="customer-detail-card">
+                <div>
+                  <span>Name</span>
+                  <strong>{customerDetails.name || selectedCustomer?.name || '—'}</strong>
+                </div>
+                <div>
+                  <span>Mobile</span>
+                  <strong>{customerDetails.mobile || '—'}</strong>
+                </div>
+                <div>
+                  <span>Email</span>
+                  <strong>{customerDetails.email || '—'}</strong>
+                </div>
+                <div className="customer-detail-address">
+                  <span>Address</span>
+                  <strong>{customerDetails.fullAddress || 'No address saved'}</strong>
+                </div>
+              </div>
+
+              <div className="customer-detail-metrics">
+                <article className="metric-card">
+                  <span>Total orders</span>
+                  <strong>{customerDetails.totalOrders || 0}</strong>
+                </article>
+                <article className="metric-card">
+                  <span>Pending orders</span>
+                  <strong>{customerDetails.pendingOrders || 0}</strong>
+                </article>
+                <article className="metric-card">
+                  <span>Total spent</span>
+                  <strong>{currency(customerDetails.totalSpent || 0)}</strong>
+                </article>
+              </div>
+
+              <div>
+                <h3 className="section-subtitle">Order history</h3>
+                <DataTable
+                  columns={[
+                    { key: 'orderNumber', label: 'Order' },
+                    { key: 'status', label: 'Status' },
+                    { key: 'amount', label: 'Amount', render: (row) => currency(row.amount) },
+                    { key: 'createdAt', label: 'Ordered On', render: (row) => formatDate(row.createdAt) }
+                  ]}
+                  rows={customerDetails.orderHistory || []}
+                  emptyMessage="No orders found."
+                />
+              </div>
+
+              <div>
+                <h3 className="section-subtitle">Purchase history</h3>
+                <DataTable
+                  columns={[
+                    { key: 'invoiceNumber', label: 'Invoice' },
+                    { key: 'finalAmount', label: 'Amount', render: (row) => currency(row.finalAmount) },
+                    { key: 'createdAt', label: 'Purchased On', render: (row) => formatDate(row.createdAt) }
+                  ]}
+                  rows={history}
+                  emptyMessage="No invoices found."
+                />
+              </div>
+            </div>
+          ) : (
+            <p className="field-note">Select View on a customer row to see their full profile.</p>
+          )}
         </Panel>
       </div>
     </div>
