@@ -16,6 +16,7 @@ import PublicProductsPage from './pages/PublicProductsPage';
 import PublicProductDetailPage from './pages/PublicProductDetailPage';
 import CustomerLoginPage from './pages/CustomerLoginPage';
 import CartPage from './pages/CartPage';
+import CartAddPage from './pages/CartAddPage';
 import CheckoutPage from './pages/CheckoutPage';
 import OrdersPage from './pages/OrdersPage';
 import CustomerProfilePage from './pages/CustomerProfilePage';
@@ -45,6 +46,7 @@ function ProtectedApp({ auth, onLogout, branding }) {
   const location = useLocation();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [supportSummary, setSupportSummary] = useState({ unreadCount: 0 });
+  const [supportAlert, setSupportAlert] = useState(null);
   const permissions = Array.isArray(auth.permissions) ? auth.permissions : [];
   const canAccess = (permission) => {
     if (auth.role === 'ADMIN' || auth.role === 'OWNER') {
@@ -68,7 +70,17 @@ function ProtectedApp({ auth, onLogout, branding }) {
       retailService.getSupportSummary()
         .then((summary) => {
           if (!cancelled) {
-            setSupportSummary(summary || { unreadCount: 0 });
+            const nextSummary = summary || { unreadCount: 0 };
+            setSupportSummary((current) => {
+              if (Number(nextSummary.unreadCount || 0) > Number(current?.unreadCount || 0)
+                  && !location.pathname.startsWith('/app/support')) {
+                setSupportAlert({
+                  unreadCount: nextSummary.unreadCount,
+                  timestamp: new Date().toLocaleString()
+                });
+              }
+              return nextSummary;
+            });
           }
         })
         .catch(() => {});
@@ -79,7 +91,7 @@ function ProtectedApp({ auth, onLogout, branding }) {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, []);
+  }, [location.pathname]);
 
   return (
     <div className="app-shell">
@@ -147,6 +159,16 @@ function ProtectedApp({ auth, onLogout, branding }) {
       </aside>
 
       <main className="content">
+        {supportAlert ? (
+          <div className="support-global-alert" role="alert">
+            <div>
+              <strong>New support chat</strong>
+              <span>{supportAlert.unreadCount} unread WhatsApp message{Number(supportAlert.unreadCount) === 1 ? '' : 's'} · {supportAlert.timestamp}</span>
+            </div>
+            <NavLink to="/app/support" className="primary-btn compact-btn" onClick={() => setSupportAlert(null)}>Open chat</NavLink>
+            <button type="button" className="ghost-btn compact-btn" onClick={() => setSupportAlert(null)}>Dismiss</button>
+          </div>
+        ) : null}
         <Routes>
           <Route index element={canAccess('BILLING') ? <BillingPage /> : <Navigate to={firstAllowedRoute} replace />} />
           <Route path="products" element={canAccess('PRODUCTS') ? <ProductsPage /> : <Navigate to={firstAllowedRoute} replace />} />
@@ -235,6 +257,7 @@ export default function App() {
       <Route path="/products" element={<PublicProductsPage branding={branding} />} />
       <Route path="/product/:productId" element={<PublicProductDetailPage branding={branding} />} />
       <Route path="/products/:productId" element={<PublicProductDetailPage branding={branding} />} />
+      <Route path="/cart/add" element={<CartAddPage />} />
       <Route path="/cart" element={<CartPage />} />
       <Route path="/wishlist" element={<WishlistPage />} />
       <Route path="/checkout" element={<CheckoutPage />} />

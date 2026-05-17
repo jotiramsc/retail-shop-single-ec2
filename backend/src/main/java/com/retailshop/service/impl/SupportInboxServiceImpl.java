@@ -102,13 +102,19 @@ public class SupportInboxServiceImpl implements SupportInboxService {
         OmnichannelConversation conversation = findConversation(conversationId);
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new BusinessException("Product not found"));
-        String productUrl = "https://kpskrishnai.com/product/" + product.getId() + "?source=whatsapp";
+        if (!Boolean.TRUE.equals(product.getShowOnWebsite())) {
+            throw new BusinessException("Only products visible on the website can be sent to WhatsApp");
+        }
+        String productUrl = "https://kpskrishnai.com/product/" + product.getId();
+        String addToCartUrl = "https://kpskrishnai.com/cart/add?productId=" + product.getId() + "&source=whatsapp-support";
         String to = customerPhone(conversation);
         String message = "Suggested by Krishnai support team\n\n"
                 + product.getName() + "\n"
                 + formatProductPrices(product) + "\n"
                 + "Stock: " + stockLabel(product) + "\n"
-                + "View product: " + productUrl;
+                + "Category: " + defaultString(product.getCategory(), "Krishnai collection") + "\n"
+                + "View Product: " + productUrl + "\n"
+                + "Add to Cart: " + addToCartUrl;
         String imageUrl = publicImageUrl(product.getImageDataUrl());
         MarketingChannelResult result = hasText(imageUrl)
                 ? whatsAppMessageService.sendImage(to, imageUrl, message)

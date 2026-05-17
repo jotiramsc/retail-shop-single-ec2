@@ -27,9 +27,12 @@ create table if not exists product_categories (
     id uuid primary key,
     code varchar(100) not null unique,
     display_name varchar(255) not null unique,
+    icon_image_url text,
     active boolean not null default true,
     created_at timestamp not null
 );
+
+alter table product_categories add column if not exists icon_image_url text;
 
 create table if not exists image_assets (
     id uuid primary key,

@@ -328,7 +328,13 @@ It already covers:
 - Campaign Studio create form shows validation/API errors next to the Save buttons and scrolls them into view, so blocked submissions are visible without checking Network.
 - Campaign Studio WhatsApp publishing sends each unique customer mobile through the same Gupshup/WhatsApp sender path used by support messages. It stores compact per-number sent/failed delivery reports in publish logs and surfaces the latest report on WhatsApp content cards.
 - WhatsApp support inbox is single-agent and reuses omnichannel conversation/message tables. Admins can view unread/open chats, reply to WhatsApp, mark resolved, and send inventory products from `/app/support`. The first implementation uses REST polling instead of WebSocket.
-- Support product suggestions search existing inventory by name, category, SKU, and simple price filters. Product suggestions are sent through the existing WhatsApp sender with image when publicly available, product link, support-team note, and structured conversation metadata for product/status history.
+- Support product suggestions search existing website-visible inventory by name, category, SKU, and simple price filters. Product suggestions are sent through the existing WhatsApp sender with image when publicly available, View Product link, Add to Cart link, support-team note, and structured conversation metadata for product/status history.
+- Storefront route `/cart/add?productId={id}&source=whatsapp-support` adds the product to the signed-in customer cart or guest cart, then opens `/cart`.
+- Support chat has Enter-to-send, Shift+Enter newline, auto-scroll, loading states, unread badge polling, and a global admin popup when unread WhatsApp support messages arrive outside `/app/support`.
+- Customer signup by OTP asks only for name after OTP verification and allows immediate skip/continue; OTP validation accepts 4-8 numeric digits.
+- Admin customer details show name, mobile, email, latest address, total orders, pending orders, total spent, order history, and purchase history.
+- Product categories can store `icon_image_url`; Inventory can generate four selectable luxury-style icon options and saved category icons are returned by category APIs for website and WhatsApp category surfaces.
+- Reports with salesperson filter `WEBSITE` show pending website orders first; if none exist, they show today's website orders. Delivered/completed/cancelled/returned orders are excluded from the pending-first view.
 
 ## External Integrations Present In Code/Config
 

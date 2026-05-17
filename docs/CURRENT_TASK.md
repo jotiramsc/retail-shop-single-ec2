@@ -1,19 +1,24 @@
 # CURRENT TASK
 
-## TASK-D: WhatsApp Greeting/Menu Fixes
+## Remaining Task Batch: Support, Cart Links, Reports, Profile, Icons
 
-Status: Completed
+Status: Implemented and locally verified. Pending final EC2 deploy.
 
 Scope:
-- Fix WhatsApp greeting image/banner delivery.
-- Remove duplicate greeting menu cards.
-- Keep the greeting menu in one clean WhatsApp list card.
-- Make Show More open the secondary options menu.
+- Complete remaining task gaps before one final deploy.
+- Keep Campaign Studio source-wise lead tracking unchanged except existing delivery status fixes.
+- Improve support product forwarding with clickable website/cart links.
+- Add direct `/cart/add` storefront link handling.
+- Complete admin customer detail display polish.
+- Add signup/profile OTP/name polish.
+- Add admin validation guardrails for inventory/category forms.
+- Add dynamic category icon selection in inventory.
+- Improve support chat UX and global unread alert.
+- Improve WEBSITE order report ordering.
 
-Implementation:
-- Added the provided Krishnai greeting banner as `/assets/krishnai-whatsapp-greeting.png`.
-- Greeting sends the banner image first, then one list card with View Collections, Offers, Track Order, and Show More.
-- Greeting no longer sends separate quick-button and list menu cards together.
-- Show More opens one list containing Talk to Shop, dynamic categories, My Cart, and Support.
-- WhatsApp image-send null responses are handled safely before falling back to interactive/text delivery.
-- Deployed to EC2 from commit `6839f2ea9b3328666146b95ea07116d552e2be6b`; live health returned `UP` and greeting asset returned HTTP 200.
+Verification:
+- Backend `./mvnw test`: 65 tests passed.
+- Frontend `npm run build`: passed.
+
+Deployment:
+- Not deployed yet for this batch. User requested all remaining tasks complete first, then deploy once.

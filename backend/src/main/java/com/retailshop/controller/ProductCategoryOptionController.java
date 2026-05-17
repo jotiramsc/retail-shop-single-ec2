@@ -1,6 +1,8 @@
 package com.retailshop.controller;
 
 import com.retailshop.dto.PaginatedResponse;
+import com.retailshop.dto.CategoryIconGenerationRequest;
+import com.retailshop.dto.CategoryIconOptionResponse;
 import com.retailshop.dto.ProductCategoryOptionRequest;
 import com.retailshop.dto.ProductCategoryOptionResponse;
 import com.retailshop.service.ProductCategoryOptionService;
@@ -55,5 +57,11 @@ public class ProductCategoryOptionController {
     public ProductCategoryOptionResponse updateCategory(@PathVariable UUID id,
                                                         @Valid @RequestBody ProductCategoryOptionRequest request) {
         return productCategoryOptionService.updateCategory(id, request);
+    }
+
+    @PostMapping("/icon-options")
+    @PreAuthorize("hasAuthority('PERM_PRODUCTS')")
+    public List<CategoryIconOptionResponse> generateIconOptions(@Valid @RequestBody CategoryIconGenerationRequest request) {
+        return productCategoryOptionService.generateIconOptions(request.getCategoryName());
     }
 }

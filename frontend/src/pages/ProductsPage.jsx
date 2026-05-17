@@ -31,6 +31,7 @@ const createBlankProduct = (defaultCategory = '') => ({
 
 const blankCategoryForm = {
   displayName: '',
+  iconImageUrl: '',
   active: true
 };
 
@@ -53,6 +54,9 @@ export default function ProductsPage() {
   const [success, setSuccess] = useState('');
   const [categoryError, setCategoryError] = useState('');
   const [categorySuccess, setCategorySuccess] = useState('');
+  const [categorySubmitting, setCategorySubmitting] = useState(false);
+  const [iconGenerating, setIconGenerating] = useState(false);
+  const [iconOptions, setIconOptions] = useState([]);
 
   const defaultCategoryCode = categoryOptions[0]?.code || '';
 
@@ -189,8 +193,28 @@ export default function ProductsPage() {
     event.preventDefault();
     setError('');
     setSuccess('');
+    if (!form.name.trim()) {
+      setError('Product name is required.');
+      return;
+    }
+    if (!form.category) {
+      setError('Choose a product category.');
+      return;
+    }
+    if (!form.sku.trim()) {
+      setError('SKU is required.');
+      return;
+    }
+    if (Number(form.costPrice) < 0 || Number(form.sellingPrice) <= 0) {
+      setError('Enter valid cost and shop prices.');
+      return;
+    }
     if (Number(form.sellingPrice) < Number(form.costPrice)) {
       setError('Shop price cannot be lower than cost price.');
+      return;
+    }
+    if (Number(form.quantity) < 0 || Number(form.lowStockThreshold) < 0) {
+      setError('Stock and low-stock threshold cannot be negative.');
       return;
     }
     const payload = {
@@ -231,6 +255,11 @@ export default function ProductsPage() {
     event.preventDefault();
     setCategoryError('');
     setCategorySuccess('');
+    if (!categoryForm.displayName.trim()) {
+      setCategoryError('Category name is required.');
+      return;
+    }
+    setCategorySubmitting(true);
     try {
       if (editingCategoryId) {
         await retailService.updateProductCategory(editingCategoryId, categoryForm);
@@ -240,9 +269,12 @@ export default function ProductsPage() {
         setCategorySuccess('Category created successfully.');
       }
       resetCategoryForm();
+      setIconOptions([]);
       await loadCategories(categoriesPage.page || 0);
     } catch (requestError) {
       setCategoryError(getApiErrorMessage(requestError, 'Unable to save category.'));
+    } finally {
+      setCategorySubmitting(false);
     }
   };
 
@@ -250,8 +282,27 @@ export default function ProductsPage() {
     setEditingCategoryId(category.id);
     setCategoryForm({
       displayName: category.displayName,
+      iconImageUrl: category.iconImageUrl || '',
       active: Boolean(category.active)
     });
+    setIconOptions([]);
+  };
+
+  const generateCategoryIcons = async () => {
+    const categoryName = categoryForm.displayName.trim();
+    if (!categoryName) {
+      setCategoryError('Enter category name before generating icons.');
+      return;
+    }
+    setCategoryError('');
+    setIconGenerating(true);
+    try {
+      setIconOptions(await retailService.generateProductCategoryIcons({ categoryName }));
+    } catch (requestError) {
+      setCategoryError(getApiErrorMessage(requestError, 'Unable to generate icon options.'));
+    } finally {
+      setIconGenerating(false);
+    }
   };
 
   const handleDeleteProduct = async (product) => {
@@ -624,6 +675,29 @@ export default function ProductsPage() {
                 onChange={(e) => setCategoryForm({ ...categoryForm, displayName: e.target.value })}
                 required
               />
+              <div className="category-icon-builder">
+                <div className="category-icon-preview">
+                  {categoryForm.iconImageUrl ? <img src={categoryForm.iconImageUrl} alt="Selected category icon" /> : <span>No icon selected</span>}
+                </div>
+                <button type="button" className="ghost-btn compact-btn" onClick={generateCategoryIcons} disabled={iconGenerating}>
+                  {iconGenerating ? 'Generating...' : 'Generate icon options'}
+                </button>
+              </div>
+              {iconOptions.length ? (
+                <div className="category-icon-options">
+                  {iconOptions.map((option) => (
+                    <button
+                      key={option.label}
+                      type="button"
+                      className={categoryForm.iconImageUrl === option.imageUrl ? 'is-selected' : ''}
+                      onClick={() => setCategoryForm({ ...categoryForm, iconImageUrl: option.imageUrl })}
+                    >
+                      <img src={option.imageUrl} alt={option.label} />
+                      <span>{option.label}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
               <label className="toggle-field">
                 <input
                   type="checkbox"
@@ -635,8 +709,8 @@ export default function ProductsPage() {
               {categoryError ? <p className="error-text">{categoryError}</p> : null}
               {categorySuccess ? <p className="success-text">{categorySuccess}</p> : null}
               <div className="table-action-group">
-                <button className="primary-btn" type="submit">
-                  {editingCategoryId ? 'Update Category' : 'Add Category'}
+                <button className="primary-btn" type="submit" disabled={categorySubmitting}>
+                  {categorySubmitting ? 'Saving...' : editingCategoryId ? 'Update Category' : 'Add Category'}
                 </button>
                 {editingCategoryId ? (
                   <button type="button" className="ghost-btn" onClick={resetCategoryForm}>Cancel</button>
@@ -646,6 +720,11 @@ export default function ProductsPage() {
 
             <DataTable
               columns={[
+                {
+                  key: 'iconImageUrl',
+                  label: 'Icon',
+                  render: (row) => row.iconImageUrl ? <img src={row.iconImageUrl} alt={row.displayName} className="table-thumb" /> : '—'
+                },
                 { key: 'displayName', label: 'Name' },
                 { key: 'code', label: 'Code' },
                 { key: 'active', label: 'Status', render: (row) => row.active ? 'Active' : 'Hidden' },

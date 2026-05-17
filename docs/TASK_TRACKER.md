@@ -2,7 +2,12 @@
 
 ## In Progress
 
-None
+- Final EC2 deployment for the remaining task batch.
+  - Current status:
+    - Implementation complete.
+    - Backend `./mvnw test` passed: 65 tests.
+    - Frontend `npm run build` passed.
+    - Deployment pending because user asked to complete all remaining tasks first and deploy once.
 
 ## Completed
 
@@ -136,7 +141,58 @@ None
     - EC2 deployment succeeded from commit `6839f2ea9b3328666146b95ea07116d552e2be6b`.
     - Live `https://kpskrishnai.com/actuator/health` returned `{"status":"UP"}`.
     - Live greeting asset `/assets/krishnai-whatsapp-greeting.png` returned HTTP 200.
+- TASK-N: Admin Customer Details Screen
+  - Changed files:
+    - `backend/src/main/java/com/retailshop/controller/CustomerController.java`
+    - `backend/src/main/java/com/retailshop/dto/CustomerDetailsResponse.java`
+    - `backend/src/main/java/com/retailshop/dto/CustomerResponse.java`
+    - `backend/src/main/java/com/retailshop/service/CustomerService.java`
+    - `backend/src/main/java/com/retailshop/service/impl/CustomerServiceImpl.java`
+    - `frontend/src/pages/CustomersPage.jsx`
+    - `frontend/src/services/retailService.js`
+    - `frontend/src/styles/global.css`
+  - Implementation notes:
+    - Customer detail endpoint returns profile, latest full address, order history, pending orders, total orders, and total spent.
+    - Customer page detail panel shows email, address, order history, pending orders, and purchase history with responsive styling.
+  - Testing:
+    - Included in backend `./mvnw test` and frontend `npm run build`.
+- Remaining Task Batch: Support, Cart Links, Reports, Profile, Icons
+  - Changed files:
+    - `backend/src/main/java/com/retailshop/config/SecurityConfig.java`
+    - `backend/src/main/java/com/retailshop/controller/ProductCategoryOptionController.java`
+    - `backend/src/main/java/com/retailshop/dto/CategoryIconGenerationRequest.java`
+    - `backend/src/main/java/com/retailshop/dto/CategoryIconOptionResponse.java`
+    - `backend/src/main/java/com/retailshop/dto/CustomerOtpVerifyRequest.java`
+    - `backend/src/main/java/com/retailshop/dto/ProductCategoryOptionRequest.java`
+    - `backend/src/main/java/com/retailshop/dto/ProductCategoryOptionResponse.java`
+    - `backend/src/main/java/com/retailshop/entity/ProductCategoryOption.java`
+    - `backend/src/main/java/com/retailshop/service/ProductCategoryOptionService.java`
+    - `backend/src/main/java/com/retailshop/service/impl/ProductCategoryOptionServiceImpl.java`
+    - `backend/src/main/java/com/retailshop/service/impl/ReportServiceImpl.java`
+    - `backend/src/main/java/com/retailshop/service/impl/SupportInboxServiceImpl.java`
+    - `backend/src/main/resources/schema.sql`
+    - `frontend/src/App.jsx`
+    - `frontend/src/pages/CartAddPage.jsx`
+    - `frontend/src/pages/CustomerLoginPage.jsx`
+    - `frontend/src/pages/ProductsPage.jsx`
+    - `frontend/src/pages/SupportInboxPage.jsx`
+    - `frontend/src/services/retailService.js`
+    - `frontend/src/styles/global.css`
+    - `docs/CURRENT_TASK.md`
+    - `docs/TASK_TRACKER.md`
+    - `docs/krishnai.md`
+  - Implementation notes:
+    - Support product suggestions now require `showOnWebsite=true` and include image when available, View Product link, Add to Cart link, category, price, stock, and support-team note.
+    - `/cart/add?productId={id}&source=whatsapp-support` adds to signed-in customer cart or guest cart and redirects to cart.
+    - Support inbox filters product suggestions to website-visible inventory, supports Enter send / Shift+Enter newline, auto-scroll, loading state, and global unread popup.
+    - Signup OTP flow validates 4-8 digit OTPs and asks only for name after signup verification, with skip allowed.
+    - Inventory/category forms now add required/numeric guardrails and disable category submit while saving.
+    - Product categories now store optional icons and admin can generate/select four category icon options.
+    - WEBSITE report filter shows pending website orders first; if none, today’s website orders.
+  - Testing:
+    - `backend ./mvnw test` passed: 65 tests.
+    - `frontend npm run build` passed.
 
 ## Pending
 
-None
+- Final EC2 deploy and live health check for the remaining task batch.

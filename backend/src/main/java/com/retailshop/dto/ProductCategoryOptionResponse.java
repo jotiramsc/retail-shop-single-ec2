@@ -12,6 +12,7 @@ public class ProductCategoryOptionResponse {
     private UUID id;
     private String code;
     private String displayName;
+    private String iconImageUrl;
     private Boolean active;
     private LocalDateTime createdAt;
 }

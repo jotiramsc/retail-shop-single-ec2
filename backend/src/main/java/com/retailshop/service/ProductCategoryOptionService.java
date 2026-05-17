@@ -1,6 +1,7 @@
 package com.retailshop.service;
 
 import com.retailshop.dto.PaginatedResponse;
+import com.retailshop.dto.CategoryIconOptionResponse;
 import com.retailshop.dto.ProductCategoryOptionRequest;
 import com.retailshop.dto.ProductCategoryOptionResponse;
 import org.springframework.data.domain.Pageable;
@@ -13,5 +14,6 @@ public interface ProductCategoryOptionService {
     List<ProductCategoryOptionResponse> getActiveCategories();
     ProductCategoryOptionResponse createCategory(ProductCategoryOptionRequest request);
     ProductCategoryOptionResponse updateCategory(UUID id, ProductCategoryOptionRequest request);
+    List<CategoryIconOptionResponse> generateIconOptions(String categoryName);
     void validateCategoryCode(String code);
 }

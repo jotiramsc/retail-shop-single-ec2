@@ -69,6 +69,8 @@ export default function CustomerLoginPage() {
   const [message, setMessage] = useState(() => readStoredOtpChallenge()?.message || '');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [pendingNameSession, setPendingNameSession] = useState(null);
+  const [signupName, setSignupName] = useState('');
   const [authMode, setAuthMode] = useState('login');
   const [authMethod, setAuthMethod] = useState('mobile');
   const [clock, setClock] = useState(Date.now());
@@ -245,6 +247,10 @@ export default function CustomerLoginPage() {
 
   const verifyOtp = async (event) => {
     event.preventDefault();
+    if (!/^\d{4,8}$/.test(String(otp || '').trim())) {
+      setError('Enter a valid numeric OTP.');
+      return;
+    }
     setSubmitting(true);
     setError('');
     try {
@@ -257,9 +263,41 @@ export default function CustomerLoginPage() {
       const session = payload.purpose === 'GOOGLE'
         ? await retailService.verifyGoogleMobileOtp(payload)
         : await retailService.verifyOtp(payload);
+      if (payload.purpose === 'SIGNUP' && !session?.name) {
+        storeCustomerSession(session);
+        setPendingNameSession(session);
+        setSignupName('');
+        clearOtpChallenge();
+        setOtpChallenge(null);
+        setMessage('Account verified. Add your name to personalize shopping, or continue now.');
+        return;
+      }
       await finishCustomerLogin(session);
     } catch (err) {
       setError(err.response?.data?.message || err.message || 'Unable to verify OTP');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const completeSignupName = async (event, skip = false) => {
+    event.preventDefault();
+    if (!pendingNameSession) {
+      return;
+    }
+    setSubmitting(true);
+    setError('');
+    try {
+      let nextSession = pendingNameSession;
+      const normalizedName = signupName.trim();
+      if (!skip && normalizedName) {
+        await retailService.updateCustomerProfile({ name: normalizedName, mobile: pendingNameSession.mobile });
+        nextSession = { ...pendingNameSession, name: normalizedName };
+      }
+      setPendingNameSession(null);
+      await finishCustomerLogin(nextSession);
+    } catch (err) {
+      setError(err.response?.data?.message || err.message || 'Unable to save your name.');
     } finally {
       setSubmitting(false);
     }
@@ -359,6 +397,32 @@ export default function CustomerLoginPage() {
     setAuthMethod(nextMethod);
     setMessage('');
   };
+
+  if (pendingNameSession?.token) {
+    return (
+      <main className="glow-site customer-flow-page customer-auth-modern-page">
+        <section className="customer-card customer-auth-card">
+          <p className="glow-kicker">Profile</p>
+          <h1>What should we call you?</h1>
+          <p className="customer-helper-copy">Only your name is needed now. You can continue immediately and complete anything else later.</p>
+          <form className="customer-form customer-auth-action-form" onSubmit={(event) => completeSignupName(event, false)}>
+            <label>
+              Name
+              <input value={signupName} onChange={(event) => setSignupName(event.target.value)} placeholder="Your name" autoComplete="name" />
+            </label>
+            {message ? <p className="success-text">{message}</p> : null}
+            {error ? <p className="error-text">{error}</p> : null}
+            <button className="glow-account-btn customer-auth-primary-action" type="submit" disabled={submitting}>
+              {submitting ? 'Please wait...' : 'Continue'}
+            </button>
+            <button type="button" className="customer-auth-text-btn" onClick={(event) => completeSignupName(event, true)} disabled={submitting}>
+              Skip for now
+            </button>
+          </form>
+        </section>
+      </main>
+    );
+  }
 
   if (customerSession?.token) {
     return (

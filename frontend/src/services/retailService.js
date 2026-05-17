@@ -74,6 +74,7 @@ export const retailService = {
   deleteProduct: (id) => api.delete(`/products/${id}`).then((res) => res.data),
   getProductCategories: (params) => api.get(`/product-categories?${buildPageParams(params)}`).then((res) => res.data),
   getProductCategoryOptions: () => api.get('/product-categories/options').then((res) => res.data),
+  generateProductCategoryIcons: (payload) => api.post('/product-categories/icon-options', payload).then((res) => res.data),
   createProductCategory: (payload) => api.post('/product-categories', payload).then((res) => res.data),
   updateProductCategory: (id, payload) => api.put(`/product-categories/${id}`, payload).then((res) => res.data),
   getSupportSummary: () => api.get('/support/summary').then((res) => res.data),

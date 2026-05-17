@@ -119,6 +119,24 @@ public class ReportServiceImpl implements ReportService {
                 .filter(order -> matchesSalesPerson(normalizedSalesPerson, order.getSalesPersonName()))
                 .toList();
 
+        if ("WEBSITE".equalsIgnoreCase(normalizedSalesPerson)) {
+            List<ReportOrderRowResponse> pendingWebsiteRows = websiteOrders.stream()
+                    .filter(order -> isPendingWebsiteOrder(order.getStatus()))
+                    .map(this::mapWebsiteOrderRow)
+                    .sorted(Comparator.comparing(ReportOrderRowResponse::getCreatedAt).reversed())
+                    .toList();
+            if (!pendingWebsiteRows.isEmpty()) {
+                return paginatedOrderFeed(rangeStart, rangeEnd, pendingWebsiteRows, pageable);
+            }
+            LocalDate today = LocalDate.now();
+            List<ReportOrderRowResponse> todayWebsiteRows = websiteOrders.stream()
+                    .filter(order -> order.getCreatedAt() != null && order.getCreatedAt().toLocalDate().equals(today))
+                    .map(this::mapWebsiteOrderRow)
+                    .sorted(Comparator.comparing(ReportOrderRowResponse::getCreatedAt).reversed())
+                    .toList();
+            return paginatedOrderFeed(rangeStart, rangeEnd, todayWebsiteRows, pageable);
+        }
+
         List<ReportOrderRowResponse> combined = Stream.concat(
                         invoices.stream().map(this::mapInvoiceRow),
                         websiteOrders.stream().map(this::mapWebsiteOrderRow)
@@ -126,6 +144,13 @@ public class ReportServiceImpl implements ReportService {
                 .sorted(Comparator.comparing(ReportOrderRowResponse::getCreatedAt).reversed())
                 .toList();
 
+        return paginatedOrderFeed(rangeStart, rangeEnd, combined, pageable);
+    }
+
+    private ReportOrderFeedResponse paginatedOrderFeed(LocalDate rangeStart,
+                                                       LocalDate rangeEnd,
+                                                       List<ReportOrderRowResponse> combined,
+                                                       Pageable pageable) {
         int page = pageable.getPageNumber();
         int size = pageable.getPageSize();
         int fromIndex = Math.min(page * size, combined.size());
@@ -144,6 +169,12 @@ public class ReportServiceImpl implements ReportService {
                 .hasNext(page + 1 < totalPages)
                 .hasPrevious(page > 0)
                 .build();
+    }
+
+    private boolean isPendingWebsiteOrder(OrderStatus status) {
+        return status == OrderStatus.PENDING
+                || status == OrderStatus.CONFIRMED
+                || status == OrderStatus.SHIPPED;
     }
 
     @Override

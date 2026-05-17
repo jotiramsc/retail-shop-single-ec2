@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import PageHeader from '../components/PageHeader';
 import Panel from '../components/Panel';
 import { retailService } from '../services/retailService';
@@ -47,6 +47,7 @@ export default function SupportInboxPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [toast, setToast] = useState('');
+  const chatEndRef = useRef(null);
 
   const loadSummary = async () => {
     const next = await retailService.getSupportSummary();
@@ -99,6 +100,7 @@ export default function SupportInboxPage() {
     const priceFilter = parsePriceFilter(productSearch);
     const query = stripPriceTerms(productSearch).toLowerCase();
     return products
+      .filter((product) => product.showOnWebsite !== false)
       .filter((product) => {
         const price = productPrice(product);
         const matchesText = !query || [product.name, product.category, product.sku]
@@ -109,6 +111,10 @@ export default function SupportInboxPage() {
       })
       .slice(0, 30);
   }, [productSearch, products]);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ block: 'end' });
+  }, [selected?.id, selected?.messages?.length]);
 
   const updateFilters = async (patch) => {
     const next = { ...filters, ...patch };
@@ -186,6 +192,13 @@ export default function SupportInboxPage() {
     }
   };
 
+  const handleReplyKeyDown = (event) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      sendReply(event);
+    }
+  };
+
   return (
     <div className="page support-inbox-page">
       <PageHeader
@@ -247,13 +260,20 @@ export default function SupportInboxPage() {
                     <small>{formatDate(message.createdAt)}</small>
                   </div>
                 ))}
+                <div ref={chatEndRef} />
               </div>
               <form className="support-reply-box" onSubmit={sendReply}>
-                <textarea value={replyText} onChange={(event) => setReplyText(event.target.value)} placeholder="Type WhatsApp reply..." />
+                <textarea
+                  value={replyText}
+                  onChange={(event) => setReplyText(event.target.value)}
+                  onKeyDown={handleReplyKeyDown}
+                  placeholder="Type WhatsApp reply..."
+                  disabled={loading}
+                />
                 <div>
                   <button type="button" className="ghost-btn compact-btn" disabled={loading} onClick={() => setShowProductPicker(true)}>Send Product</button>
                   <button type="button" className="ghost-btn compact-btn" disabled={loading || selected.status === 'RESOLVED'} onClick={resolveConversation}>Mark Resolved</button>
-                  <button type="submit" className="primary-btn compact-btn" disabled={loading || !replyText.trim()}>Reply</button>
+                  <button type="submit" className="primary-btn compact-btn" disabled={loading || !replyText.trim()}>{loading ? 'Sending...' : 'Reply'}</button>
                 </div>
               </form>
             </>

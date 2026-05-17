@@ -26,6 +26,9 @@ public class ProductCategoryOption {
     @Column(name = "display_name", nullable = false, unique = true, length = 255)
     private String displayName;
 
+    @Column(name = "icon_image_url", columnDefinition = "text")
+    private String iconImageUrl;
+
     @Column(nullable = false)
     private Boolean active;
 
