@@ -14,10 +14,19 @@ import com.retailshop.exception.ResourceNotFoundException;
 import com.retailshop.repository.ProductCategoryOptionRepository;
 import com.retailshop.service.ImageUploadService;
 import com.retailshop.service.ProductCategoryOptionService;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import javax.imageio.ImageIO;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.geom.Ellipse2D;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -33,7 +42,10 @@ import java.util.Map;
 import java.util.UUID;
 
 @Service
+@Slf4j
 public class ProductCategoryOptionServiceImpl implements ProductCategoryOptionService {
+
+    private static final Duration CATEGORY_ICON_OPENAI_TIMEOUT = Duration.ofSeconds(12);
 
     private final ProductCategoryOptionRepository productCategoryOptionRepository;
     private final MarketingProperties marketingProperties;
@@ -41,17 +53,26 @@ public class ProductCategoryOptionServiceImpl implements ProductCategoryOptionSe
     private final ImageUploadService imageUploadService;
     private final HttpClient httpClient;
 
+    @Autowired
     public ProductCategoryOptionServiceImpl(ProductCategoryOptionRepository productCategoryOptionRepository,
                                             MarketingProperties marketingProperties,
                                             ObjectMapper objectMapper,
                                             ImageUploadService imageUploadService) {
+        this(productCategoryOptionRepository, marketingProperties, objectMapper, imageUploadService, HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(20))
+                .build());
+    }
+
+    ProductCategoryOptionServiceImpl(ProductCategoryOptionRepository productCategoryOptionRepository,
+                                     MarketingProperties marketingProperties,
+                                     ObjectMapper objectMapper,
+                                     ImageUploadService imageUploadService,
+                                     HttpClient httpClient) {
         this.productCategoryOptionRepository = productCategoryOptionRepository;
         this.marketingProperties = marketingProperties;
         this.objectMapper = objectMapper;
         this.imageUploadService = imageUploadService;
-        this.httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(20))
-                .build();
+        this.httpClient = httpClient;
     }
 
     @Override
@@ -85,6 +106,7 @@ public class ProductCategoryOptionServiceImpl implements ProductCategoryOptionSe
         }
         category.setDisplayName(displayName);
         category.setIconImageUrl(normalizeOptionalText(request.getIconImageUrl()));
+        applyFacebookCatalogDefaults(category, request);
         category.setActive(request.getActive() == null ? Boolean.TRUE : request.getActive());
         return mapToResponse(productCategoryOptionRepository.save(category));
     }
@@ -101,36 +123,59 @@ public class ProductCategoryOptionServiceImpl implements ProductCategoryOptionSe
         }
         category.setDisplayName(displayName);
         category.setIconImageUrl(normalizeOptionalText(request.getIconImageUrl()));
+        applyFacebookCatalogDefaults(category, request);
         category.setActive(request.getActive() == null ? category.getActive() : request.getActive());
         return mapToResponse(productCategoryOptionRepository.save(category));
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public java.util.List<CategoryIconOptionResponse> generateIconOptions(String categoryName) {
         String displayName = normalizeDisplayName(categoryName);
         if (displayName.isBlank()) {
             throw new BusinessException("Category name is required");
         }
-        if (marketingProperties == null
-                || marketingProperties.getAi() == null
-                || isBlank(marketingProperties.getAi().getApiKey())
-                || isBlank(marketingProperties.getAi().getImageModel())) {
-            throw new BusinessException("OpenAI image generation is not configured for category icons");
+        if (!isOpenAiImageConfigured()) {
+            throw new BusinessException("Marketing OpenAI image generation is not configured. Set MARKETING_OPENAI_API_KEY or OPEN_AI_API_KEY.");
         }
         try {
-            return List.of(
-                    generateOpenAiCategoryIcon(displayName, 1, "minimal luxury line-art icon on a soft ivory background"),
-                    generateOpenAiCategoryIcon(displayName, 2, "premium festive retail icon with warm gold accents"),
-                    generateOpenAiCategoryIcon(displayName, 3, "modern boutique icon for mobile category cards"),
-                    generateOpenAiCategoryIcon(displayName, 4, "elegant jewellery and cosmetics app icon style")
-            );
-        } catch (IOException exception) {
-            throw new BusinessException("OpenAI category icon generation failed: " + exception.getMessage());
+            return List.of(generateOpenAiCategoryIcon(
+                    displayName,
+                    "preview"
+            ));
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
-            throw new BusinessException("OpenAI category icon generation was interrupted");
+            throw new BusinessException("Category icon generation was interrupted");
+        } catch (Exception exception) {
+            log.warn("OpenAI category icon generation failed for {}", displayName, exception);
+            throw new BusinessException("OpenAI category icon generation failed: " + exception.getMessage());
         }
+    }
+
+    @Override
+    @Transactional
+    public ProductCategoryOptionResponse generateIcon(java.util.UUID id, boolean replaceExisting) {
+        ProductCategoryOption category = productCategoryOptionRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Product category not found"));
+        if (!replaceExisting && !isBlank(category.getIconImageUrl())) {
+            throw new BusinessException("Category already has an icon. Use regenerate to replace it.");
+        }
+        String displayName = normalizeDisplayName(category.getDisplayName());
+        if (!isOpenAiImageConfigured()) {
+            throw new BusinessException("Marketing OpenAI image generation is not configured. Set MARKETING_OPENAI_API_KEY or OPEN_AI_API_KEY.");
+        }
+        CategoryIconOptionResponse generated;
+        try {
+            generated = generateOpenAiCategoryIcon(displayName, "category-" + category.getId());
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new BusinessException("Category icon generation was interrupted");
+        } catch (Exception exception) {
+            log.warn("OpenAI category icon generation failed for {}", displayName, exception);
+            throw new BusinessException("OpenAI category icon generation failed: " + exception.getMessage());
+        }
+        category.setIconImageUrl(generated.getImageUrl());
+        return mapToResponse(productCategoryOptionRepository.save(category));
     }
 
     @Override
@@ -152,9 +197,48 @@ public class ProductCategoryOptionServiceImpl implements ProductCategoryOptionSe
                 .code(category.getCode())
                 .displayName(category.getDisplayName())
                 .iconImageUrl(category.getIconImageUrl())
+                .facebookSyncEnabled(Boolean.TRUE.equals(category.getFacebookSyncEnabled()))
+                .facebookCategory(category.getFacebookCategory())
+                .facebookCollectionName(category.getFacebookCollectionName())
                 .active(category.getActive())
                 .createdAt(category.getCreatedAt())
                 .build();
+    }
+
+    private void applyFacebookCatalogDefaults(ProductCategoryOption category, ProductCategoryOptionRequest request) {
+        boolean syncEnabled = request.getFacebookSyncEnabled() == null || Boolean.TRUE.equals(request.getFacebookSyncEnabled());
+        category.setFacebookSyncEnabled(syncEnabled);
+        if (!syncEnabled) {
+            category.setFacebookCategory(normalizeOptionalText(request.getFacebookCategory()));
+            category.setFacebookCollectionName(normalizeOptionalText(request.getFacebookCollectionName()));
+            return;
+        }
+        String displayName = normalizeDisplayName(category.getDisplayName());
+        String facebookCategory = normalizeOptionalText(request.getFacebookCategory());
+        String collectionName = normalizeOptionalText(request.getFacebookCollectionName());
+        category.setFacebookCategory(facebookCategory == null ? defaultFacebookCategory(displayName) : facebookCategory);
+        category.setFacebookCollectionName(collectionName == null ? displayName + " Collection" : collectionName);
+    }
+
+    private String defaultFacebookCategory(String displayName) {
+        String normalized = displayName == null ? "" : displayName.toLowerCase(Locale.ROOT);
+        if (normalized.contains("neck") || normalized.contains("mala") || normalized.contains("mangalsutra") || normalized.contains("pearl")) {
+            return "Apparel & Accessories > Jewelry > Necklaces";
+        }
+        if (normalized.contains("ear") || normalized.contains("jhum")) {
+            return "Apparel & Accessories > Jewelry > Earrings";
+        }
+        if (normalized.contains("bangle") || normalized.contains("bracelet") || normalized.contains("bali")) {
+            return "Apparel & Accessories > Jewelry > Bracelets";
+        }
+        if (normalized.contains("ring")) {
+            return "Apparel & Accessories > Jewelry > Rings";
+        }
+        if (normalized.contains("cosmetic") || normalized.contains("lip") || normalized.contains("kajal") || normalized.contains("makeup")
+                || normalized.contains("beauty") || normalized.contains("skin")) {
+            return "Health & Beauty > Personal Care > Cosmetics";
+        }
+        return "Apparel & Accessories > Jewelry";
     }
 
     private String normalizeDisplayName(String value) {
@@ -167,37 +251,99 @@ public class ProductCategoryOptionServiceImpl implements ProductCategoryOptionSe
     }
 
     private CategoryIconOptionResponse generateOpenAiCategoryIcon(String categoryName,
-                                                                  int optionNumber,
-                                                                  String visualDirection) throws IOException, InterruptedException {
-        String prompt = "Create one square category icon image for Krishnai Pearl Shopee, a luxury jewellery and cosmetics shop. "
-                + "Category: " + categoryName + ". "
-                + visualDirection + ". "
-                + "Use a premium Indian boutique aesthetic, clear product-symbol silhouette, warm gold accents, clean mobile-app readability, no text, no logo, no watermark.";
+                                                                  String seed) throws IOException, InterruptedException {
+        String prompt = buildCategoryIconPrompt(categoryName, seed);
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("model", defaultString(marketingProperties.getAi().getImageModel(), "gpt-image-1.5"));
         payload.put("prompt", prompt);
         payload.put("size", defaultString(marketingProperties.getAi().getImageSize(), "1024x1024"));
         payload.put("quality", defaultString(marketingProperties.getAi().getImageQuality(), "medium"));
         payload.put("output_format", "png");
+        payload.put("background", "transparent");
+        payload.put("n", 1);
 
         HttpRequest request = HttpRequest.newBuilder(URI.create("https://api.openai.com/v1/images/generations"))
                 .header("authorization", "Bearer " + marketingProperties.getAi().getApiKey().trim())
                 .header("content-type", "application/json")
+                .timeout(CATEGORY_ICON_OPENAI_TIMEOUT)
                 .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(payload)))
                 .build();
         HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() >= 400) {
             throw new IOException(extractApiErrorMessage(response.body()));
         }
-        byte[] imageBytes = extractOpenAiImageBytes(response.body());
+        byte[] imageBytes = makeCircularTransparentPng(extractOpenAiImageBytes(response.body()));
         ImageUploadResponse uploadResponse = imageUploadService.uploadImageBytes(imageBytes, "image/png", "category-icons");
         if (uploadResponse == null || isBlank(uploadResponse.getCloudfrontUrl())) {
             throw new IOException("generated icon could not be uploaded");
         }
         return CategoryIconOptionResponse.builder()
-                .label("AI Option " + optionNumber)
+                .label("OpenAI Icon")
                 .imageUrl(uploadResponse.getCloudfrontUrl().trim())
                 .build();
+    }
+
+    private String buildCategoryIconPrompt(String categoryName, String seed) {
+        String subject = productSymbolFor(categoryName);
+        return """
+                Create one premium ecommerce category icon for KRISHNAI Pearl Shopee.
+                Category: %s.
+                Depict: %s.
+                Style: luxury Indian boutique, elegant jewelry-and-beauty retail, clean vector-like product silhouette, polished warm-gold linework with subtle pearl/ivory highlights, refined circular medallion composition, mobile app icon readability at 48px.
+                Composition: centered single object or simple paired objects, no hands, no people, no model, no background scene.
+                Technical: square PNG, transparent background outside the circular medallion, no text, no letters, no logo, no watermark, no price tags, no extra decorative clutter.
+                Seed/context: %s.
+                """.formatted(categoryName, subject, seed);
+    }
+
+    private String productSymbolFor(String categoryName) {
+        String normalized = categoryName == null ? "" : categoryName.toLowerCase(Locale.ROOT);
+        if (normalized.contains("neck") || normalized.contains("mala") || normalized.contains("mangalsutra") || normalized.contains("pearl")) {
+            return "a pearl necklace or elegant necklace pendant";
+        }
+        if (normalized.contains("ear") || normalized.contains("jhum") || normalized.contains("bali")) {
+            return "a pair of earrings with a delicate pearl or jhumka-inspired silhouette";
+        }
+        if (normalized.contains("bangle") || normalized.contains("bracelet")) {
+            return "stacked bangles or a refined bracelet";
+        }
+        if (normalized.contains("ring")) {
+            return "a graceful ring with a small pearl setting";
+        }
+        if (normalized.contains("lip")) {
+            return "a premium lipstick";
+        }
+        if (normalized.contains("kajal") || normalized.contains("eye")) {
+            return "a cosmetic eye pencil with a clean beauty symbol";
+        }
+        if (normalized.contains("cosmetic") || normalized.contains("makeup") || normalized.contains("beauty") || normalized.contains("skin")) {
+            return "a compact cosmetic palette and brush";
+        }
+        return "a tasteful symbol combining pearl jewelry and boutique beauty retail";
+    }
+
+    private byte[] makeCircularTransparentPng(byte[] sourceBytes) throws IOException {
+        BufferedImage source = ImageIO.read(new ByteArrayInputStream(sourceBytes));
+        if (source == null) {
+            throw new IOException("generated icon image could not be decoded");
+        }
+        int size = Math.min(source.getWidth(), source.getHeight());
+        int sourceX = Math.max((source.getWidth() - size) / 2, 0);
+        int sourceY = Math.max((source.getHeight() - size) / 2, 0);
+        BufferedImage output = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D graphics = output.createGraphics();
+        try {
+            graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            graphics.setClip(new Ellipse2D.Double(0, 0, size, size));
+            graphics.drawImage(source, 0, 0, size, size, sourceX, sourceY, sourceX + size, sourceY + size, null);
+        } finally {
+            graphics.dispose();
+        }
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        if (!ImageIO.write(output, "png", outputStream)) {
+            throw new IOException("generated circular icon could not be encoded");
+        }
+        return outputStream.toByteArray();
     }
 
     private byte[] extractOpenAiImageBytes(String responseBody) throws IOException, InterruptedException {
@@ -236,6 +382,14 @@ public class ProductCategoryOptionServiceImpl implements ProductCategoryOptionSe
 
     private String defaultString(String value, String fallback) {
         return isBlank(value) ? fallback : value.trim();
+    }
+
+    private boolean isOpenAiImageConfigured() {
+        return marketingProperties != null
+                && marketingProperties.getAi() != null
+                && marketingProperties.getAi().isEnabled()
+                && !isBlank(marketingProperties.getAi().getApiKey())
+                && !isBlank(marketingProperties.getAi().getImageModel());
     }
 
     private boolean isBlank(String value) {

@@ -681,6 +681,42 @@ export default function CampaignsPage() {
     }
   };
 
+  const approveAndPublishCampaign = async (platform = '') => {
+    const contents = (selectedCampaign?.contents || []).filter((content) => !platform || content.platform === platform);
+    if (!contents.length) {
+      setError(platform ? `No ${platform} draft exists for this campaign.` : 'No drafts exist for this campaign.');
+      return;
+    }
+    const label = platform ? platform : 'all platforms';
+    if (!window.confirm(`Approve and publish ${contents.length} draft${contents.length === 1 ? '' : 's'} for ${label}?`)) {
+      return;
+    }
+    setLoading(true);
+    resetNotices();
+    try {
+      for (const content of contents) {
+        if (content.status !== 'APPROVED' && content.status !== 'PUBLISHED') {
+          await retailService.approveMarketingContent(content.id, {});
+        }
+        if (content.status !== 'PUBLISHED') {
+          await retailService.publishMarketingContentNow(content.id);
+        }
+      }
+      setSuccess(`Approved and published ${label}.`);
+      if (selectedCampaign?.id) {
+        await loadCampaignDetails(selectedCampaign.id);
+      }
+      await loadCampaigns(campaignsPage.page || 0);
+      await loadApprovalQueue();
+      await loadScheduled(0);
+      await loadAnalytics();
+    } catch (requestError) {
+      setError(getApiErrorMessage(requestError, `Unable to approve and publish ${label}.`));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const selectedCampaignPlatforms = useMemo(
     () => (selectedCampaign?.targetPlatforms || []).join(', '),
     [selectedCampaign]
@@ -1032,6 +1068,14 @@ export default function CampaignsPage() {
               </div>
               {canApprove ? (
                 <div className="marketing-selected-actions">
+                  <button type="button" className="primary-btn compact-btn" disabled={loading} onClick={() => approveAndPublishCampaign()}>
+                    Approve & Publish All
+                  </button>
+                  {PLATFORMS.map((platform) => (
+                    <button key={platform} type="button" className="ghost-btn compact-btn" disabled={loading} onClick={() => approveAndPublishCampaign(platform)}>
+                      {platform}
+                    </button>
+                  ))}
                   <button type="button" className="ghost-btn compact-btn is-danger" disabled={loading} onClick={() => handleDeleteCampaign(selectedCampaign.id, selectedCampaign.campaignName)}>
                     Delete campaign
                   </button>

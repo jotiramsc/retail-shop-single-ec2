@@ -52,6 +52,24 @@ public class Product {
     @Column(name = "image_data_url")
     private String imageDataUrl;
 
+    @Column(name = "product_images")
+    private String productImagesJson;
+
+    @Column(name = "description", columnDefinition = "text")
+    private String description;
+
+    @Column(name = "ai_description_status")
+    private String aiDescriptionStatus;
+
+    @Column(name = "ai_description", columnDefinition = "text")
+    private String aiDescription;
+
+    @Column(name = "ai_description_generated_at")
+    private LocalDateTime aiDescriptionGeneratedAt;
+
+    @Column(name = "ai_description_error", columnDefinition = "text")
+    private String aiDescriptionError;
+
     @Column(name = "show_on_website", nullable = false)
     private Boolean showOnWebsite;
 
@@ -78,6 +96,12 @@ public class Product {
 
     @Column(name = "show_in_curated_selections", nullable = false)
     private Boolean showInCuratedSelections;
+
+    @Column(name = "facebook_sync_enabled", nullable = false)
+    private Boolean facebookSyncEnabled;
+
+    @Column(nullable = false)
+    private Boolean active;
 
     @Column(name = "expiry_date")
     private LocalDate expiryDate;
@@ -120,6 +144,12 @@ public class Product {
         }
         if (showInCuratedSelections == null) {
             showInCuratedSelections = Boolean.FALSE;
+        }
+        if (facebookSyncEnabled == null) {
+            facebookSyncEnabled = Boolean.TRUE;
+        }
+        if (active == null) {
+            active = Boolean.TRUE;
         }
     }
 

@@ -1,0 +1,295 @@
+:root {
+  --kps-green: #123c32;
+  --kps-green-2: #0d5b49;
+  --kps-gold: #b98732;
+  --kps-cream: #fbf7ef;
+  --kps-ink: #241815;
+  --kps-muted: #7d6b5d;
+}
+
+body {
+  font-family: "Public Sans", "Manrope", system-ui, sans-serif;
+  background:
+    radial-gradient(circle at 15% 12%, rgba(185, 135, 50, 0.16), transparent 28%),
+    linear-gradient(180deg, #fbf7ef 0%, #f3eee6 100%);
+}
+
+.kps-sneat-app {
+  min-height: 100vh;
+}
+
+.kps-sneat-app .layout-container {
+  min-height: 100vh;
+}
+
+.kps-sneat-menu.bg-menu-theme {
+  background:
+    linear-gradient(180deg, rgba(18, 60, 50, 0.98), rgba(10, 35, 29, 0.98)),
+    url("/assets/glowjewels/maharashtrian_jewelry_flatlay.png") center/cover;
+  color: #fff8eb;
+  box-shadow: 0 16px 46px rgba(4, 20, 15, 0.24);
+}
+
+.kps-sneat-menu .app-brand.demo {
+  height: 78px;
+  padding-inline: 1.25rem;
+}
+
+.kps-sneat-logo {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+  border-radius: 14px;
+  background: #050505;
+  padding: 4px;
+}
+
+.kps-sneat-menu .menu-link,
+.kps-sneat-menu .menu-header,
+.kps-sneat-menu .app-brand-text {
+  color: rgba(255, 248, 235, 0.9) !important;
+}
+
+.kps-sneat-menu .menu-icon {
+  color: var(--kps-gold) !important;
+}
+
+.kps-sneat-menu .menu-item.active > .menu-link,
+.kps-sneat-menu .menu-item.open > .menu-link,
+.kps-sneat-menu .menu-link:hover {
+  background: linear-gradient(135deg, rgba(185, 135, 50, 0.32), rgba(255, 248, 235, 0.1)) !important;
+  color: #fff !important;
+  box-shadow: 0 10px 26px rgba(4, 20, 15, 0.24);
+}
+
+.kps-sneat-menu .menu-sub .menu-link {
+  font-size: 0.9rem;
+  color: rgba(255, 248, 235, 0.76) !important;
+}
+
+.kps-sneat-menu .menu-sub .menu-link.active,
+.kps-sneat-menu .menu-sub .menu-link:hover {
+  color: #fff !important;
+}
+
+.kps-sneat-navbar {
+  border: 1px solid rgba(185, 135, 50, 0.1);
+  box-shadow: 0 10px 28px rgba(49, 35, 22, 0.09) !important;
+}
+
+.kps-fixed-navbar .kps-sneat-navbar {
+  position: sticky;
+  top: 1rem;
+  z-index: 20;
+}
+
+.kps-sneat-content .page {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+}
+
+.kps-sneat-content .page-header,
+.kps-sneat-content .panel,
+.kps-sneat-content .card,
+.kps-sneat-content .crm-command-bar,
+.kps-sneat-content .crm-left-panel,
+.kps-sneat-content .crm-right-panel,
+.kps-sneat-content .support-sidebar,
+.kps-sneat-content .support-chat-panel,
+.kps-sneat-content .account-profile-panel,
+.kps-sneat-content .account-module-panel {
+  border: 1px solid rgba(185, 135, 50, 0.12);
+  border-radius: 18px;
+  background: rgba(255, 253, 248, 0.96);
+  box-shadow: 0 10px 28px rgba(49, 35, 22, 0.1);
+}
+
+.kps-sneat-content .page-header {
+  overflow: hidden;
+  padding: 2rem;
+  color: #fff8eb;
+  background:
+    linear-gradient(135deg, rgba(18, 60, 50, 0.94), rgba(13, 91, 73, 0.72)),
+    url("/assets/glowjewels/maharashtrian_jewelry_flatlay.png") center/cover;
+}
+
+.kps-sneat-content .page-header h2,
+.kps-sneat-content .page-header .eyebrow,
+.kps-sneat-content .page-header .page-description {
+  color: inherit;
+}
+
+.kps-sneat-content .page-header h2 {
+  font-family: "Public Sans", "Manrope", system-ui, sans-serif;
+  font-size: clamp(1.8rem, 3vw, 2.75rem);
+}
+
+.kps-sneat-content .eyebrow {
+  color: #f7d68e;
+}
+
+.kps-sneat-content .panel {
+  padding: 1.25rem;
+}
+
+.kps-sneat-content .panel h3 {
+  font-family: "Public Sans", "Manrope", system-ui, sans-serif;
+}
+
+.kps-sneat-content .primary-btn,
+.kps-sneat-content .btn-primary,
+.kps-sneat-content .nav-pills .nav-link.active,
+.kps-sneat-content .crm-tabs button.is-active,
+.kps-sneat-content .support-tabs button.is-active {
+  background: linear-gradient(135deg, var(--kps-green), var(--kps-green-2)) !important;
+  border-color: transparent !important;
+  color: #fff !important;
+  box-shadow: 0 10px 24px rgba(18, 60, 50, 0.22);
+}
+
+.kps-sneat-content .ghost-btn,
+.kps-sneat-content .btn-outline-primary {
+  border-color: rgba(18, 60, 50, 0.28);
+  color: var(--kps-green);
+}
+
+.kps-sneat-content input,
+.kps-sneat-content select,
+.kps-sneat-content textarea,
+.kps-sneat-content .form-control,
+.kps-sneat-content .form-select {
+  border-radius: 0.75rem;
+  border-color: rgba(185, 135, 50, 0.18);
+}
+
+.kps-sneat-content table th {
+  color: var(--kps-muted);
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.kps-sneat-content .data-table-wrapper,
+.kps-sneat-content .data-table {
+  border-radius: 1rem;
+}
+
+.kps-menu-collapsed .layout-menu {
+  width: 5.25rem;
+}
+
+.kps-menu-collapsed .layout-page {
+  padding-left: 5.25rem;
+}
+
+.kps-menu-collapsed .app-brand-text,
+.kps-menu-collapsed .menu-header,
+.kps-menu-collapsed .menu-link div,
+.kps-menu-collapsed .menu-sub,
+.kps-menu-collapsed .badge {
+  display: none !important;
+}
+
+.kps-menu-collapsed .menu-link {
+  justify-content: center;
+  padding-inline: 0;
+}
+
+.kps-menu-collapsed .menu-icon {
+  margin-right: 0 !important;
+}
+
+.kps-compact .container-p-y {
+  padding-top: 1rem !important;
+  padding-bottom: 1rem !important;
+}
+
+.kps-compact .kps-sneat-content .panel,
+.kps-compact .kps-sneat-content .card-body,
+.kps-compact .kps-sneat-content .page-header {
+  padding: 1rem;
+}
+
+.kps-square .kps-sneat-content .panel,
+.kps-square .kps-sneat-content .card,
+.kps-square .kps-sneat-navbar,
+.kps-square input,
+.kps-square select,
+.kps-square textarea {
+  border-radius: 0.5rem !important;
+}
+
+.kps-menu-animated .menu-link,
+.kps-menu-animated .panel,
+.kps-menu-animated .card,
+.kps-menu-animated .primary-btn,
+.kps-menu-animated .ghost-btn {
+  transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease, color 0.18s ease;
+}
+
+.kps-menu-animated .panel:hover,
+.kps-menu-animated .card:hover {
+  transform: translateY(-1px);
+}
+
+.kps-no-animation * {
+  transition: none !important;
+  animation: none !important;
+}
+
+.kps-icon-button,
+.kps-avatar-button {
+  border: 0;
+  background: transparent;
+}
+
+.kps-settings-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1090;
+  display: flex;
+  justify-content: flex-end;
+  background: rgba(20, 16, 12, 0.28);
+}
+
+.kps-settings-panel {
+  width: min(390px, 92vw);
+  height: 100%;
+  overflow: auto;
+  padding: 1.5rem;
+  background: #fffdf8;
+  box-shadow: -20px 0 50px rgba(24, 20, 16, 0.16);
+}
+
+.kps-setting-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  padding: 1rem 0;
+  border-bottom: 1px solid rgba(185, 135, 50, 0.14);
+}
+
+.kps-setting-row span {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.kps-setting-row small {
+  color: var(--kps-muted);
+}
+
+.kps-support-alert {
+  box-shadow: 0 10px 24px rgba(185, 135, 50, 0.12);
+}
+
+@media (max-width: 1199.98px) {
+  .kps-menu-collapsed .layout-page {
+    padding-left: 0;
+  }
+
+  .kps-sneat-app.layout-menu-expanded .layout-menu {
+    transform: translate3d(0, 0, 0);
+  }
+}

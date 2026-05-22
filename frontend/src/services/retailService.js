@@ -75,13 +75,16 @@ export const retailService = {
   getProductCategories: (params) => api.get(`/product-categories?${buildPageParams(params)}`).then((res) => res.data),
   getProductCategoryOptions: () => api.get('/product-categories/options').then((res) => res.data),
   generateProductCategoryIcons: (payload) => api.post('/product-categories/icon-options', payload).then((res) => res.data),
+  generateProductCategoryIcon: (id, replace = false) => api.post(`/product-categories/${id}/icon?replace=${replace}`).then((res) => res.data),
   createProductCategory: (payload) => api.post('/product-categories', payload).then((res) => res.data),
   updateProductCategory: (id, payload) => api.put(`/product-categories/${id}`, payload).then((res) => res.data),
   getSupportSummary: () => api.get('/support/summary').then((res) => res.data),
-  getSupportConversations: ({ status, search } = {}) => {
+  getSupportConversations: ({ status, search, fromDate, toDate } = {}) => {
     const params = new URLSearchParams();
     if (status) params.set('status', status);
     if (search) params.set('search', search);
+    if (fromDate) params.set('fromDate', fromDate);
+    if (toDate) params.set('toDate', toDate);
     const query = params.toString();
     return api.get(`/support/conversations${query ? `?${query}` : ''}`).then((res) => res.data);
   },
@@ -89,10 +92,15 @@ export const retailService = {
   sendSupportReply: (conversationId, payload) => api.post(`/support/conversations/${conversationId}/reply`, payload).then((res) => res.data),
   sendSupportProduct: (conversationId, payload) => api.post(`/support/conversations/${conversationId}/send-product`, payload).then((res) => res.data),
   resolveSupportConversation: (conversationId) => api.patch(`/support/conversations/${conversationId}/resolve`).then((res) => res.data),
+  reopenSupportConversation: (conversationId) => api.patch(`/support/conversations/${conversationId}/reopen`).then((res) => res.data),
   getCustomers: (params) => api.get(`/customers?${buildPageParams(params)}`).then((res) => res.data),
   searchCustomers: (query) => api.get(`/customers/search?q=${encodeURIComponent(query)}`).then((res) => res.data),
   createCustomer: (payload) => api.post('/customers', payload).then((res) => res.data),
   getCustomerDetails: (customerId) => api.get(`/customers/${customerId}/details`).then((res) => res.data),
+  updateCustomerDetails: (customerId, payload) => api.patch(`/customers/${customerId}/details`, payload).then((res) => res.data),
+  startCustomerSupportChat: (customerId) => api.post(`/customers/${customerId}/support-chat/start`).then((res) => res.data),
+  trackCustomerActivity: (payload) => api.post('/customer/activity/track', payload || {}).then((res) => res.data),
+  updateCustomerLocation: (payload) => api.post('/customer/location/update', payload || {}).then((res) => res.data),
   lookupCustomer: (mobile) => api.get(`/customers/lookup?mobile=${mobile}`).then((res) => res.data),
   getCustomerHistory: (mobile) => api.get(`/customers/history?mobile=${mobile}`).then((res) => res.data),
   previewInvoice: (payload) => api.post('/billing/preview', payload).then((res) => res.data),
@@ -182,6 +190,8 @@ export const retailService = {
   getLowStock: (params) => api.get(`/reports/low-stock?${buildPageParams(params)}`).then((res) => res.data),
   getReceiptSettings: () => api.get('/settings/receipt').then((res) => res.data),
   updateReceiptSettings: (payload) => api.put('/settings/receipt', payload).then((res) => res.data),
+  generateFacebookFeedToken: () => api.post('/admin/brand-config/facebook-feed-token/generate').then((res) => res.data),
+  getFacebookFeedPreview: () => api.get('/admin/brand-config/facebook-feed-preview').then((res) => res.data),
   getUsers: (params) => api.get(`/users?${buildPageParams(params)}`).then((res) => res.data),
   getSalesPeople: () => api.get('/users/salespeople').then((res) => res.data),
   createUser: (payload) => api.post('/users', payload).then((res) => res.data),

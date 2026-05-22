@@ -37,6 +37,9 @@ public interface CustomerOrderRepository extends JpaRepository<CustomerOrder, UU
     List<CustomerOrder> findByCreatedAtBetweenOrderByCreatedAtDesc(LocalDateTime start, LocalDateTime end);
 
     @EntityGraph(attributePaths = {"customer", "items", "items.product"})
+    List<CustomerOrder> findBySourceOrderByCreatedAtDesc(OrderSource source);
+
+    @EntityGraph(attributePaths = {"customer", "items", "items.product"})
     List<CustomerOrder> findByCreatedAtBetweenAndCustomer_NameContainingIgnoreCaseOrderByCreatedAtDesc(
             LocalDateTime start,
             LocalDateTime end,

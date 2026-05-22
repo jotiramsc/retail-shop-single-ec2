@@ -25,7 +25,8 @@ export const defaultBranding = {
     logo: '',
     heroPrimary: '',
     heroSecondary: ''
-  }
+  },
+  metaPixelId: ''
 };
 
 const buildPhoneHref = (phoneNumber) => {
@@ -77,7 +78,8 @@ export const normalizeBranding = (settings = {}) => {
       logo: media.logo || settings.logoUrl || defaultBranding.media.logo,
       heroPrimary: media.heroPrimary || settings.heroPrimaryImageUrl || defaultBranding.media.heroPrimary,
       heroSecondary: media.heroSecondary || settings.heroSecondaryImageUrl || defaultBranding.media.heroSecondary
-    }
+    },
+    metaPixelId: settings.metaPixelId || ''
   };
 };
 

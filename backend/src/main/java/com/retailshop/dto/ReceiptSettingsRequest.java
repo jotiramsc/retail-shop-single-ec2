@@ -5,6 +5,8 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.math.BigDecimal;
+
 @Getter
 @Setter
 public class ReceiptSettingsRequest {
@@ -51,4 +53,22 @@ public class ReceiptSettingsRequest {
 
     @NotNull
     private Boolean showGstNumber;
+
+    private Boolean taxEnabled;
+
+    private BigDecimal cgstPercent;
+
+    private BigDecimal sgstPercent;
+
+    private Boolean deliveryFeeEnabled;
+
+    private BigDecimal deliveryFee;
+
+    private BigDecimal freeDeliveryThreshold;
+
+    private Boolean facebookCatalogEnabled;
+
+    private String metaPixelId;
+
+    private String facebookFeedToken;
 }

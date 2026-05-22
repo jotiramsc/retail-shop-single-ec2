@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, Navigate } from 'react-router-dom';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { retailService } from '../services/retailService';
 import {
   clearCustomerSession,
@@ -12,6 +12,7 @@ import { currency } from '../utils/format';
 const fallbackImage = '/assets/glowjewels/no_image.png';
 
 export default function WishlistPage() {
+  const navigate = useNavigate();
   const [customerSession, setCustomerSession] = useState(() => getStoredCustomerSession());
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -101,6 +102,12 @@ export default function WishlistPage() {
     }
   };
 
+  const openProduct = (productId) => {
+    if (productId) {
+      navigate(`/products/${productId}`);
+    }
+  };
+
   return (
     <main className="glow-site customer-flow-page">
       <section className="customer-flow-shell">
@@ -128,13 +135,24 @@ export default function WishlistPage() {
         {items.length ? (
           <section className="customer-flow-panel customer-cart-list">
             {items.map((item) => (
-              <article key={item.productId} className="customer-cart-item">
-                <img src={item.imageDataUrl || fallbackImage} alt={item.name} />
-                <div className="customer-cart-copy">
+              <article key={item.productId} className="customer-cart-item is-clickable">
+                <button
+                  type="button"
+                  className="customer-cart-product-link"
+                  onClick={() => openProduct(item.productId)}
+                  aria-label={`View ${item.name}`}
+                >
+                  <img src={item.imageDataUrl || fallbackImage} alt={item.name} />
+                </button>
+                <button
+                  type="button"
+                  className="customer-cart-copy customer-cart-product-link"
+                  onClick={() => openProduct(item.productId)}
+                >
                   <p>{item.category}</p>
                   <h3>{item.name}</h3>
                   <span>{item.sku}</span>
-                </div>
+                </button>
                 <strong>{currency(item.price)}</strong>
                 <div className="wishlist-actions">
                   <button

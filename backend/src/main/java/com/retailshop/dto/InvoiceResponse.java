@@ -21,6 +21,10 @@ public class InvoiceResponse {
     private String salesPersonName;
     private BigDecimal totalAmount;
     private BigDecimal discount;
+    private BigDecimal tax;
+    private BigDecimal cgst;
+    private BigDecimal sgst;
+    private BigDecimal delivery;
     private BigDecimal finalAmount;
     private PaymentMode paymentMode;
     private String couponCode;

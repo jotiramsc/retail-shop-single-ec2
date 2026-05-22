@@ -86,6 +86,8 @@ public class OrderServiceImpl implements OrderService {
         order.setSubtotal(quote.getSubtotal());
         order.setDiscount(quote.getDiscount());
         order.setTax(quote.getTax());
+        order.setCgst(quote.getCgst());
+        order.setSgst(quote.getSgst());
         order.setDelivery(quote.getDelivery());
         order.setFinalAmount(quote.getFinalTotal());
         order.setCouponCode(quote.getAppliedCouponCode());
@@ -197,6 +199,8 @@ public class OrderServiceImpl implements OrderService {
                 .subtotal(order.getSubtotal())
                 .discount(order.getDiscount())
                 .tax(order.getTax())
+                .cgst(order.getCgst())
+                .sgst(order.getSgst())
                 .delivery(order.getDelivery())
                 .finalAmount(order.getFinalAmount())
                 .couponCode(order.getCouponCode())

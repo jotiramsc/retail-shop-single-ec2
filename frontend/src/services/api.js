@@ -24,6 +24,8 @@ const CUSTOMER_PROTECTED_PREFIXES = [
   '/orders',
   '/checkout',
   '/customer-profile',
+  '/customer/activity',
+  '/customer/location',
   '/wishlist',
   '/offers/applicable'
 ];

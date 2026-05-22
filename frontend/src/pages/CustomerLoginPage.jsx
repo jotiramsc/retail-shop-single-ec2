@@ -55,6 +55,24 @@ const formatCountdown = (seconds) => {
   return `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
 };
 
+const requestOptionalCustomerLocation = () => {
+  if (typeof navigator === 'undefined' || !navigator.geolocation) {
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    (position) => {
+      retailService.updateCustomerLocation({
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+        accuracyMeters: position.coords.accuracy,
+        locationSource: 'GPS'
+      }).catch(() => {});
+    },
+    () => {},
+    { maximumAge: 10 * 60 * 1000, timeout: 5000 }
+  );
+};
+
 export default function CustomerLoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -126,6 +144,7 @@ export default function CustomerLoginPage() {
     storeCustomerSession(session);
     clearOtpChallenge();
     setCustomerSession(session);
+    requestOptionalCustomerLocation();
     const guestItems = getGuestCartItems();
     if (guestItems.length) {
       await retailService.mergeCart({ items: guestItems });
@@ -484,6 +503,9 @@ export default function CustomerLoginPage() {
             <h2>{title}</h2>
             <span>{otpSent ? 'Step 2 of 2' : 'Step 1 of 2'}</span>
           </div>
+          <p className="customer-helper-copy">
+            We use your location only to improve delivery and nearby service support. You can deny browser location permission and continue normally.
+          </p>
 
           {!otpSent && !pendingGoogle ? (
             <div className="customer-auth-method-list" role="tablist" aria-label="Choose login method">

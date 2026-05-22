@@ -16,4 +16,6 @@ public interface OmnichannelConversationMessageRepository extends JpaRepository<
     long countByConversation_IdAndDirectionAndCreatedAtAfter(UUID conversationId, String direction, LocalDateTime createdAt);
 
     long countByConversation_IdAndDirection(UUID conversationId, String direction);
+
+    boolean existsByConversation_IdAndDirectionAndExternalMessageId(UUID conversationId, String direction, String externalMessageId);
 }

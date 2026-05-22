@@ -118,10 +118,14 @@ public class BillingServiceImpl implements BillingService {
         invoice.setTotalAmount(totalAmount.setScale(2, RoundingMode.HALF_UP));
         invoice.setCouponCode(normalizedCouponCode);
         invoice.setDiscount(pricing.getDiscount().add(manualDiscount).setScale(2, RoundingMode.HALF_UP));
+        invoice.setTax(pricing.getTax());
+        invoice.setCgst(pricing.getCgst());
+        invoice.setSgst(pricing.getSgst());
+        invoice.setDelivery(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
         BigDecimal finalAmount = totalAmount
                 .subtract(invoice.getDiscount())
                 .add(pricing.getTax())
-                .add(pricing.getDelivery());
+                .add(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
         if (finalAmount.compareTo(BigDecimal.ZERO) < 0) {
             throw new BusinessException("Discount cannot exceed total invoice amount");
         }
@@ -185,6 +189,10 @@ public class BillingServiceImpl implements BillingService {
                 .salesPersonName(invoice.getSalesPersonName())
                 .totalAmount(invoice.getTotalAmount())
                 .discount(invoice.getDiscount())
+                .tax(invoice.getTax())
+                .cgst(invoice.getCgst())
+                .sgst(invoice.getSgst())
+                .delivery(invoice.getDelivery())
                 .finalAmount(invoice.getFinalAmount())
                 .paymentMode(invoice.getPaymentMode())
                 .couponCode(invoice.getCouponCode())
@@ -249,6 +257,10 @@ public class BillingServiceImpl implements BillingService {
         invoice.setTotalAmount(totalAmount.setScale(2, RoundingMode.HALF_UP));
         invoice.setCouponCode(normalizedCouponCode);
         invoice.setDiscount(pricing.getDiscount().add(manualDiscount).setScale(2, RoundingMode.HALF_UP));
+        invoice.setTax(pricing.getTax());
+        invoice.setCgst(pricing.getCgst());
+        invoice.setSgst(pricing.getSgst());
+        invoice.setDelivery(pricing.getDelivery());
         BigDecimal finalAmount = totalAmount
                 .subtract(invoice.getDiscount())
                 .add(pricing.getTax())
@@ -311,8 +323,10 @@ public class BillingServiceImpl implements BillingService {
         order.setAddress(null);
         order.setSubtotal(invoice.getTotalAmount());
         order.setDiscount(invoice.getDiscount());
-        order.setTax(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
-        order.setDelivery(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
+        order.setTax(invoice.getTax());
+        order.setCgst(invoice.getCgst());
+        order.setSgst(invoice.getSgst());
+        order.setDelivery(invoice.getDelivery());
         order.setFinalAmount(invoice.getFinalAmount());
         order.setCouponCode(invoice.getCouponCode());
         order.setPaymentGateway(invoice.getPaymentMode().name());

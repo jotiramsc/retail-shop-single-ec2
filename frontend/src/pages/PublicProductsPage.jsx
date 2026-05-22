@@ -11,6 +11,7 @@ import { defaultBranding } from '../utils/branding';
 import { addGuestCartItem, getGuestCartCount } from '../utils/cart';
 import { storeCheckoutCouponCode } from '../utils/checkout';
 import { getApiErrorMessage } from '../utils/validation';
+import { trackMetaEvent } from '../utils/metaPixel';
 import { applySeo, preloadImage } from '../utils/seo';
 import StorefrontHeader from '../components/StorefrontHeader';
 
@@ -45,7 +46,12 @@ function normalizeId(value) {
 }
 
 function productImage(product, fallback) {
-  return product?.imageDataUrl || fallback || templateImages.empty;
+  return product?.productImages?.[0] || product?.imageDataUrl || fallback || templateImages.empty;
+}
+
+function productImages(product, fallback) {
+  const images = product?.productImages?.length ? product.productImages : (product?.imageDataUrl ? [product.imageDataUrl] : []);
+  return images.length ? images : [fallback || templateImages.empty];
 }
 
 function productFallback(index) {
@@ -57,6 +63,29 @@ function productFallback(index) {
     templateImages.necklace
   ];
   return fallbacks[index % fallbacks.length];
+}
+
+function finalProductPrice(product) {
+  return Number(product?.offerPrice ?? product?.websitePrice ?? product?.sellingPrice ?? 0);
+}
+
+function ProductDealPrice({ product, compact = false }) {
+  const originalPrice = Number(product?.originalPrice ?? product?.websitePrice ?? product?.sellingPrice ?? 0);
+  const finalPrice = finalProductPrice(product);
+  const hasDiscount = Number(product?.youSave || 0) > 0 && originalPrice > finalPrice;
+  const discountPercent = Number(product?.discountPercent || 0);
+
+  return (
+    <div className={`product-deal-price ${compact ? 'compact' : ''}`}>
+      {hasDiscount ? (
+        <div className="deal-price-line">
+          <span className="deal-original">{currency(originalPrice)}</span>
+          {discountPercent > 0 ? <span className="deal-badge">{discountPercent}% OFF</span> : null}
+        </div>
+      ) : null}
+      <strong>{currency(finalPrice)}</strong>
+    </div>
+  );
 }
 
 function HeartIcon({ filled = false }) {
@@ -128,6 +157,101 @@ function priceRangeLabel(price) {
 
 function detailPath(product) {
   return `/products/${product.id}`;
+}
+
+function ProductCardImageCarousel({ product, fallback }) {
+  const [activeIndex, setActiveIndex] = useState(0);
+  const touchStartXRef = useRef(null);
+  const images = productImages(product, fallback);
+  const activeImage = images[Math.min(activeIndex, images.length - 1)] || fallback || templateImages.empty;
+  const hasMultipleImages = images.length > 1;
+
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [product.id]);
+
+  const moveImage = (event, direction) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setActiveIndex((current) => {
+      const next = current + direction;
+      if (next < 0) {
+        return images.length - 1;
+      }
+      if (next >= images.length) {
+        return 0;
+      }
+      return next;
+    });
+  };
+
+  const handleTouchStart = (event) => {
+    if (!hasMultipleImages) {
+      return;
+    }
+    touchStartXRef.current = event.touches?.[0]?.clientX ?? null;
+  };
+
+  const handleTouchEnd = (event) => {
+    if (!hasMultipleImages || touchStartXRef.current == null) {
+      return;
+    }
+    const endX = event.changedTouches?.[0]?.clientX ?? touchStartXRef.current;
+    const delta = endX - touchStartXRef.current;
+    touchStartXRef.current = null;
+    if (Math.abs(delta) < 32) {
+      return;
+    }
+    setActiveIndex((current) => {
+      if (delta < 0) {
+        return current + 1 >= images.length ? 0 : current + 1;
+      }
+      return current - 1 < 0 ? images.length - 1 : current - 1;
+    });
+  };
+
+  return (
+    <div className="glow-product-card-media" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
+      <img key={activeImage} src={activeImage} alt={product.name} loading="lazy" decoding="async" />
+      {hasMultipleImages ? (
+        <>
+          <button
+            type="button"
+            className="product-card-image-arrow is-left"
+            onClick={(event) => moveImage(event, -1)}
+            aria-label="Previous product image"
+          >
+            ‹
+          </button>
+          <button
+            type="button"
+            className="product-card-image-arrow is-right"
+            onClick={(event) => moveImage(event, 1)}
+            aria-label="Next product image"
+          >
+            ›
+          </button>
+        </>
+      ) : null}
+      {hasMultipleImages ? (
+        <div className="product-card-image-dots" aria-label={`${product.name} image selector`}>
+          {images.slice(0, 5).map((image, index) => (
+            <button
+              key={`${image}-${index}`}
+              type="button"
+              className={index === activeIndex ? 'is-active' : ''}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setActiveIndex(index);
+              }}
+              aria-label={`Show image ${index + 1}`}
+            />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 export default function PublicProductsPage({ branding }) {
@@ -235,17 +359,17 @@ export default function PublicProductsPage({ branding }) {
         const matchesSearch = !searchQuery.trim()
           || `${product.name} ${product.sku} ${product.category}`.toLowerCase().includes(searchQuery.trim().toLowerCase());
         const matchesPrice = activePriceRange === 'All Prices'
-          || priceRangeLabel(Number(product.sellingPrice || 0)) === activePriceRange;
+          || priceRangeLabel(finalProductPrice(product)) === activePriceRange;
 
         return matchesCategory && matchesSearch && matchesPrice;
       })
       .sort((left, right) => {
         if (activeSort === 'Price: Low to High') {
-          return Number(left.sellingPrice || 0) - Number(right.sellingPrice || 0);
+          return finalProductPrice(left) - finalProductPrice(right);
         }
 
         if (activeSort === 'Price: High to Low') {
-          return Number(right.sellingPrice || 0) - Number(left.sellingPrice || 0);
+          return finalProductPrice(right) - finalProductPrice(left);
         }
 
         if (activeSort === 'Name') {
@@ -287,6 +411,28 @@ export default function PublicProductsPage({ branding }) {
     preloadImage(heroImage, 'high');
   }, [heroImage, heroTitle, seoDescription, shopName]);
 
+  useEffect(() => {
+    if (!customerSession?.token) {
+      return undefined;
+    }
+    const timeout = window.setTimeout(() => {
+      const hasSearchContext = searchQuery.trim() || activeCategory !== 'all' || activePriceRange !== 'All Prices';
+      if (!hasSearchContext) {
+        return;
+      }
+      retailService.trackCustomerActivity({
+        activityType: searchQuery.trim() ? 'SEARCH' : 'FILTER',
+        searchKeyword: searchQuery.trim(),
+        category: activeCategory !== 'all' ? categories.find((item) => item.id === activeCategory)?.name : '',
+        filterUsed: activePriceRange !== 'All Prices' ? activePriceRange : '',
+        priceRange: activePriceRange !== 'All Prices' ? activePriceRange : '',
+        resultCount: filteredProducts.length,
+        page: '/products'
+      }).catch(() => {});
+    }, 700);
+    return () => window.clearTimeout(timeout);
+  }, [activeCategory, activePriceRange, categories, customerSession?.token, searchQuery]);
+
   const updateCategory = (id) => {
     const next = new URLSearchParams(searchParams);
     if (id === 'all') {
@@ -324,6 +470,21 @@ export default function PublicProductsPage({ branding }) {
         const items = addGuestCartItem(product.id, 1);
         setCartCount(items.reduce((total, item) => total + Number(item.quantity || 0), 0));
       }
+      trackMetaEvent(branding.metaPixelId, 'AddToCart', {
+        content_ids: [product.sku || product.id],
+        content_type: 'product',
+        value: Number(product.offerPrice ?? product.sellingPrice ?? 0),
+        currency: 'INR'
+      });
+      if (customerSession?.token) {
+        retailService.trackCustomerActivity({
+          activityType: 'ADD_TO_CART',
+          productId: product.id,
+          productName: product.name,
+          category: product.category,
+          page: '/products'
+        }).catch(() => {});
+      }
       setCartMessage(successMessage);
       return true;
     } catch (err) {
@@ -344,6 +505,13 @@ export default function PublicProductsPage({ branding }) {
       const wishlist = await retailService.addToWishlist({ productId: product.id, quantity: 1 });
       setWishlistCount((wishlist || []).length);
       setWishlistProductIds(new Set((wishlist || []).map((item) => String(item.productId))));
+      retailService.trackCustomerActivity({
+        activityType: 'WISHLIST_ADD',
+        productId: product.id,
+        productName: product.name,
+        category: product.category,
+        page: '/products'
+      }).catch(() => {});
       setCartMessage(`${product.name} added to wishlist.`);
     } catch (err) {
       if (isCustomerAuthError(err)) {
@@ -523,40 +691,58 @@ export default function PublicProductsPage({ branding }) {
                 className="glow-product-card-template glow-reveal"
                 style={{ transitionDelay: `${Math.min(index * 0.05, 0.45)}s` }}
               >
-                <div className="glow-product-card-media">
-                  <img
-                    src={productImage(product, productFallback(index))}
-                    alt={product.name}
-                    loading="lazy"
-                    decoding="async"
-                  />
-                  {product.showInNewRelease ? <span className="glow-product-badge">New</span> : null}
-                  <button
-                    type="button"
-                    className={`product-wishlist-btn ${wishlistProductIds.has(String(product.id)) ? 'is-saved' : ''}`}
-                    onClick={() => saveToWishlist(product)}
-                    aria-label={`Add ${product.name} to wishlist`}
-                    title="Add to wishlist"
-                  >
-                    <HeartIcon filled={wishlistProductIds.has(String(product.id))} />
-                  </button>
-                </div>
+                <ProductCardImageCarousel
+                  product={product}
+                  fallback={productFallback(index)}
+                />
                 <div className="glow-product-card-copy">
                   <p>{titleCaseCategory(product.category)}</p>
                   <h3>
-                    <Link to={detailPath(product)}>{product.name}</Link>
+                    <Link
+                      to={detailPath(product)}
+                      onClick={() => {
+                        if (customerSession?.token) {
+                          retailService.trackCustomerActivity({
+                            activityType: 'PRODUCT_CLICK',
+                            productId: product.id,
+                            productName: product.name,
+                            clickedProduct: product.name,
+                            category: product.category,
+                            page: '/products'
+                          }).catch(() => {});
+                        }
+                      }}
+                    >
+                      {product.name}
+                    </Link>
                   </h3>
                   <div className="glow-product-card-meta">
-                    <strong>{currency(product.sellingPrice)}</strong>
-                    <span>{product.sku}</span>
-                  </div>
-                  <div className="glow-product-card-tags">
-                    <span>{product.stockLabel || (product.inStock ? 'Available now' : 'Out of stock')}</span>
-                    {product.showInFeaturedPieces ? <span>Featured</span> : null}
-                    {product.showInNewRelease ? <span>New arrival</span> : null}
+                    <ProductDealPrice product={product} compact />
+                    {product.inStock ? (
+                      <span className="clean-stock-badge">{product.stockLabel || 'Available now'}</span>
+                    ) : (
+                      <span className="clean-stock-badge is-out">Out of stock</span>
+                    )}
                   </div>
                   <div className="glow-product-card-actions">
-                    <Link className="ghost-btn compact-btn" to={detailPath(product)}>View details</Link>
+                    <Link
+                      className="ghost-btn compact-btn"
+                      to={detailPath(product)}
+                      onClick={() => {
+                        if (customerSession?.token) {
+                          retailService.trackCustomerActivity({
+                            activityType: 'PRODUCT_CLICK',
+                            productId: product.id,
+                            productName: product.name,
+                            clickedProduct: product.name,
+                            category: product.category,
+                            page: '/products'
+                          }).catch(() => {});
+                        }
+                      }}
+                    >
+                      View details
+                    </Link>
                     <button
                       type="button"
                       className="primary-btn compact-btn"
@@ -565,7 +751,6 @@ export default function PublicProductsPage({ branding }) {
                     >
                       {product.inStock ? 'Add to cart' : 'Out of stock'}
                     </button>
-                    <span>{product.stockLabel || (product.inStock ? 'Available now' : 'Out of stock')}</span>
                   </div>
                 </div>
               </article>

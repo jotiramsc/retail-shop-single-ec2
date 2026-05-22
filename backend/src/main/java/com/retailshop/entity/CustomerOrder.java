@@ -53,6 +53,12 @@ public class CustomerOrder {
     private BigDecimal tax = BigDecimal.ZERO;
 
     @Column(nullable = false, precision = 12, scale = 2)
+    private BigDecimal cgst = BigDecimal.ZERO;
+
+    @Column(nullable = false, precision = 12, scale = 2)
+    private BigDecimal sgst = BigDecimal.ZERO;
+
+    @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal delivery = BigDecimal.ZERO;
 
     @Column(name = "final_amount", nullable = false, precision = 12, scale = 2)

@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.time.LocalDate;
 import java.util.UUID;
 
 @RestController
@@ -36,8 +37,10 @@ public class SupportInboxController {
 
     @GetMapping("/conversations")
     public List<SupportConversationSummaryResponse> conversations(@RequestParam(required = false) String status,
-                                                                  @RequestParam(required = false) String search) {
-        return supportInboxService.listConversations(status, search);
+                                                                  @RequestParam(required = false) String search,
+                                                                  @RequestParam(required = false) LocalDate fromDate,
+                                                                  @RequestParam(required = false) LocalDate toDate) {
+        return supportInboxService.listConversations(status, search, fromDate, toDate);
     }
 
     @GetMapping("/conversations/{conversationId}")
@@ -60,5 +63,10 @@ public class SupportInboxController {
     @PatchMapping("/conversations/{conversationId}/resolve")
     public SupportConversationDetailResponse resolve(@PathVariable UUID conversationId) {
         return supportInboxService.markResolved(conversationId);
+    }
+
+    @PatchMapping("/conversations/{conversationId}/reopen")
+    public SupportConversationDetailResponse reopen(@PathVariable UUID conversationId) {
+        return supportInboxService.reopen(conversationId);
     }
 }

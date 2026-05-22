@@ -8,6 +8,8 @@ import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Getter
@@ -76,10 +78,70 @@ public class ReceiptSettings {
     @Column(name = "show_gst_number", nullable = false)
     private Boolean showGstNumber;
 
+    @Column(name = "tax_enabled", nullable = false)
+    private Boolean taxEnabled;
+
+    @Column(name = "cgst_percent", nullable = false, precision = 7, scale = 2)
+    private BigDecimal cgstPercent;
+
+    @Column(name = "sgst_percent", nullable = false, precision = 7, scale = 2)
+    private BigDecimal sgstPercent;
+
+    @Column(name = "delivery_fee_enabled", nullable = false)
+    private Boolean deliveryFeeEnabled;
+
+    @Column(name = "delivery_fee", nullable = false, precision = 12, scale = 2)
+    private BigDecimal deliveryFee;
+
+    @Column(name = "free_delivery_threshold", nullable = false, precision = 12, scale = 2)
+    private BigDecimal freeDeliveryThreshold;
+
+    @Column(name = "facebook_catalog_enabled", nullable = false)
+    private Boolean facebookCatalogEnabled;
+
+    @Column(name = "meta_pixel_id", length = 100)
+    private String metaPixelId;
+
+    @Column(name = "facebook_feed_token")
+    private String facebookFeedToken;
+
+    @Column(name = "facebook_feed_last_generated_at")
+    private LocalDateTime facebookFeedLastGeneratedAt;
+
     @PrePersist
     public void prePersist() {
         if (id == null) {
             id = UUID.randomUUID();
+        }
+        applyDefaults();
+    }
+
+    @jakarta.persistence.PreUpdate
+    public void preUpdate() {
+        applyDefaults();
+    }
+
+    private void applyDefaults() {
+        if (taxEnabled == null) {
+            taxEnabled = Boolean.FALSE;
+        }
+        if (cgstPercent == null) {
+            cgstPercent = BigDecimal.ZERO;
+        }
+        if (sgstPercent == null) {
+            sgstPercent = BigDecimal.ZERO;
+        }
+        if (deliveryFeeEnabled == null) {
+            deliveryFeeEnabled = Boolean.FALSE;
+        }
+        if (deliveryFee == null) {
+            deliveryFee = BigDecimal.ZERO;
+        }
+        if (freeDeliveryThreshold == null) {
+            freeDeliveryThreshold = BigDecimal.ZERO;
+        }
+        if (facebookCatalogEnabled == null) {
+            facebookCatalogEnabled = Boolean.FALSE;
         }
     }
 }

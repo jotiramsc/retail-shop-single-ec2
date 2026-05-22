@@ -157,10 +157,49 @@ class BillingServiceImplTest {
         assertThrows(BusinessException.class, () -> billingService.createInvoice(request));
     }
 
+    @Test
+    void shouldIncludeConfiguredGstInShopBillingInvoice() {
+        InvoiceItemRequest line = new InvoiceItemRequest();
+        line.setProductId(product.getId());
+        line.setQuantity(2);
+
+        InvoiceCreateRequest request = new InvoiceCreateRequest();
+        request.setCustomerName(customer.getName());
+        request.setCustomerMobile(customer.getMobile());
+        request.setSalesPersonUserId(salesPerson.getId());
+        request.setItems(List.of(line));
+        request.setPaymentMode(PaymentMode.CASH);
+        request.setManualDiscount(BigDecimal.ZERO);
+
+        when(customerService.findOrCreateCustomer(customer.getName(), customer.getMobile())).thenReturn(customer);
+        when(productRepository.findById(product.getId())).thenReturn(Optional.of(product));
+        when(orderPricingService.priceProducts(eq(Map.of(product.getId(), 2)), eq(null))).thenReturn(
+                pricingResult(2, BigDecimal.ZERO, BigDecimal.valueOf(53.91), BigDecimal.valueOf(53.91))
+        );
+        when(invoiceRepository.save(any(Invoice.class))).thenAnswer(invocation -> {
+            Invoice invoice = invocation.getArgument(0);
+            invoice.setId(UUID.randomUUID());
+            return invoice;
+        });
+        when(invoiceItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var response = billingService.createInvoice(request);
+
+        assertEquals(BigDecimal.valueOf(107.82).setScale(2), response.getTax());
+        assertEquals(BigDecimal.valueOf(53.91).setScale(2), response.getCgst());
+        assertEquals(BigDecimal.valueOf(53.91).setScale(2), response.getSgst());
+        assertEquals(BigDecimal.valueOf(1305.82).setScale(2), response.getFinalAmount());
+    }
+
     private OrderPricingResult pricingResult(int quantity, BigDecimal automaticDiscount) {
+        return pricingResult(quantity, automaticDiscount, BigDecimal.ZERO, BigDecimal.ZERO);
+    }
+
+    private OrderPricingResult pricingResult(int quantity, BigDecimal automaticDiscount, BigDecimal cgst, BigDecimal sgst) {
         BigDecimal subtotal = product.getSellingPrice()
                 .multiply(BigDecimal.valueOf(quantity))
                 .setScale(2);
+        BigDecimal tax = cgst.add(sgst).setScale(2);
         return OrderPricingResult.builder()
                 .items(List.of(OrderPricingItem.builder()
                         .productId(product.getId())
@@ -180,9 +219,11 @@ class BillingServiceImplTest {
                 .automaticDiscount(automaticDiscount.setScale(2))
                 .couponDiscount(BigDecimal.ZERO.setScale(2))
                 .discount(automaticDiscount.setScale(2))
-                .tax(BigDecimal.ZERO.setScale(2))
+                .tax(tax)
+                .cgst(cgst.setScale(2))
+                .sgst(sgst.setScale(2))
                 .delivery(BigDecimal.ZERO.setScale(2))
-                .finalTotal(subtotal.subtract(automaticDiscount).setScale(2))
+                .finalTotal(subtotal.subtract(automaticDiscount).add(tax).setScale(2))
                 .build();
     }
 }

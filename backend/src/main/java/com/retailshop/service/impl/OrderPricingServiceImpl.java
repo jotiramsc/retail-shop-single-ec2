@@ -1,15 +1,16 @@
 package com.retailshop.service.impl;
 
-import com.retailshop.config.AppProperties;
 import com.retailshop.dto.CartResponse;
 import com.retailshop.dto.OfferResponse;
 import com.retailshop.entity.Offer;
 import com.retailshop.entity.Product;
+import com.retailshop.entity.ReceiptSettings;
 import com.retailshop.enums.DiscountType;
 import com.retailshop.exception.BusinessException;
 import com.retailshop.exception.ResourceNotFoundException;
 import com.retailshop.repository.OfferRepository;
 import com.retailshop.repository.ProductRepository;
+import com.retailshop.repository.ReceiptSettingsRepository;
 import com.retailshop.service.CartService;
 import com.retailshop.service.pricing.OrderPricingItem;
 import com.retailshop.service.pricing.OrderPricingResult;
@@ -35,10 +36,10 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class OrderPricingServiceImpl implements OrderPricingService {
 
-    private final AppProperties appProperties;
     private final CartService cartService;
     private final OfferRepository offerRepository;
     private final ProductRepository productRepository;
+    private final ReceiptSettingsRepository receiptSettingsRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -120,8 +121,13 @@ public class OrderPricingServiceImpl implements OrderPricingService {
         BigDecimal finalSubtotal = subtotal.setScale(2, RoundingMode.HALF_UP);
         BigDecimal finalAutomaticDiscount = automaticDiscount.setScale(2, RoundingMode.HALF_UP);
         BigDecimal finalSelectedDiscount = selectedDiscount.setScale(2, RoundingMode.HALF_UP);
-        BigDecimal tax = calculateTax(finalSubtotal.subtract(finalSelectedDiscount));
-        BigDecimal delivery = calculateDelivery(finalSubtotal.subtract(finalSelectedDiscount));
+        ReceiptSettings billingConfig = billingConfig();
+        BigDecimal taxableAmount = finalSubtotal.subtract(finalSelectedDiscount).max(BigDecimal.ZERO);
+        BigDecimal cgst = calculateTaxComponent(taxableAmount, billingConfig == null || !Boolean.TRUE.equals(billingConfig.getTaxEnabled()) ? null : billingConfig.getCgstPercent());
+        BigDecimal sgst = calculateTaxComponent(taxableAmount, billingConfig == null || !Boolean.TRUE.equals(billingConfig.getTaxEnabled()) ? null : billingConfig.getSgstPercent());
+        BigDecimal tax = cgst.add(sgst).setScale(2, RoundingMode.HALF_UP);
+        DeliveryCharge deliveryCharge = calculateDelivery(taxableAmount, priceMode, billingConfig);
+        BigDecimal delivery = deliveryCharge.amount();
         BigDecimal finalTotal = finalSubtotal
                 .subtract(finalSelectedDiscount)
                 .add(tax)
@@ -141,7 +147,11 @@ public class OrderPricingServiceImpl implements OrderPricingService {
                 .couponDiscount(couponEvaluation.discount())
                 .discount(finalSelectedDiscount)
                 .tax(tax)
+                .cgst(cgst)
+                .sgst(sgst)
                 .delivery(delivery)
+                .freeDelivery(deliveryCharge.free())
+                .freeDeliveryThreshold(deliveryCharge.threshold())
                 .finalTotal(finalTotal)
                 .build();
     }
@@ -157,7 +167,11 @@ public class OrderPricingServiceImpl implements OrderPricingService {
                 .couponDiscount(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP))
                 .discount(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP))
                 .tax(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP))
+                .cgst(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP))
+                .sgst(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP))
                 .delivery(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP))
+                .freeDelivery(false)
+                .freeDeliveryThreshold(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP))
                 .finalTotal(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP))
                 .build();
     }
@@ -250,7 +264,11 @@ public class OrderPricingServiceImpl implements OrderPricingService {
             discountType = switch (offer.getType()) {
                 case FLAT -> DiscountType.FLAT;
                 case PERCENT, CATEGORY -> DiscountType.PERCENT;
+                case BUY_ONE_GET_ONE, BUY_X_GET_Y, COMBO -> null;
             };
+            if (discountType == null) {
+                return BigDecimal.ZERO;
+            }
             value = offer.getValue();
         }
 
@@ -263,10 +281,7 @@ public class OrderPricingServiceImpl implements OrderPricingService {
         return discount.min(base).setScale(2, RoundingMode.HALF_UP);
     }
 
-    private BigDecimal calculateTax(BigDecimal taxableAmount) {
-        BigDecimal taxPercent = appProperties.getPricing() == null
-                ? BigDecimal.ZERO
-                : appProperties.getPricing().getTaxPercent();
+    private BigDecimal calculateTaxComponent(BigDecimal taxableAmount, BigDecimal taxPercent) {
         if (taxPercent == null || taxPercent.compareTo(BigDecimal.ZERO) <= 0) {
             return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
         }
@@ -275,20 +290,26 @@ public class OrderPricingServiceImpl implements OrderPricingService {
                 .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
     }
 
-    private BigDecimal calculateDelivery(BigDecimal discountedSubtotal) {
-        BigDecimal deliveryCharge = appProperties.getPricing() == null
-                ? BigDecimal.ZERO
-                : appProperties.getPricing().getDeliveryCharge();
-        BigDecimal freeDeliveryMinOrder = appProperties.getPricing() == null
-                ? BigDecimal.ZERO
-                : appProperties.getPricing().getFreeDeliveryMinOrder();
+    private DeliveryCharge calculateDelivery(BigDecimal discountedSubtotal, PriceMode priceMode, ReceiptSettings settings) {
+        BigDecimal zero = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        BigDecimal threshold = settings == null || settings.getFreeDeliveryThreshold() == null
+                ? zero
+                : settings.getFreeDeliveryThreshold().max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
+        if (priceMode != PriceMode.WEBSITE || settings == null || !Boolean.TRUE.equals(settings.getDeliveryFeeEnabled())) {
+            return new DeliveryCharge(zero, false, threshold);
+        }
+        BigDecimal deliveryCharge = settings.getDeliveryFee();
         if (deliveryCharge == null || deliveryCharge.compareTo(BigDecimal.ZERO) <= 0) {
-            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+            return new DeliveryCharge(zero, false, threshold);
         }
-        if (freeDeliveryMinOrder != null && discountedSubtotal.compareTo(freeDeliveryMinOrder) >= 0) {
-            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        if (threshold.compareTo(BigDecimal.ZERO) > 0 && discountedSubtotal.compareTo(threshold) >= 0) {
+            return new DeliveryCharge(zero, true, threshold);
         }
-        return deliveryCharge.setScale(2, RoundingMode.HALF_UP);
+        return new DeliveryCharge(deliveryCharge.setScale(2, RoundingMode.HALF_UP), false, threshold);
+    }
+
+    private ReceiptSettings billingConfig() {
+        return receiptSettingsRepository.findAll().stream().findFirst().orElse(null);
     }
 
     private String normalizeCouponCode(String couponCode) {
@@ -334,6 +355,9 @@ public class OrderPricingServiceImpl implements OrderPricingService {
     }
 
     private record CouponEvaluation(String appliedCouponCode, BigDecimal discount) {
+    }
+
+    private record DeliveryCharge(BigDecimal amount, boolean free, BigDecimal threshold) {
     }
 
     private enum PriceMode {

@@ -16,4 +16,6 @@ public class SupportConversationSummaryResponse {
     private String latestMessage;
     private long unreadCount;
     private LocalDateTime updatedAt;
+    private LocalDateTime resolvedAt;
+    private String resolvedBy;
 }

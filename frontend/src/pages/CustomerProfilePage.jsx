@@ -7,6 +7,7 @@ import {
   isCustomerAuthError,
   storeCustomerSession
 } from '../utils/auth';
+import { currency, formatDate } from '../utils/format';
 import { getApiErrorMessage } from '../utils/validation';
 
 const initialAddress = {
@@ -46,6 +47,8 @@ export default function CustomerProfilePage() {
   const [customerSession, setCustomerSession] = useState(() => getStoredCustomerSession());
   const [profile, setProfile] = useState(null);
   const [addresses, setAddresses] = useState([]);
+  const [orders, setOrders] = useState([]);
+  const [wishlistItems, setWishlistItems] = useState([]);
   const [profileName, setProfileName] = useState('');
   const [profileEmail, setProfileEmail] = useState('');
   const [profileMobile, setProfileMobile] = useState('');
@@ -53,6 +56,19 @@ export default function CustomerProfilePage() {
   const [profileGender, setProfileGender] = useState('');
   const [profileImageUrl, setProfileImageUrl] = useState('');
   const [alternateMobile, setAlternateMobile] = useState('');
+  const [anniversaryDate, setAnniversaryDate] = useState('');
+  const [preferredLanguage, setPreferredLanguage] = useState('Marathi');
+  const [instagramId, setInstagramId] = useState('');
+  const [customerNotes, setCustomerNotes] = useState('');
+  const [favoriteCategory, setFavoriteCategory] = useState('');
+  const [preferredTone, setPreferredTone] = useState('Gold');
+  const [stylePreference, setStylePreference] = useState('Traditional');
+  const [bridalInterest, setBridalInterest] = useState(false);
+  const [festivalPreference, setFestivalPreference] = useState('Ganesh Chaturthi, Diwali, wedding gifting');
+  const [budgetRange, setBudgetRange] = useState('1000-3000');
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [activePanel, setActivePanel] = useState('addresses');
+  const [mobileSelectorOpen, setMobileSelectorOpen] = useState(false);
   const [mobileOtp, setMobileOtp] = useState('');
   const [mobileOtpSent, setMobileOtpSent] = useState(false);
   const [addressForm, setAddressForm] = useState(initialAddress);
@@ -73,9 +89,11 @@ export default function CustomerProfilePage() {
       setLoading(true);
       setError('');
       try {
-        const [profileResponse, addressResponse] = await Promise.all([
+        const [profileResponse, addressResponse, orderResponse, wishlistResponse] = await Promise.all([
           retailService.getCustomerProfile(),
-          retailService.getAddresses()
+          retailService.getAddresses(),
+          retailService.getOrders().catch(() => []),
+          retailService.getWishlist().catch(() => [])
         ]);
         setProfile(profileResponse);
         setProfileName(profileResponse?.name || '');
@@ -86,6 +104,8 @@ export default function CustomerProfilePage() {
         setProfileImageUrl(profileResponse?.profileImageUrl || '');
         setAlternateMobile(profileResponse?.alternateMobile || '');
         setAddresses(addressResponse || []);
+        setOrders(orderResponse || []);
+        setWishlistItems(wishlistResponse || []);
       } catch (err) {
         if (isCustomerAuthError(err)) {
           clearCustomerSession();
@@ -272,102 +292,187 @@ export default function CustomerProfilePage() {
     setCustomerSession(null);
   };
 
+  const latestOrder = orders[0];
+  const lastPurchasedProduct = latestOrder?.items?.[0]?.productName || wishlistItems[0]?.name || 'Not captured yet';
+  const totalSpent = orders.reduce((sum, order) => sum + Number(order.finalAmount || 0), 0);
+  const averageOrderValue = orders.length ? totalSpent / orders.length : 0;
+  const membershipLevel = totalSpent > 25000 ? 'Maharani Gold' : totalSpent > 10000 ? 'Pearl Insider' : 'New Collector';
+  const rewardPoints = Math.round(totalSpent / 100);
+  const activeCity = addresses[0]?.city || 'Pune';
+  const activeCustomerType = totalSpent > 25000 ? 'VIP' : orders.length ? 'Regular' : 'New';
+  const currentCustomer = {
+    id: profile?.customerId || 'current',
+    name: profileName || customerSession?.name || 'Krishnai Customer',
+    mobile: profileMobile || customerSession?.mobile || 'Mobile pending',
+    city: activeCity,
+    lastPurchase: latestOrder?.createdAt || latestOrder?.orderDate,
+    status: latestOrder?.status || 'Browsing',
+    type: activeCustomerType
+  };
+  const customerCards = [currentCustomer];
+  const filteredCustomerCards = customerCards.filter((customer) => [customer.name, customer.mobile, customer.city, customer.type]
+    .some((value) => String(value || '').toLowerCase().includes(customerSearch.toLowerCase())));
+  const profileCompletion = [
+    profileName,
+    profileMobile,
+    profileEmail,
+    profileDob,
+    profileGender,
+    alternateMobile,
+    addresses.length ? 'address' : '',
+    favoriteCategory
+  ].filter(Boolean).length;
+  const completionPercent = Math.round((profileCompletion / 8) * 100);
+  const panelTabs = [
+    { key: 'addresses', label: 'Saved Addresses' },
+    { key: 'orders', label: 'Orders' },
+    { key: 'wishlist', label: 'Wishlist' },
+    { key: 'support', label: 'Support' },
+    { key: 'measurements', label: 'Measurements' },
+    { key: 'rewards', label: 'Rewards' }
+  ];
+  const preferenceChips = [favoriteCategory || 'Pearl jewellery', preferredTone, stylePreference, bridalInterest ? 'Bridal shopping' : 'Occasion gifting', budgetRange].filter(Boolean);
+
+  const customerSelector = (
+    <aside className={`account-customer-panel ${mobileSelectorOpen ? 'is-open' : ''}`} aria-label="Customer selector">
+      <div className="account-selector-head">
+        <div>
+          <span>Customers</span>
+          <strong>Quick switch</strong>
+        </div>
+        <button type="button" onClick={() => setMobileSelectorOpen(false)} aria-label="Close customer selector">x</button>
+      </div>
+      <label className="account-selector-search">
+        <span>Search</span>
+        <input value={customerSearch} onChange={(event) => setCustomerSearch(event.target.value)} placeholder="Name or mobile" />
+      </label>
+      <button type="button" className="account-add-customer">Add Customer</button>
+      <div className="account-customer-list">
+        {filteredCustomerCards.map((customer) => (
+          <button key={customer.id} type="button" className="account-mini-customer-card is-active">
+            <span className="account-mini-avatar">{String(customer.name || '?').slice(0, 1).toUpperCase()}<i /></span>
+            <span>
+              <strong>{customer.name}</strong>
+              <small>{customer.mobile}</small>
+              <small>{customer.city} · {customer.lastPurchase ? formatDate(customer.lastPurchase) : 'No purchase yet'}</small>
+            </span>
+            <em>{customer.type}</em>
+          </button>
+        ))}
+      </div>
+    </aside>
+  );
+
   return (
-    <main className="glow-site customer-flow-page">
-      <section className="customer-flow-shell">
-        <div className="customer-flow-head">
+    <main className="glow-site customer-flow-page account-luxury-page">
+      <section className="account-luxury-shell">
+        <div className="account-luxury-head">
+          <button type="button" className="account-mobile-selector-btn" onClick={() => setMobileSelectorOpen(true)}>Customers</button>
           <div>
-            <p className="glow-kicker">Customer Account</p>
-            <h1>Profile and addresses</h1>
-            <p>Maintain your customer profile, saved Pune delivery addresses, and account access in one place.</p>
+            <p className="glow-kicker">KPS Krishnai Pearl Shopee</p>
+            <h1>Customer Account</h1>
+            <p>Manage jewellery preferences, saved delivery details, rewards, wishlist, support, and orders from one elegant dashboard.</p>
           </div>
           <div className="customer-profile-head-actions">
-            {redirectTo ? (
-              <Link className="glow-account-btn glow-account-btn-compact" to={redirectTo}>Continue checkout</Link>
-            ) : null}
-            <Link className="ghost-btn compact-btn" to="/orders">My orders</Link>
+            {redirectTo ? <Link className="glow-account-btn glow-account-btn-compact" to={redirectTo}>Continue checkout</Link> : null}
+            <Link className="ghost-btn compact-btn" to="/products">Shop collection</Link>
             <button type="button" className="ghost-btn compact-btn" onClick={logout}>Logout</button>
           </div>
         </div>
 
-        {loading ? <p>Loading account…</p> : null}
+        {loading ? (
+          <div className="account-skeleton-grid">
+            <span /><span /><span />
+          </div>
+        ) : null}
         {error ? <p className="error-text">{error}</p> : null}
-        {success ? <p className="success-text">{success}</p> : null}
+        {success ? <p className="success-text account-floating-save">{success}</p> : null}
 
         {!loading ? (
-          <div className="customer-checkout-layout">
-            <section className="customer-flow-panel">
-              <div className="customer-section-title">
+          <div className="account-dashboard-grid">
+            {customerSelector}
+
+            <section className="account-profile-panel">
+              <div className="account-profile-hero">
+                <div className="account-profile-photo">
+                  {profileImageUrl ? <img src={profileImageUrl} alt={profileName || 'Customer'} /> : <span>{String(profileName || 'K').slice(0, 1).toUpperCase()}</span>}
+                </div>
                 <div>
-                  <p className="glow-kicker">Profile</p>
-                  <h2>Customer details</h2>
+                  <p className="glow-kicker">{membershipLevel}</p>
+                  <h2>{profileName || 'Complete your profile'}</h2>
+                  <div className="account-badge-row">
+                    <span>{profile?.mobileVerified ? 'WhatsApp verified' : 'Verification pending'}</span>
+                    <span>{rewardPoints} reward points</span>
+                    <span>Member since {profile?.createdAt ? formatDate(profile.createdAt) : 'today'}</span>
+                  </div>
+                </div>
+                <div className="account-completion-ring">
+                  <strong>{completionPercent}%</strong>
+                  <span>Profile ready</span>
                 </div>
               </div>
 
               {mobileVerificationRequired ? (
                 <div className="customer-profile-alert">
                   <strong>{mobileChanged ? 'Mobile number changed' : 'Verify mobile number'}</strong>
-                  <span>
-                    {mobileChanged
-                      ? 'Save profile first, then verify this new mobile number once.'
-                      : 'Mobile OTP verification is required once for secure checkout.'}
-                  </span>
+                  <span>{mobileChanged ? 'Save profile first, then verify this new mobile number once.' : 'Mobile OTP verification is required once for secure checkout.'}</span>
                 </div>
               ) : (
                 <div className="customer-profile-alert is-complete">
                   <strong>Account ready</strong>
-                  <span>Profile details are optional and can be edited anytime.</span>
+                  <span>Your KPS profile is ready for faster checkout and curated jewellery recommendations.</span>
                 </div>
               )}
 
-              <form className="customer-address-form" onSubmit={saveProfile}>
-                <div className="customer-form-grid">
-                  <input
-                    value={profileName}
-                    onChange={(event) => setProfileName(event.target.value)}
-                    placeholder="Full name"
-                  />
-                  <input
-                    value={profileEmail}
-                    onChange={(event) => setProfileEmail(event.target.value)}
-                    placeholder="Email address"
-                    type="email"
-                  />
-                  <input
-                    value={profileMobile}
-                    onChange={(event) => setProfileMobile(event.target.value)}
-                    placeholder="Mobile number"
-                  />
-                  <input
-                    value={profileDob}
-                    onChange={(event) => setProfileDob(event.target.value)}
-                    placeholder="Date of birth"
-                    type="date"
-                  />
-                  <select value={profileGender} onChange={(event) => setProfileGender(event.target.value)}>
-                    <option value="">Gender</option>
-                    <option value="Female">Female</option>
-                    <option value="Male">Male</option>
-                    <option value="Other">Other</option>
-                    <option value="Prefer not to say">Prefer not to say</option>
-                  </select>
-                  <input
-                    value={alternateMobile}
-                    onChange={(event) => setAlternateMobile(event.target.value)}
-                    placeholder="Alternate mobile number"
-                  />
-                  <input
-                    value={profileImageUrl}
-                    onChange={(event) => setProfileImageUrl(event.target.value)}
-                    placeholder="Profile image URL"
-                  />
+              <form className="account-form-card" onSubmit={saveProfile}>
+                <div className="account-section-heading">
+                  <div>
+                    <p className="glow-kicker">Personal Details</p>
+                    <h3>Profile information</h3>
+                  </div>
+                  <span>{savingProfile ? 'Saving...' : 'Auto-save ready'}</span>
                 </div>
-                <div className="checkout-actions">
-                  <button type="submit" className="primary-btn compact-btn" disabled={savingProfile}>
-                    {savingProfile ? 'Saving...' : 'Save profile'}
-                  </button>
+                <div className="account-form-grid">
+                  <label>Full name<input value={profileName} onChange={(event) => setProfileName(event.target.value)} placeholder="Full name" /></label>
+                  <label>Email<input value={profileEmail} onChange={(event) => setProfileEmail(event.target.value)} placeholder="Email address" type="email" /></label>
+                  <label>Mobile<input value={profileMobile} onChange={(event) => setProfileMobile(event.target.value)} placeholder="Mobile number" /></label>
+                  <label>Alternate mobile<input value={alternateMobile} onChange={(event) => setAlternateMobile(event.target.value)} placeholder="Alternate mobile" /></label>
+                  <label>Date of birth<input value={profileDob} onChange={(event) => setProfileDob(event.target.value)} type="date" /></label>
+                  <label>Anniversary date<input value={anniversaryDate} onChange={(event) => setAnniversaryDate(event.target.value)} type="date" /></label>
+                  <label>Gender<select value={profileGender} onChange={(event) => setProfileGender(event.target.value)}><option value="">Select gender</option><option value="Female">Female</option><option value="Male">Male</option><option value="Other">Other</option><option value="Prefer not to say">Prefer not to say</option></select></label>
+                  <label>Preferred language<select value={preferredLanguage} onChange={(event) => setPreferredLanguage(event.target.value)}><option>Marathi</option><option>Hindi</option><option>English</option></select></label>
+                  <label>Instagram ID<input value={instagramId} onChange={(event) => setInstagramId(event.target.value)} placeholder="@username" /></label>
+                  <label>Profile image URL<input value={profileImageUrl} onChange={(event) => setProfileImageUrl(event.target.value)} placeholder="Profile image URL" /></label>
+                  <label className="is-wide">Notes/preferences<textarea value={customerNotes} onChange={(event) => setCustomerNotes(event.target.value)} placeholder="Sizing, gifting notes, preferred designs, or delivery context" /></label>
+                </div>
+                <div className="account-sticky-actions">
+                  <button type="submit" className="primary-btn compact-btn" disabled={savingProfile}>{savingProfile ? 'Saving...' : 'Save profile'}</button>
                 </div>
               </form>
+
+              <div className="account-form-card">
+                <div className="account-section-heading">
+                  <div>
+                    <p className="glow-kicker">Jewellery Preferences</p>
+                    <h3>Shopping intelligence</h3>
+                  </div>
+                </div>
+                <div className="account-form-grid">
+                  <label>Favorite category<input value={favoriteCategory} onChange={(event) => setFavoriteCategory(event.target.value)} placeholder="Pearl sets, bangles, earrings" /></label>
+                  <label>Preferred color tone<select value={preferredTone} onChange={(event) => setPreferredTone(event.target.value)}><option>Gold</option><option>Rose gold</option><option>Silver</option><option>Pearl white</option></select></label>
+                  <label>Style<select value={stylePreference} onChange={(event) => setStylePreference(event.target.value)}><option>Traditional</option><option>Modern</option><option>Bridal</option><option>Daily wear</option></select></label>
+                  <label>Budget range<input value={budgetRange} onChange={(event) => setBudgetRange(event.target.value)} placeholder="1000-3000" /></label>
+                  <label className="account-checkbox-row"><input type="checkbox" checked={bridalInterest} onChange={(event) => setBridalInterest(event.target.checked)} /> Bridal shopping interest</label>
+                  <label className="is-wide">Festival preferences<textarea value={festivalPreference} onChange={(event) => setFestivalPreference(event.target.value)} /></label>
+                </div>
+                <div className="account-chip-row">{preferenceChips.map((chip) => <span key={chip}>{chip}</span>)}</div>
+              </div>
+
+              <div className="account-insight-grid">
+                <div><span>Average order value</span><strong>{currency(averageOrderValue)}</strong></div>
+                <div><span>Last purchased</span><strong>{lastPurchasedProduct}</strong></div>
+                <div><span>Frequent category</span><strong>{favoriteCategory || wishlistItems[0]?.category || 'Pearl jewellery'}</strong></div>
+              </div>
 
               <div className={`customer-mobile-verification ${mobileVerificationRequired ? '' : 'is-verified'}`}>
                 <div>
@@ -376,19 +481,11 @@ export default function CustomerProfilePage() {
                 </div>
                 {mobileVerificationRequired && !mobileChanged ? (
                   <div className="customer-mobile-otp-actions">
-                    <button type="button" className="ghost-btn compact-btn" onClick={requestMobileOtp} disabled={verifyingMobile || !profileMobile}>
-                      {mobileOtpSent ? 'Resend OTP' : 'Send OTP'}
-                    </button>
+                    <button type="button" className="ghost-btn compact-btn" onClick={requestMobileOtp} disabled={verifyingMobile || !profileMobile}>{mobileOtpSent ? 'Resend OTP' : 'Send OTP'}</button>
                     {mobileOtpSent ? (
                       <>
-                        <input
-                          value={mobileOtp}
-                          onChange={(event) => setMobileOtp(event.target.value)}
-                          placeholder="OTP"
-                        />
-                        <button type="button" className="primary-btn compact-btn" onClick={verifyMobileOtp} disabled={verifyingMobile || !mobileOtp}>
-                          Verify mobile
-                        </button>
+                        <input value={mobileOtp} onChange={(event) => setMobileOtp(event.target.value)} placeholder="OTP" />
+                        <button type="button" className="primary-btn compact-btn" onClick={verifyMobileOtp} disabled={verifyingMobile || !mobileOtp}>Verify mobile</button>
                       </>
                     ) : null}
                   </div>
@@ -396,50 +493,45 @@ export default function CustomerProfilePage() {
               </div>
             </section>
 
-            <section className="customer-flow-panel">
-              <div className="customer-section-title">
-                <div>
-                  <p className="glow-kicker">Saved addresses</p>
-                  <h2>{addresses.length} address{addresses.length === 1 ? '' : 'es'} on file</h2>
-                </div>
+            <aside className="account-module-panel">
+              <div className="account-module-tabs">
+                {panelTabs.map((tab) => <button key={tab.key} type="button" className={activePanel === tab.key ? 'is-active' : ''} onClick={() => setActivePanel(tab.key)}>{tab.label}</button>)}
               </div>
 
-              <div className="customer-address-list">
-                {addresses.map((address) => (
-                  <div key={address.id} className="customer-address-card customer-address-card-static">
-                    <div>
-                      <strong>{address.label || address.recipientName}</strong>
-                      <p>{address.line1}, {address.city}, {address.state} {address.pincode}</p>
-                      <span>{address.mobile}</span>
-                    </div>
-                    <button type="button" className="ghost-btn compact-btn" onClick={() => deleteAddress(address.id)}>
-                      Remove
-                    </button>
-                  </div>
-                ))}
-              </div>
+              {activePanel === 'addresses' ? (
+                <div className="account-module-stack">
+                  <div className="account-section-heading"><div><p className="glow-kicker">Saved Addresses</p><h3>{addresses.length} address{addresses.length === 1 ? '' : 'es'}</h3></div></div>
+                  {addresses.map((address, index) => (
+                    <article key={address.id} className="account-address-card">
+                      <div><strong>{address.label || address.recipientName}</strong>{index === 0 ? <span>Default address</span> : null}</div>
+                      <p>{address.recipientName} · {address.mobile}</p>
+                      <p>{address.line1}{address.line2 ? `, ${address.line2}` : ''}, {address.landmark ? `${address.landmark}, ` : ''}{address.city}, {address.state} {address.pincode}</p>
+                      <small>Delivery instructions can be added before checkout.</small>
+                      <div><button type="button">Edit</button><button type="button" onClick={() => deleteAddress(address.id)}>Delete</button><button type="button">Set default</button><button type="button">Deliver here</button></div>
+                    </article>
+                  ))}
+                  {!addresses.length ? <div className="account-empty-module">No saved addresses yet.</div> : null}
+                  <form className="account-address-form" onSubmit={saveAddress}>
+                    <input value={addressForm.label} onChange={(event) => setAddressForm((current) => ({ ...current, label: event.target.value }))} placeholder="Address label" />
+                    <input value={addressForm.recipientName} onChange={(event) => setAddressForm((current) => ({ ...current, recipientName: event.target.value }))} placeholder="Recipient name" />
+                    <input value={addressForm.mobile} onChange={(event) => setAddressForm((current) => ({ ...current, mobile: event.target.value }))} placeholder="Mobile / WhatsApp number" />
+                    <input value={addressForm.line1} onChange={(event) => setAddressForm((current) => ({ ...current, line1: event.target.value }))} placeholder="House / flat" />
+                    <input value={addressForm.line2} onChange={(event) => setAddressForm((current) => ({ ...current, line2: event.target.value }))} placeholder="Area / street" />
+                    <input value={addressForm.landmark} onChange={(event) => setAddressForm((current) => ({ ...current, landmark: event.target.value }))} placeholder="Landmark" />
+                    <input value={addressForm.city} onChange={(event) => setAddressForm((current) => ({ ...current, city: event.target.value }))} placeholder="City" />
+                    <input value={addressForm.state} onChange={(event) => setAddressForm((current) => ({ ...current, state: event.target.value }))} placeholder="State" />
+                    <input value={addressForm.pincode} onChange={(event) => setAddressForm((current) => ({ ...current, pincode: event.target.value }))} placeholder="Pincode" />
+                    <button type="submit" className="primary-btn compact-btn" disabled={savingAddress}>{savingAddress ? 'Saving...' : 'Save address'}</button>
+                  </form>
+                </div>
+              ) : null}
 
-              <form className="customer-address-form" onSubmit={saveAddress}>
-                <div className="customer-form-grid customer-address-form-grid">
-                  <input value={addressForm.label} onChange={(event) => setAddressForm((current) => ({ ...current, label: event.target.value }))} placeholder="Label" />
-                  <input value={addressForm.recipientName} onChange={(event) => setAddressForm((current) => ({ ...current, recipientName: event.target.value }))} placeholder="Recipient name" />
-                  <input value={addressForm.mobile} onChange={(event) => setAddressForm((current) => ({ ...current, mobile: event.target.value }))} placeholder="Mobile number" />
-                  <input value={addressForm.line1} onChange={(event) => setAddressForm((current) => ({ ...current, line1: event.target.value }))} placeholder="Address line 1" />
-                  <input value={addressForm.line2} onChange={(event) => setAddressForm((current) => ({ ...current, line2: event.target.value }))} placeholder="Address line 2" />
-                  <input value={addressForm.landmark} onChange={(event) => setAddressForm((current) => ({ ...current, landmark: event.target.value }))} placeholder="Landmark" />
-                  <input value={addressForm.city} onChange={(event) => setAddressForm((current) => ({ ...current, city: event.target.value }))} placeholder="City" />
-                  <input value={addressForm.state} onChange={(event) => setAddressForm((current) => ({ ...current, state: event.target.value }))} placeholder="State" />
-                  <input value={addressForm.pincode} onChange={(event) => setAddressForm((current) => ({ ...current, pincode: event.target.value }))} placeholder="Pincode" />
-                  <input value={addressForm.latitude} onChange={(event) => setAddressForm((current) => ({ ...current, latitude: event.target.value }))} placeholder="Latitude" />
-                  <input value={addressForm.longitude} onChange={(event) => setAddressForm((current) => ({ ...current, longitude: event.target.value }))} placeholder="Longitude" />
-                </div>
-                <div className="checkout-actions">
-                  <button type="submit" className="primary-btn compact-btn" disabled={savingAddress}>
-                    {savingAddress ? 'Saving...' : 'Save address'}
-                  </button>
-                </div>
-              </form>
-            </section>
+              {activePanel === 'orders' ? <div className="account-module-stack">{orders.slice(0, 4).map((order) => <article key={order.id} className="account-order-card"><strong>{order.orderNumber}</strong><span>{order.status} · {order.paymentStatus}</span><b>{currency(order.finalAmount)}</b></article>)}{!orders.length ? <div className="account-empty-module">No orders yet.</div> : null}</div> : null}
+              {activePanel === 'wishlist' ? <div className="account-module-stack">{wishlistItems.slice(0, 5).map((item) => <article key={item.productId} className="account-order-card"><strong>{item.name}</strong><span>{item.category || 'Wishlist item'}</span><b>{currency(item.offerPrice || item.websitePrice || item.sellingPrice)}</b></article>)}{!wishlistItems.length ? <div className="account-empty-module">Wishlist items will appear here.</div> : null}</div> : null}
+              {activePanel === 'support' ? <div className="account-support-card"><strong>Need assistance?</strong><p>Raise a support request, continue WhatsApp support, ask about returns, or track an order with KPS staff.</p><div><Link to="/orders">Track order</Link><a href="https://wa.me/918830461523">WhatsApp support</a><button type="button">Raise ticket</button></div></div> : null}
+              {activePanel === 'measurements' ? <div className="account-support-card"><strong>Measurements</strong><p>Save ring size, bangle size, necklace length, and styling notes for future jewellery recommendations.</p><div><button type="button">Add ring size</button><button type="button">Add bangle size</button></div></div> : null}
+              {activePanel === 'rewards' ? <div className="account-support-card"><strong>{membershipLevel}</strong><p>{rewardPoints} reward points, referral rewards, coupon history, and festive member offers will be collected here.</p><div><button type="button">View coupons</button><button type="button">Refer friend</button></div></div> : null}
+            </aside>
           </div>
         ) : null}
       </section>

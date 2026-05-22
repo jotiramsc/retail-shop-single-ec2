@@ -8,6 +8,7 @@ import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 
 @Getter
 @Setter
@@ -43,6 +44,12 @@ public class ProductRequest {
 
     private String imageDataUrl;
 
+    private List<String> productImages;
+
+    private String description;
+
+    private Boolean generateAiDescription;
+
     private Boolean showOnWebsite;
 
     private Boolean useForBilling;
@@ -60,6 +67,8 @@ public class ProductRequest {
     private Boolean showInStory;
 
     private Boolean showInCuratedSelections;
+
+    private Boolean facebookSyncEnabled;
 
     private LocalDate expiryDate;
 }

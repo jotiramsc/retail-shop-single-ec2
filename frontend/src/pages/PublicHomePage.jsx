@@ -74,6 +74,32 @@ function normalizeId(value) {
     .replace(/^-|-$/g, '');
 }
 
+function hasDeal(product) {
+  return Number(product?.youSave || 0) > 0;
+}
+
+function ProductDealPrice({ product }) {
+  const deal = hasDeal(product);
+  const originalPrice = Number(product?.originalPrice ?? product?.sellingPrice ?? 0);
+  const offerPrice = Number(product?.offerPrice ?? product?.sellingPrice ?? 0);
+  return (
+    <div className="product-deal-price compact">
+      {deal ? (
+        <>
+          <div className="deal-price-line">
+            <span className="deal-original">{currency(originalPrice)}</span>
+            <span className="deal-badge">{Number(product.discountPercent || 0)}% OFF</span>
+          </div>
+          <strong>{currency(offerPrice)}</strong>
+          <span className="deal-save">Save {currency(product.youSave)}</span>
+        </>
+      ) : (
+        <strong>{currency(offerPrice)}</strong>
+      )}
+    </div>
+  );
+}
+
 function productImage(product, fallback) {
   return product?.imageDataUrl || fallback || templateImages.empty;
 }
@@ -489,14 +515,18 @@ export default function PublicHomePage({ branding, siteVisitCount }) {
                   loading="lazy"
                   decoding="async"
                 />
-                {product.showInNewRelease ? <span className="glow-product-badge">New</span> : null}
+                {hasDeal(product) ? <span className="glow-product-badge">{Number(product.discountPercent || 0)}% OFF</span> : (product.showInNewRelease ? <span className="glow-product-badge">New</span> : null)}
               </div>
               <div className="glow-product-copy">
                 <p>{titleCaseCategory(product.category)}</p>
                 <strong>{product.name}</strong>
                 <div className="glow-product-meta-line">
-                  <span>{currency(product.sellingPrice)}</span>
+                  <ProductDealPrice product={product} />
                   <small>{product.stockLabel || product.sku}</small>
+                </div>
+                <div className="deal-chip-row">
+                  {hasDeal(product) ? <span className="deal-chip">Best Deal</span> : null}
+                  {product.freeDeliveryEligible ? <span className="deal-chip positive">Free Delivery</span> : null}
                 </div>
               </div>
             </article>

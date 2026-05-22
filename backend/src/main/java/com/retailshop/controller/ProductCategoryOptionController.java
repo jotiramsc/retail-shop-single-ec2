@@ -64,4 +64,11 @@ public class ProductCategoryOptionController {
     public List<CategoryIconOptionResponse> generateIconOptions(@Valid @RequestBody CategoryIconGenerationRequest request) {
         return productCategoryOptionService.generateIconOptions(request.getCategoryName());
     }
+
+    @PostMapping("/{id}/icon")
+    @PreAuthorize("hasAuthority('PERM_PRODUCTS')")
+    public ProductCategoryOptionResponse generateIcon(@PathVariable UUID id,
+                                                      @RequestParam(defaultValue = "false") boolean replace) {
+        return productCategoryOptionService.generateIcon(id, replace);
+    }
 }

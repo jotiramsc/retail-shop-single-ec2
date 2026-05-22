@@ -10,6 +10,12 @@ create table if not exists products (
     quantity integer not null,
     low_stock_threshold integer not null,
     image_data_url text,
+    product_images text,
+    description text,
+    ai_description_status varchar(40),
+    ai_description text,
+    ai_description_generated_at timestamp,
+    ai_description_error text,
     show_on_website boolean not null default true,
     use_for_billing boolean not null default true,
     show_in_editors_picks boolean not null default false,
@@ -19,6 +25,7 @@ create table if not exists products (
     show_in_featured_pieces boolean not null default false,
     show_in_story boolean not null default false,
     show_in_curated_selections boolean not null default false,
+    active boolean not null default true,
     expiry_date date,
     created_at timestamp not null
 );
@@ -28,11 +35,17 @@ create table if not exists product_categories (
     code varchar(100) not null unique,
     display_name varchar(255) not null unique,
     icon_image_url text,
+    facebook_sync_enabled boolean not null default true,
+    facebook_category varchar(500),
+    facebook_collection_name varchar(255),
     active boolean not null default true,
     created_at timestamp not null
 );
 
 alter table product_categories add column if not exists icon_image_url text;
+alter table product_categories add column if not exists facebook_sync_enabled boolean not null default true;
+alter table product_categories add column if not exists facebook_category varchar(500);
+alter table product_categories add column if not exists facebook_collection_name varchar(255);
 
 create table if not exists image_assets (
     id uuid primary key,
@@ -45,6 +58,12 @@ create table if not exists image_assets (
 );
 
 alter table products add column if not exists show_on_website boolean not null default true;
+alter table products add column if not exists product_images text;
+alter table products add column if not exists description text;
+alter table products add column if not exists ai_description_status varchar(40);
+alter table products add column if not exists ai_description text;
+alter table products add column if not exists ai_description_generated_at timestamp;
+alter table products add column if not exists ai_description_error text;
 alter table products add column if not exists use_for_billing boolean not null default true;
 alter table products add column if not exists show_in_editors_picks boolean not null default false;
 alter table products add column if not exists show_in_new_release boolean not null default false;
@@ -53,6 +72,8 @@ alter table products add column if not exists show_in_shop_collection boolean no
 alter table products add column if not exists show_in_featured_pieces boolean not null default false;
 alter table products add column if not exists show_in_story boolean not null default false;
 alter table products add column if not exists show_in_curated_selections boolean not null default false;
+alter table products add column if not exists facebook_sync_enabled boolean not null default true;
+alter table products add column if not exists active boolean not null default true;
 alter table products add column if not exists website_price_percentage numeric(7, 2);
 alter table products add column if not exists website_price numeric(12, 2);
 update products
@@ -62,6 +83,29 @@ where website_price_percentage is not null
 update products
 set website_price = selling_price
 where website_price is null;
+update product_categories
+set facebook_sync_enabled = true
+where facebook_sync_enabled is null
+   or (facebook_sync_enabled = false and active = true);
+update product_categories
+set facebook_collection_name = display_name || ' Collection'
+where facebook_collection_name is null
+  and facebook_sync_enabled = true;
+update product_categories
+set facebook_category = case
+    when lower(display_name) like '%neck%' or lower(display_name) like '%mala%' then 'Apparel & Accessories > Jewelry > Necklaces'
+    when lower(display_name) like '%ear%' or lower(display_name) like '%jhum%' then 'Apparel & Accessories > Jewelry > Earrings'
+    when lower(display_name) like '%bangle%' or lower(display_name) like '%bracelet%' or lower(display_name) like '%bali%' then 'Apparel & Accessories > Jewelry > Bracelets'
+    when lower(display_name) like '%ring%' then 'Apparel & Accessories > Jewelry > Rings'
+    when lower(display_name) like '%cosmetic%' or lower(display_name) like '%lip%' or lower(display_name) like '%kajal%' or lower(display_name) like '%makeup%' then 'Health & Beauty > Personal Care > Cosmetics'
+    else 'Apparel & Accessories > Jewelry'
+end
+where facebook_category is null
+  and facebook_sync_enabled = true;
+update products
+set facebook_sync_enabled = true
+where facebook_sync_enabled is null
+   or (facebook_sync_enabled = false and active = true and show_on_website = true);
 
 create table if not exists customers (
     id uuid primary key,
@@ -104,6 +148,75 @@ update customers set customer_source = 'BOTH' where customer_source is null or t
 create unique index if not exists idx_customers_email_unique on customers (lower(email)) where email is not null and trim(email) <> '';
 create unique index if not exists idx_customers_google_subject_unique on customers (google_subject) where google_subject is not null and trim(google_subject) <> '';
 create index if not exists idx_customers_mobile_last10 on customers (right(regexp_replace(coalesce(mobile, ''), '[^0-9]', '', 'g'), 10));
+
+alter table customers add column if not exists anniversary_date date;
+alter table customers add column if not exists spouse_name varchar(255);
+alter table customers add column if not exists preferred_language varchar(80);
+alter table customers add column if not exists preferred_categories varchar(1000);
+alter table customers add column if not exists preferred_products varchar(1000);
+alter table customers add column if not exists preferred_brands varchar(1000);
+alter table customers add column if not exists preferred_price_range varchar(120);
+alter table customers add column if not exists shopping_interests varchar(1000);
+alter table customers add column if not exists customer_notes varchar(2000);
+alter table customers add column if not exists customer_tags varchar(1000);
+alter table customers add column if not exists birthday_reminder_enabled boolean not null default true;
+alter table customers add column if not exists anniversary_reminder_enabled boolean not null default true;
+alter table customers add column if not exists last_login_at timestamp;
+alter table customers add column if not exists last_login_method varchar(80);
+alter table customers add column if not exists last_known_location varchar(500);
+
+create table if not exists customer_login_history (
+    id uuid primary key,
+    customer_id uuid not null references customers(id) on delete cascade,
+    login_method varchar(80) not null,
+    login_at timestamp not null,
+    ip_address varchar(100),
+    device_type varchar(120),
+    browser varchar(160),
+    operating_system varchar(160),
+    source_page varchar(500),
+    status varchar(40) not null,
+    location varchar(500)
+);
+
+create index if not exists idx_customer_login_history_customer on customer_login_history(customer_id, login_at desc);
+
+create table if not exists customer_location_history (
+    id uuid primary key,
+    customer_id uuid not null references customers(id) on delete cascade,
+    latitude double precision,
+    longitude double precision,
+    city varchar(255),
+    state varchar(255),
+    country varchar(255),
+    pincode varchar(40),
+    accuracy_meters double precision,
+    location_source varchar(50),
+    created_at timestamp not null
+);
+
+create index if not exists idx_customer_location_history_customer on customer_location_history(customer_id, created_at desc);
+
+create table if not exists customer_activity_history (
+    id uuid primary key,
+    customer_id uuid not null references customers(id) on delete cascade,
+    activity_type varchar(80) not null,
+    search_keyword varchar(500),
+    category varchar(255),
+    filter_used varchar(500),
+    price_range varchar(120),
+    product_id uuid,
+    product_name varchar(255),
+    result_count integer,
+    clicked_product varchar(255),
+    time_spent_seconds integer,
+    campaign_source varchar(255),
+    page varchar(500),
+    created_at timestamp not null
+);
+
+create index if not exists idx_customer_activity_history_customer on customer_activity_history(customer_id, created_at desc);
+create index if not exists idx_customer_activity_history_type on customer_activity_history(activity_type, created_at desc);
 
 create table if not exists customer_otps (
     mobile varchar(20) primary key,
@@ -219,6 +332,8 @@ create table if not exists orders (
     subtotal numeric(12, 2) not null,
     discount numeric(12, 2) not null,
     tax numeric(12, 2) not null default 0,
+    cgst numeric(12, 2) not null default 0,
+    sgst numeric(12, 2) not null default 0,
     delivery numeric(12, 2) not null default 0,
     final_amount numeric(12, 2) not null,
     coupon_code varchar(100),
@@ -237,6 +352,8 @@ create table if not exists orders (
 alter table orders add column if not exists order_source varchar(50) not null default 'WEBSITE';
 alter table orders add column if not exists invoice_id uuid;
 alter table orders add column if not exists tax numeric(12, 2) not null default 0;
+alter table orders add column if not exists cgst numeric(12, 2) not null default 0;
+alter table orders add column if not exists sgst numeric(12, 2) not null default 0;
 alter table orders add column if not exists delivery numeric(12, 2) not null default 0;
 alter table orders add column if not exists sales_person_user_id uuid;
 alter table orders add column if not exists sales_person_name varchar(255) not null default 'Website';
@@ -317,6 +434,10 @@ create table if not exists invoices (
     customer_id uuid not null references customers(id),
     total_amount numeric(12, 2) not null,
     discount numeric(12, 2) not null,
+    tax numeric(12, 2) not null default 0,
+    cgst numeric(12, 2) not null default 0,
+    sgst numeric(12, 2) not null default 0,
+    delivery numeric(12, 2) not null default 0,
     final_amount numeric(12, 2) not null,
     payment_mode varchar(20) not null,
     coupon_code varchar(100),
@@ -328,6 +449,10 @@ create table if not exists invoices (
 alter table invoices add column if not exists coupon_code varchar(100);
 alter table invoices add column if not exists sales_person_user_id uuid;
 alter table invoices add column if not exists sales_person_name varchar(255) not null default 'Unassigned';
+alter table invoices add column if not exists tax numeric(12, 2) not null default 0;
+alter table invoices add column if not exists cgst numeric(12, 2) not null default 0;
+alter table invoices add column if not exists sgst numeric(12, 2) not null default 0;
+alter table invoices add column if not exists delivery numeric(12, 2) not null default 0;
 update invoices
 set sales_person_name = 'Unassigned'
 where sales_person_name is null or trim(sales_person_name) = '';
@@ -359,7 +484,17 @@ create table if not exists offers (
     min_order_value numeric(12, 2),
     applicable_on varchar(50),
     valid_from date,
-    valid_to date
+    valid_to date,
+    buy_category varchar(50),
+    buy_product_id uuid references products(id),
+    buy_quantity integer,
+    get_category varchar(50),
+    get_product_id uuid references products(id),
+    get_quantity integer,
+    reward_mode varchar(50),
+    reward_discount_percent numeric(12, 2),
+    schedule_type varchar(50),
+    specific_days varchar(100)
 );
 
 alter table offers add column if not exists coupon_code varchar(100);
@@ -370,6 +505,16 @@ alter table offers add column if not exists min_order_value numeric(12, 2);
 alter table offers add column if not exists applicable_on varchar(50);
 alter table offers add column if not exists valid_from date;
 alter table offers add column if not exists valid_to date;
+alter table offers add column if not exists buy_category varchar(50);
+alter table offers add column if not exists buy_product_id uuid references products(id);
+alter table offers add column if not exists buy_quantity integer;
+alter table offers add column if not exists get_category varchar(50);
+alter table offers add column if not exists get_product_id uuid references products(id);
+alter table offers add column if not exists get_quantity integer;
+alter table offers add column if not exists reward_mode varchar(50);
+alter table offers add column if not exists reward_discount_percent numeric(12, 2);
+alter table offers add column if not exists schedule_type varchar(50);
+alter table offers add column if not exists specific_days varchar(100);
 
 create table if not exists campaigns (
     id uuid primary key,
@@ -526,12 +671,18 @@ create table if not exists omnichannel_conversations (
     channel varchar(50) not null,
     external_thread_id varchar(255),
     status varchar(50) not null,
+    resolved_at timestamp,
+    resolved_by varchar(255),
+    bot_session_json text,
     created_at timestamp not null,
     updated_at timestamp not null
 );
 
 create index if not exists idx_omnichannel_conversations_lead on omnichannel_conversations(lead_id, updated_at desc);
 create index if not exists idx_omnichannel_conversations_thread on omnichannel_conversations(channel, external_thread_id);
+alter table omnichannel_conversations add column if not exists resolved_at timestamp;
+alter table omnichannel_conversations add column if not exists resolved_by varchar(255);
+alter table omnichannel_conversations add column if not exists bot_session_json text;
 
 create table if not exists omnichannel_conversation_messages (
     id uuid primary key,
@@ -540,10 +691,15 @@ create table if not exists omnichannel_conversation_messages (
     message_type varchar(50) not null,
     message_text varchar(4000),
     raw_payload varchar(12000),
+    external_message_id varchar(255),
+    correlation_id varchar(80),
     created_at timestamp not null
 );
 
 create index if not exists idx_omnichannel_messages_conversation_created on omnichannel_conversation_messages(conversation_id, created_at desc);
+alter table omnichannel_conversation_messages add column if not exists external_message_id varchar(255);
+alter table omnichannel_conversation_messages add column if not exists correlation_id varchar(80);
+create index if not exists idx_omnichannel_messages_external on omnichannel_conversation_messages(conversation_id, direction, external_message_id);
 
 create table if not exists social_webhook_events (
     id uuid primary key,
@@ -614,7 +770,17 @@ create table if not exists receipt_settings (
     footer_note varchar(500),
     show_address boolean not null,
     show_phone_number boolean not null,
-    show_gst_number boolean not null
+    show_gst_number boolean not null,
+    tax_enabled boolean not null default false,
+    cgst_percent numeric(7, 2) not null default 0,
+    sgst_percent numeric(7, 2) not null default 0,
+    delivery_fee_enabled boolean not null default false,
+    delivery_fee numeric(12, 2) not null default 0,
+    free_delivery_threshold numeric(12, 2) not null default 0,
+    facebook_catalog_enabled boolean not null default false,
+    meta_pixel_id varchar(100),
+    facebook_feed_token varchar(255),
+    facebook_feed_last_generated_at timestamp
 );
 
 alter table receipt_settings add column if not exists logo_url text;
@@ -627,6 +793,16 @@ alter table receipt_settings add column if not exists trust_badge_one varchar(25
 alter table receipt_settings add column if not exists trust_badge_two varchar(255);
 alter table receipt_settings add column if not exists trust_badge_three varchar(255);
 alter table receipt_settings add column if not exists trust_badge_four varchar(255);
+alter table receipt_settings add column if not exists tax_enabled boolean not null default false;
+alter table receipt_settings add column if not exists cgst_percent numeric(7, 2) not null default 0;
+alter table receipt_settings add column if not exists sgst_percent numeric(7, 2) not null default 0;
+alter table receipt_settings add column if not exists delivery_fee_enabled boolean not null default false;
+alter table receipt_settings add column if not exists delivery_fee numeric(12, 2) not null default 0;
+alter table receipt_settings add column if not exists free_delivery_threshold numeric(12, 2) not null default 0;
+alter table receipt_settings add column if not exists facebook_catalog_enabled boolean not null default false;
+alter table receipt_settings add column if not exists meta_pixel_id varchar(100);
+alter table receipt_settings add column if not exists facebook_feed_token varchar(255);
+alter table receipt_settings add column if not exists facebook_feed_last_generated_at timestamp;
 
 alter table receipt_settings alter column logo_url type text;
 alter table receipt_settings alter column hero_primary_image_url type text;

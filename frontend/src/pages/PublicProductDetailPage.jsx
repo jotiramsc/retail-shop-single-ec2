@@ -7,6 +7,7 @@ import { defaultBranding } from '../utils/branding';
 import { addGuestCartItem, getGuestCartCount } from '../utils/cart';
 import { storeCheckoutCouponCode } from '../utils/checkout';
 import { currency } from '../utils/format';
+import { trackMetaEvent } from '../utils/metaPixel';
 import { applySeo, preloadImage } from '../utils/seo';
 import { getApiErrorMessage } from '../utils/validation';
 
@@ -25,7 +26,43 @@ function titleCaseCategory(category) {
 }
 
 function productImage(product) {
-  return product?.imageDataUrl || fallbackImages[0];
+  return product?.productImages?.[0] || product?.imageDataUrl || fallbackImages[0];
+}
+
+function productImages(product) {
+  const images = product?.productImages?.length ? product.productImages : (product?.imageDataUrl ? [product.imageDataUrl] : []);
+  return images.length ? images : [fallbackImages[0]];
+}
+
+function hasDeal(product) {
+  return Number(product?.youSave || 0) > 0;
+}
+
+function ProductDealPrice({ product }) {
+  const deal = hasDeal(product);
+  const originalPrice = Number(product?.originalPrice ?? product?.sellingPrice ?? 0);
+  const offerPrice = Number(product?.offerPrice ?? product?.sellingPrice ?? 0);
+  return (
+    <div className="product-deal-price detail">
+      {deal ? (
+        <>
+          <div className="deal-price-line">
+            <span className="deal-original">{currency(originalPrice)}</span>
+            <span className="deal-badge">{Number(product.discountPercent || 0)}% OFF</span>
+          </div>
+          <strong>{currency(offerPrice)}</strong>
+          <span className="deal-save">You Save {currency(product.youSave)}</span>
+        </>
+      ) : (
+        <strong>{currency(offerPrice)}</strong>
+      )}
+      <div className="deal-chip-row">
+        {product?.couponCode ? <span className="deal-chip">Coupon: {product.couponCode}</span> : null}
+        {product?.offerName ? <span className="deal-chip">{product.offerName}</span> : null}
+        {product?.freeDeliveryEligible ? <span className="deal-chip positive">Free Delivery</span> : null}
+      </div>
+    </div>
+  );
 }
 
 function isUuid(value) {
@@ -41,6 +78,14 @@ function campaignSessionId() {
   return generated;
 }
 
+function splitAiDescription(value) {
+  const normalized = String(value || '').replace(/\s+•\s+/g, '\n• ');
+  const lines = normalized.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const bullets = lines.filter((line) => /^[•*-]\s+/.test(line)).map((line) => line.replace(/^[•*-]\s+/, ''));
+  const paragraph = lines.filter((line) => !/^[•*-]\s+/.test(line)).join(' ');
+  return { paragraph, bullets };
+}
+
 export default function PublicProductDetailPage({ branding }) {
   const { productId } = useParams();
   const [searchParams] = useSearchParams();
@@ -53,9 +98,12 @@ export default function PublicProductDetailPage({ branding }) {
   const [cartCount, setCartCount] = useState(0);
   const [wishlistCount, setWishlistCount] = useState(0);
   const [customerSession, setCustomerSession] = useState(() => getStoredCustomerSession());
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const [showFullAiDescription, setShowFullAiDescription] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
+    setActiveImageIndex(0);
     setLoading(true);
     Promise.all([
       retailService.getPublicProduct(productId),
@@ -123,13 +171,55 @@ export default function PublicProductDetailPage({ branding }) {
     const image = productImage(product);
     applySeo({
       title: `${product.name} | ${branding.shopName || defaultBranding.shopName}`,
-      description: `${product.name} in ${titleCaseCategory(product.category)} with live stock, price, and checkout options.`,
+      description: `${product.name} in ${titleCaseCategory(product.category)} with live stock, best deal pricing, secure checkout, and WhatsApp support from ${branding.shopName || defaultBranding.shopName}.`,
       path: `/products/${product.id}`,
       image,
-      keywords: [product.name, product.category, product.sku, 'jewellery', 'online shopping'].filter(Boolean).join(', ')
+      keywords: [product.name, product.category, product.sku, 'jewellery', 'online shopping'].filter(Boolean).join(', '),
+      jsonLd: {
+        '@context': 'https://schema.org',
+        '@type': 'Product',
+        '@id': `${window.location.origin}/products/${product.id}`,
+        id: product.sku || product.id,
+        productID: product.sku || product.id,
+        mpn: product.sku || product.id,
+        name: product.name,
+        sku: product.sku,
+        category: titleCaseCategory(product.category),
+        image: productImages(product),
+        description: product.description || product.aiDescription || `${product.name} from ${branding.shopName || defaultBranding.shopName}`,
+        offers: {
+          '@type': 'Offer',
+          priceCurrency: 'INR',
+          price: Number(product.offerPrice ?? product.sellingPrice ?? 0).toFixed(2),
+          availability: product.inStock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+          url: `${window.location.origin}/products/${product.id}`
+        }
+      },
+      extraMeta: [
+        { property: 'product:retailer_item_id', content: product.sku || product.id },
+        { property: 'product:price:amount', content: Number(product.offerPrice ?? product.sellingPrice ?? 0).toFixed(2) },
+        { property: 'product:price:currency', content: 'INR' },
+        { property: 'product:availability', content: product.inStock ? 'in stock' : 'out of stock' },
+        { property: 'product:condition', content: 'new' }
+      ]
     });
+    trackMetaEvent(branding.metaPixelId, 'ViewContent', {
+      content_ids: [product.sku || product.id],
+      content_type: 'product',
+      value: Number(product.offerPrice ?? product.sellingPrice ?? 0),
+      currency: 'INR'
+    });
+    if (customerSession?.token) {
+      retailService.trackCustomerActivity({
+        activityType: 'PRODUCT_VIEW',
+        productId: product.id,
+        productName: product.name,
+        category: product.category,
+        page: `/products/${product.id}`
+      }).catch(() => {});
+    }
     preloadImage(image, 'high');
-  }, [branding.shopName, product]);
+  }, [branding.metaPixelId, branding.shopName, customerSession?.token, product]);
 
   const headerLinks = useMemo(() => [
     { to: '/', label: 'Home' },
@@ -143,6 +233,15 @@ export default function PublicProductDetailPage({ branding }) {
 
   const shopName = branding.shopName || defaultBranding.shopName;
   const logo = branding.media?.logo || '/assets/glowjewels/app_logo.png';
+  const detailImages = productImages(product);
+  const activeDetailImage = detailImages[Math.min(activeImageIndex, detailImages.length - 1)] || fallbackImages[0];
+  const aiDescription = splitAiDescription(product?.aiDescription);
+  const aiDescriptionLines = [
+    ...(aiDescription.paragraph ? [aiDescription.paragraph] : []),
+    ...aiDescription.bullets
+  ];
+  const visibleAiDescriptionLines = showFullAiDescription ? aiDescriptionLines : aiDescriptionLines.slice(0, 4);
+  const whatsAppEnquiryUrl = `https://wa.me/918830461523?text=${encodeURIComponent(`Namaste, I want to enquire about ${product?.name || 'this product'}: ${window.location.href}`)}`;
 
   const addToCart = async (redirectTarget = '') => {
     if (!product?.inStock) {
@@ -162,6 +261,21 @@ export default function PublicProductDetailPage({ branding }) {
       } else {
         const items = addGuestCartItem(product.id, 1);
         setCartCount(items.reduce((total, item) => total + Number(item.quantity || 0), 0));
+      }
+      trackMetaEvent(branding.metaPixelId, 'AddToCart', {
+        content_ids: [product.sku || product.id],
+        content_type: 'product',
+        value: Number(product.offerPrice ?? product.sellingPrice ?? 0),
+        currency: 'INR'
+      });
+      if (customerSession?.token) {
+        retailService.trackCustomerActivity({
+          activityType: 'ADD_TO_CART',
+          productId: product.id,
+          productName: product.name,
+          category: product.category,
+          page: `/products/${product.id}`
+        }).catch(() => {});
       }
       if (redirectTarget === 'checkout') {
         navigate(customerSession?.token ? '/checkout' : '/customer-login?redirect=/checkout');
@@ -197,7 +311,42 @@ export default function PublicProductDetailPage({ branding }) {
         <>
           <section className="glow-detail-hero">
             <div className="glow-detail-media shimmer-border">
-              <img src={productImage(product)} alt={product.name} fetchPriority="high" loading="eager" decoding="async" />
+              <img src={activeDetailImage} alt={product.name} fetchPriority="high" loading="eager" decoding="async" />
+              {detailImages.length > 1 ? (
+                <>
+                  <button
+                    type="button"
+                    className="product-detail-gallery-arrow is-left"
+                    onClick={() => setActiveImageIndex((current) => (current - 1 < 0 ? detailImages.length - 1 : current - 1))}
+                    aria-label="Previous product image"
+                  >
+                    ‹
+                  </button>
+                  <button
+                    type="button"
+                    className="product-detail-gallery-arrow is-right"
+                    onClick={() => setActiveImageIndex((current) => (current + 1 >= detailImages.length ? 0 : current + 1))}
+                    aria-label="Next product image"
+                  >
+                    ›
+                  </button>
+                </>
+              ) : null}
+              {detailImages.length > 1 ? (
+                <div className="product-detail-thumbs" aria-label={`${product.name} image gallery`}>
+                  {detailImages.map((image, index) => (
+                    <button
+                      key={`${image}-${index}`}
+                      type="button"
+                      className={index === activeImageIndex ? 'is-active' : ''}
+                      onClick={() => setActiveImageIndex(index)}
+                      aria-label={`Show product image ${index + 1}`}
+                    >
+                      <img src={image} alt="" loading="lazy" decoding="async" />
+                    </button>
+                  ))}
+                </div>
+              ) : null}
             </div>
             <div className="glow-detail-copy">
               <nav className="glow-products-breadcrumb">
@@ -206,20 +355,45 @@ export default function PublicProductDetailPage({ branding }) {
               <span className="glow-kicker">{titleCaseCategory(product.category)} · {product.sku}</span>
               <h1 className="editorial-text glow-products-title">{product.name}</h1>
               <div className="glow-detail-price-row">
-                <strong>{currency(product.sellingPrice)}</strong>
+                <ProductDealPrice product={product} />
                 <span>{product.stockLabel || (product.inStock ? 'Available now' : 'Out of stock')}</span>
               </div>
-              <p className="glow-products-subtitle">
-                A ready-to-order store pick with current stock visibility, secure checkout, and simple order tracking after purchase.
-              </p>
+              {!(product.aiDescriptionStatus === 'GENERATED' && product.aiDescription) ? (
+                <p className="glow-products-subtitle">
+                  {product.description || 'A ready-to-order store pick with current stock visibility, secure checkout, and simple order tracking after purchase.'}
+                </p>
+              ) : null}
               {error ? <p className="error-text storefront-feedback error" role="alert">{error}</p> : null}
               {message ? <p className="success-text storefront-feedback" role="status">{message}</p> : null}
               <div className="glow-detail-actions">
                 <button type="button" className="primary-btn" disabled={!product.inStock} onClick={() => addToCart('cart')}>Add to cart</button>
                 <button type="button" className="ghost-btn" disabled={!product.inStock} onClick={() => addToCart('checkout')}>Buy now</button>
+                <a className="ghost-btn whatsapp-enquiry-btn" href={whatsAppEnquiryUrl} target="_blank" rel="noreferrer">WhatsApp enquiry</a>
               </div>
             </div>
           </section>
+
+          {product.aiDescriptionStatus === 'GENERATED' && product.aiDescription ? (
+            <section className="glow-ai-description-card">
+              <span className="glow-kicker">Product guide</span>
+              <h2 className="editorial-text">Why you&apos;ll love this</h2>
+              {visibleAiDescriptionLines[0] ? <p>{visibleAiDescriptionLines[0]}</p> : null}
+              {visibleAiDescriptionLines.length > 1 ? (
+                <ul>
+                  {visibleAiDescriptionLines.slice(1).map((line) => <li key={line}>{line}</li>)}
+                </ul>
+              ) : null}
+              {aiDescriptionLines.length > 4 ? (
+                <button
+                  type="button"
+                  className="ghost-btn compact-btn ai-read-more-btn"
+                  onClick={() => setShowFullAiDescription((current) => !current)}
+                >
+                  {showFullAiDescription ? 'Show less' : 'Read more'}
+                </button>
+              ) : null}
+            </section>
+          ) : null}
 
           {related.length ? (
             <section className="glow-featured">
@@ -227,8 +401,8 @@ export default function PublicProductDetailPage({ branding }) {
               <div className="glow-products-grid">
                 {related.map((item, index) => (
                   <Link key={item.id} to={`/products/${item.id}`} className="glow-product-card-template glow-product-card-link">
-                    <div className="glow-product-card-media"><img src={item.imageDataUrl || fallbackImages[index % fallbackImages.length]} alt={item.name} loading="lazy" decoding="async" /></div>
-                    <div className="glow-product-card-copy"><p>{titleCaseCategory(item.category)}</p><h3>{item.name}</h3><div className="glow-product-card-meta"><strong>{currency(item.sellingPrice)}</strong><span>{item.stockLabel}</span></div></div>
+                    <div className="glow-product-card-media"><img src={item.productImages?.[0] || item.imageDataUrl || fallbackImages[index % fallbackImages.length]} alt={item.name} loading="lazy" decoding="async" /></div>
+                    <div className="glow-product-card-copy"><p>{titleCaseCategory(item.category)}</p><h3>{item.name}</h3><div className="glow-product-card-meta"><ProductDealPrice product={item} /><span>{item.stockLabel}</span></div></div>
                   </Link>
                 ))}
               </div>

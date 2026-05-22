@@ -6,6 +6,9 @@ import com.retailshop.config.AppProperties;
 import com.retailshop.entity.Campaign;
 import com.retailshop.entity.Customer;
 import com.retailshop.entity.CustomerOrder;
+import com.retailshop.entity.Product;
+import com.retailshop.repository.ProductCategoryOptionRepository;
+import com.retailshop.repository.ProductRepository;
 import com.retailshop.enums.OrderStatus;
 import com.retailshop.enums.WhatsAppTemplateKey;
 import com.retailshop.dto.whatsapp.WhatsAppInteractiveOption;
@@ -43,6 +46,10 @@ public class WhatsAppMessageServiceImpl implements WhatsAppMessageService, OtpDe
     private final AppProperties appProperties;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
+    @Autowired(required = false)
+    private ProductRepository productRepository;
+    @Autowired(required = false)
+    private ProductCategoryOptionRepository productCategoryOptionRepository;
 
     @Autowired
     public WhatsAppMessageServiceImpl(AppProperties appProperties, ObjectMapper objectMapper) {
@@ -343,11 +350,33 @@ public class WhatsAppMessageServiceImpl implements WhatsAppMessageService, OtpDe
 
     @Override
     public MarketingChannelResult publishCampaign(Campaign campaign, List<Customer> customers) {
-        return broadcastCampaign(customers, buildCampaignBody(campaign), campaign == null ? null : campaign.getMediaUrl());
+        return broadcastCampaign(customers, buildCampaignBody(campaign), campaignImageUrl(campaign));
     }
 
     private MarketingChannelResult broadcast(List<Customer> customers, String body) {
         return broadcastCampaign(customers, body, null);
+    }
+
+    private String campaignImageUrl(Campaign campaign) {
+        if (campaign == null) {
+            return null;
+        }
+        if (hasText(campaign.getMediaUrl())) {
+            return campaign.getMediaUrl();
+        }
+        if (campaign.getProductId() != null && productRepository != null) {
+            return productRepository.findById(campaign.getProductId())
+                    .map(Product::getImageDataUrl)
+                    .filter(this::hasText)
+                    .orElse(null);
+        }
+        if (campaign.getCategoryId() != null && productCategoryOptionRepository != null) {
+            return productCategoryOptionRepository.findById(campaign.getCategoryId())
+                    .map(category -> category.getIconImageUrl())
+                    .filter(this::hasText)
+                    .orElse(null);
+        }
+        return null;
     }
 
     private MarketingChannelResult broadcastCampaign(List<Customer> customers, String body, String imageUrl) {

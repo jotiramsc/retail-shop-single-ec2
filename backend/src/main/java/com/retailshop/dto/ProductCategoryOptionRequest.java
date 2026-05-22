@@ -14,5 +14,13 @@ public class ProductCategoryOptionRequest {
     @Size(max = 4000)
     private String iconImageUrl;
 
+    private Boolean facebookSyncEnabled;
+
+    @Size(max = 500)
+    private String facebookCategory;
+
+    @Size(max = 255)
+    private String facebookCollectionName;
+
     private Boolean active;
 }

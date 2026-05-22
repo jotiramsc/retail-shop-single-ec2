@@ -13,6 +13,7 @@ import {
 } from '../utils/checkout';
 import { currency } from '../utils/format';
 import { getAppliedDiscountDetails, getOfferDisplayLabel } from '../utils/offers';
+import { trackMetaEvent } from '../utils/metaPixel';
 
 const initialAddress = {
   label: 'Home',
@@ -92,7 +93,7 @@ const launchRazorpayPayment = ({ paymentOrder, customerSession }) => new Promise
   razorpay.open();
 });
 
-export default function CheckoutPage() {
+export default function CheckoutPage({ branding }) {
   const navigate = useNavigate();
   const [customerSession, setCustomerSession] = useState(() => getStoredCustomerSession());
   const [cart, setCart] = useState({ items: [], subtotal: 0 });
@@ -170,7 +171,11 @@ export default function CheckoutPage() {
   const appliedDiscountDetails = useMemo(() => getAppliedDiscountDetails(quote), [quote]);
   const appliedDiscount = appliedDiscountDetails.totalDiscount;
   const taxAmount = Number(quote?.tax ?? 0);
+  const cgstAmount = Number(quote?.cgst ?? 0);
+  const sgstAmount = Number(quote?.sgst ?? 0);
   const deliveryAmount = Number(quote?.delivery ?? 0);
+  const freeDelivery = quote?.freeDelivery === true;
+  const freeDeliveryThreshold = Number(quote?.freeDeliveryThreshold ?? 0);
   const shouldShowDiscountBreakdown = appliedDiscountDetails.entries.length > 1
     || appliedDiscountDetails.entries.some((entry) => entry.caption);
 
@@ -296,6 +301,16 @@ export default function CheckoutPage() {
     }
   };
 
+  const trackPurchaseEvent = () => {
+    const items = quote?.cart?.items || cart?.items || [];
+    trackMetaEvent(branding?.metaPixelId, 'Purchase', {
+      content_ids: items.map((item) => item.sku || item.productSku || item.productId).filter(Boolean),
+      content_type: 'product',
+      value: Number(quote?.finalTotal ?? cart?.subtotal ?? 0),
+      currency: 'INR'
+    });
+  };
+
   const placeOrder = async () => {
     if (!selectedAddressId) {
       setError('Please select a Pune delivery address before placing the order.');
@@ -325,6 +340,12 @@ export default function CheckoutPage() {
           paymentProvider,
           razorpayOrderId: paymentOrder?.orderId
         });
+        trackPurchaseEvent();
+        retailService.trackCustomerActivity({
+          activityType: 'ORDER_PLACED',
+          page: '/checkout',
+          campaignSource: resolvedCouponCode ? `Coupon ${resolvedCouponCode}` : ''
+        }).catch(() => {});
         clearStoredCheckoutCouponCode();
         navigate('/orders?placed=1');
         return;
@@ -348,6 +369,12 @@ export default function CheckoutPage() {
         razorpayPaymentId: paymentResult.razorpay_payment_id,
         razorpaySignature: paymentResult.razorpay_signature
       });
+      trackPurchaseEvent();
+      retailService.trackCustomerActivity({
+        activityType: 'ORDER_PLACED',
+        page: '/checkout',
+        campaignSource: resolvedCouponCode ? `Coupon ${resolvedCouponCode}` : ''
+      }).catch(() => {});
       clearStoredCheckoutCouponCode();
       navigate('/orders?placed=1');
     } catch (err) {
@@ -556,13 +583,31 @@ export default function CheckoutPage() {
                 </>
               ) : null}
               <div className="customer-summary-row">
-                <span>Tax</span>
-                <strong>{currency(taxAmount)}</strong>
+                <span>CGST</span>
+                <strong>{currency(cgstAmount)}</strong>
               </div>
               <div className="customer-summary-row">
-                <span>Delivery</span>
-                <strong>{currency(deliveryAmount)}</strong>
+                <span>SGST</span>
+                <strong>{currency(sgstAmount)}</strong>
               </div>
+              {taxAmount > 0 && cgstAmount + sgstAmount <= 0 ? (
+                <div className="customer-summary-row">
+                  <span>Tax</span>
+                  <strong>{currency(taxAmount)}</strong>
+                </div>
+              ) : null}
+              <div className="customer-summary-row">
+                <span>
+                  Delivery
+                  {freeDelivery && freeDeliveryThreshold > 0 ? (
+                    <small className="summary-subtext">Free above {currency(freeDeliveryThreshold)}</small>
+                  ) : null}
+                </span>
+                <strong className={freeDelivery ? 'deal-positive' : ''}>{freeDelivery ? 'FREE' : currency(deliveryAmount)}</strong>
+              </div>
+              {freeDelivery ? (
+                <div className="deal-note-chip">Free delivery unlocked</div>
+              ) : null}
               <div className="customer-summary-row total">
                 <span>Final total</span>
                 <strong>{currency(activeFinalTotal)}</strong>
@@ -575,6 +620,12 @@ export default function CheckoutPage() {
               >
                 {placingOrder ? 'Opening payment...' : 'Pay and place order'}
               </button>
+              <div className="checkout-trust-card">
+                <strong>Order confirmation on WhatsApp</strong>
+                <span>We send confirmation and delivery updates to your registered WhatsApp number.</span>
+                <span>Secure Razorpay payment, store-backed support, and carefully packed jewellery delivery.</span>
+                <a href="https://wa.me/918830461523" target="_blank" rel="noreferrer">Need help? Chat on WhatsApp</a>
+              </div>
               <small className="customer-helper-copy">
                 Razorpay opens securely for online payment.
               </small>

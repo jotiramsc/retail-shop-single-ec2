@@ -10,7 +10,7 @@ import java.util.UUID;
 public interface SupportInboxService {
     SupportInboxSummaryResponse getSummary();
 
-    List<SupportConversationSummaryResponse> listConversations(String status, String search);
+    List<SupportConversationSummaryResponse> listConversations(String status, String search, java.time.LocalDate fromDate, java.time.LocalDate toDate);
 
     SupportConversationDetailResponse getConversation(UUID conversationId);
 
@@ -19,4 +19,6 @@ public interface SupportInboxService {
     SupportConversationDetailResponse sendProduct(UUID conversationId, UUID productId);
 
     SupportConversationDetailResponse markResolved(UUID conversationId);
+
+    SupportConversationDetailResponse reopen(UUID conversationId);
 }

@@ -116,9 +116,11 @@ public class ReportServiceImpl implements ReportService {
                 .filter(invoice -> matchesSalesPerson(normalizedSalesPerson, invoice.getSalesPersonName()))
                 .toList();
 
-        List<CustomerOrder> websiteOrders = (normalizedName == null
-                ? customerOrderRepository.findByCreatedAtBetweenOrderByCreatedAtDesc(start, end)
-                : customerOrderRepository.findByCreatedAtBetweenAndCustomer_NameContainingIgnoreCaseOrderByCreatedAtDesc(start, end, normalizedName)).stream()
+        List<CustomerOrder> websiteOrders = (websiteSalesPerson && normalizedName == null
+                ? customerOrderRepository.findBySourceOrderByCreatedAtDesc(OrderSource.WEBSITE)
+                : normalizedName == null
+                    ? customerOrderRepository.findByCreatedAtBetweenOrderByCreatedAtDesc(start, end)
+                    : customerOrderRepository.findByCreatedAtBetweenAndCustomer_NameContainingIgnoreCaseOrderByCreatedAtDesc(start, end, normalizedName)).stream()
                 .filter(order -> order.getSource() == OrderSource.WEBSITE)
                 .filter(order -> websiteSalesPerson || matchesSalesPerson(normalizedSalesPerson, order.getSalesPersonName()))
                 .toList();

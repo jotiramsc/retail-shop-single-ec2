@@ -92,6 +92,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/omnichannel/webhooks/**").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/images/**").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.HEAD, "/api/images/**").permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/meta/catalog-feed.xml", "/api/meta/catalog-feed.csv").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/omnichannel/products/**").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/omnichannel/products/**", "/api/omnichannel/leads").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/campaign-leads/visits").permitAll()

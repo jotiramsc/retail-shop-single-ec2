@@ -15,5 +15,6 @@ public interface ProductCategoryOptionService {
     ProductCategoryOptionResponse createCategory(ProductCategoryOptionRequest request);
     ProductCategoryOptionResponse updateCategory(UUID id, ProductCategoryOptionRequest request);
     List<CategoryIconOptionResponse> generateIconOptions(String categoryName);
+    ProductCategoryOptionResponse generateIcon(UUID id, boolean replaceExisting);
     void validateCategoryCode(String code);
 }

@@ -14,11 +14,15 @@ public class OmnichannelProductCardResponse {
     private String category;
     private String sku;
     private BigDecimal price;
+    private BigDecimal originalPrice;
+    private BigDecimal offerPrice;
+    private BigDecimal discountPercent;
     private Integer quantity;
     private Boolean inStock;
     private String stockLabel;
     private String imageUrl;
     private String shortBenefit;
+    private String aiDescription;
     private String productUrl;
     private String buyNowUrl;
     private String checkoutUrl;

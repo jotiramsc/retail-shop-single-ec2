@@ -2,15 +2,287 @@
 
 ## In Progress
 
-- Post-deploy WhatsApp/live validation for the remaining task batch.
-  - Current status:
-    - Implementation complete.
-    - Backend `./mvnw test` passed: 66 tests.
-    - Frontend `npm run build` passed.
-    - EC2 deployment completed from commit `f313351469acec02dbaf611ef783d210a1398956`.
-    - Live checks passed for `/actuator/health`, `/`, `/products`, and `/cart/add`.
-
 ## Completed
+
+- Customer Intelligence CRM workspace redesign.
+  - Current status:
+    - Implementation complete, deployed, and live-checked.
+    - Customer CRM now uses a spacious green/gold 30/70 intelligence workspace with search/filter/stats, customer list, large detail panels, roomy tabs, timeline, search activity, login history, preferences, support chat, AI insights, and notes.
+    - Customer search endpoints now return recent customers for blank focused dropdown searches, fixing empty Billing/Reports customer dropdowns before typing.
+    - Login history display field mismatch was fixed, activity payload aliases are accepted, and storefront events now capture richer search/product/cart/wishlist/order behavior.
+    - Support chat now starts with the Krishnai greeting and records `CHAT_STARTED`; CRM includes conversational onboarding for profile data collection.
+    - Backend customer intelligence response now includes gender, customer since, last active, preferred brands, shopping interests, search history, sentiment, purchase prediction, churn risk, engagement score, recommended products, and high-value badge.
+    - Backend `./mvnw test` passed: 77 tests.
+    - Frontend `npm run build` passed.
+    - `git diff --check` passed.
+    - Local Playwright desktop check passed for `/app/customers`.
+    - EC2 release `local-20260521215711` deployed successfully after applying additive CRM intelligence DB columns.
+    - Live `/actuator/health` returned `UP`; `/app/customers` returned HTTP 200.
+
+## In Progress
+
+- OpenAI-only category icon generation.
+  - Current status:
+    - Implementation complete, deployed, and live-checked.
+    - Backend category icon generation now uses the existing campaign/marketing OpenAI configuration and no longer returns backend-generated fallback icons.
+    - Products admin no longer builds client-side fallback icons when OpenAI fails or returns no option; it surfaces the API error.
+    - Backend `./mvnw -Dtest=ProductCategoryOptionServiceImplTest test` passed: 2 tests.
+    - Backend `./mvnw test` passed: 77 tests.
+    - Frontend `npm run build` passed.
+    - `git diff --check` passed.
+    - Local real OpenAI/S3 generation could not run because local OpenAI and S3 environment variables were not set; the OpenAI/S3 path is covered with mocked local tests.
+    - Initial EC2 release `local-20260521170530` exposed a candidate-only Spring constructor wiring issue while the previous production app stayed healthy.
+    - Corrected release `local-20260521173002` deployed successfully; `/opt/retail-shop/current` points to `local-20260521173002`.
+    - Live `/actuator/health` returned `UP`.
+    - EC2 runtime has OpenAI and S3 environment variables set without exposing secret values.
+
+- Offer scheduling, coupon defaults, single category icon logic, Facebook catalog auto-sync defaults, and Meta product id microdata.
+  - Current status:
+    - Implementation complete locally.
+    - Backend `./mvnw test` passed: 75 tests.
+    - Frontend `npm run build` passed.
+    - EC2 release `local-20260521085629` deployed via SSM command `59b8db37-3283-406f-a92b-9b4fe53fb6a7`.
+    - Follow-up feed status fix release `local-20260521092353` deployed via SSM command `6a88b94e-04d2-48f4-bfc7-d262fdad40bb`.
+    - Live `/actuator/health` returned `UP`.
+    - Live `/api/meta/catalog-feed.xml` without token returned HTTP 403.
+    - Live XML/CSV feeds with token returned HTTP 200; XML currently has 7 product items.
+    - Follow-up local catalog handoff fix added: `/cart/add` supports `product` SKU/catalog identifiers, `qty`/`quantity`, and source/campaign attribution storage before adding to customer or guest cart.
+    - Follow-up local feed enrichment added: XML/CSV feeds include gallery `additional_image_link` values, inventory, category labels, offer labels, and website source labels.
+    - Follow-up verification passed: `backend ./mvnw -Dtest=MetaCatalogFeedServiceImplTest test`; `frontend npm run build`.
+
+- EC2 deploy for admin dashboard UI/UX, WhatsApp bot stability, durable session memory, diagnostics, and shop billing GST verification.
+  - Current status:
+    - Implementation complete locally.
+    - Backend `./mvnw test` passed: 73 tests.
+    - Frontend `npm run build` passed.
+    - `git diff --check` passed.
+    - Website WhatsApp product enquiry and checkout support links now use `+91 8830461523`.
+    - Latest WhatsApp sequencing/product-detail/category-icon fixes are implemented locally.
+    - Redeploy requested on 2026-05-21. Backend `./mvnw test` passed: 75 tests; frontend `npm run build` passed.
+    - EC2 release `local-20260521053415` deployed successfully via SSM command `d1543ebd-453e-4f69-9f87-9be741c6a34c`.
+    - Live checks passed after redeploy: `/actuator/health` returned `UP`, `/app/products` returned HTTP 200, and `/api/meta/catalog-feed.xml` without token returned HTTP 403 as expected.
+    - Previous SSM deploy command failed with document worker IPC timeout while live `/actuator/health` remained `UP`.
+    - Fresh EC2 release `local-20260518214847` deployed successfully.
+    - Live checks passed: `/actuator/health` returned `UP`; `/app/products`, `/app/campaigns`, and `/products` returned HTTP 200.
+
+- Dynamic Facebook Catalog Sync
+  - Changed files:
+    - `backend/src/main/java/com/retailshop/controller/MetaCatalogController.java`
+    - `backend/src/main/java/com/retailshop/dto/FacebookFeedPreviewItemResponse.java`
+    - `backend/src/main/java/com/retailshop/entity/Product.java`
+    - `backend/src/main/java/com/retailshop/entity/ProductCategoryOption.java`
+    - `backend/src/main/java/com/retailshop/entity/ReceiptSettings.java`
+    - `backend/src/main/java/com/retailshop/service/MetaCatalogFeedService.java`
+    - `backend/src/main/java/com/retailshop/service/impl/MetaCatalogFeedServiceImpl.java`
+    - `backend/src/main/java/com/retailshop/service/impl/ProductCategoryOptionServiceImpl.java`
+    - `backend/src/main/java/com/retailshop/service/impl/ProductServiceImpl.java`
+    - `backend/src/main/resources/schema.sql`
+    - `frontend/src/pages/ProductsPage.jsx`
+    - `frontend/src/pages/PublicProductDetailPage.jsx`
+    - `frontend/src/pages/ReceiptSettingsPage.jsx`
+    - `frontend/src/services/retailService.js`
+    - `frontend/src/utils/metaPixel.js`
+    - `frontend/src/utils/seo.js`
+  - Implementation notes:
+    - Facebook Catalog tab lives under Brand Configuration and exposes enablement, pixel ID, token, XML/CSV URLs, status, and preview.
+    - Active categories and website-visible products are sync-enabled by default; missing category mappings are auto-filled from category names.
+    - Public feeds are read-only and token-protected when a token exists.
+    - Product pages emit Meta product identifiers, Product JSON-LD, and Meta Pixel events.
+  - Testing:
+    - `backend ./mvnw test` passed: 75 tests.
+    - `frontend npm run build` passed.
+  - Deployment:
+    - EC2 release `local-20260520234323` deployed via SSM command `eec15a8a-ea04-4cce-bb32-b7b9d58ab063`.
+    - Live `/actuator/health` returned `UP`; feed without token returned HTTP 403 as expected.
+
+- Admin Dashboard UI/UX Improvements
+  - Changed files:
+    - `frontend/src/pages/OffersPage.jsx`
+    - `frontend/src/pages/ProductsPage.jsx`
+    - `frontend/src/pages/CampaignsPage.jsx`
+    - `frontend/src/styles/global.css`
+    - `docs/CURRENT_TASK.md`
+    - `docs/TASK_TRACKER.md`
+    - `docs/krishnai.md`
+  - Implementation notes:
+    - Offer creation has clear Entire Store / Specific Category / Specific Product targeting.
+    - Offer scheduling controls now expose Always Active, Date Range, Weekend Only, and Specific Days workflow options without breaking current date-range backend behavior.
+    - Campaign selected drafts support Approve & Publish All plus Instagram/Facebook/WhatsApp quick actions with confirmation.
+    - Embedded Campaign Offers tab removes the suggestions panel so the builder is primary.
+    - Inventory is split into Products, Categories, Collections, and Brands tabs.
+    - Product list is compact with high-signal columns, sticky headers, filters, toggle switches, and quick actions.
+    - Categories tab shows icon, name, product count, code, status, and edit action.
+    - Admin page headers are reduced, billing quick picks are smaller with more checkout space, and site interaction layout is constrained against overflow.
+  - Testing:
+    - `frontend npm run build` passed.
+    - `backend ./mvnw test` passed: 73 tests.
+    - `git diff --check` passed.
+  - Deployment:
+    - EC2 deployment succeeded for release `local-20260518214847`.
+    - Live `/actuator/health`, `/app/products`, `/app/campaigns`, and `/products` checks passed.
+
+- WhatsApp Bot Stability, Durable Memory, Diagnostics, and Shop Billing GST
+  - Changed files:
+    - `backend/src/main/java/com/retailshop/dto/OmnichannelLeadRequest.java`
+    - `backend/src/main/java/com/retailshop/entity/OmnichannelConversation.java`
+    - `backend/src/main/java/com/retailshop/entity/OmnichannelConversationMessage.java`
+    - `backend/src/main/java/com/retailshop/repository/OmnichannelConversationMessageRepository.java`
+    - `backend/src/main/java/com/retailshop/service/impl/OmnichannelCommerceServiceImpl.java`
+    - `backend/src/main/java/com/retailshop/service/impl/WhatsAppSalesBotServiceImpl.java`
+    - `backend/src/main/resources/schema.sql`
+    - `backend/src/test/java/com/retailshop/service/impl/WhatsAppSalesBotServiceImplTest.java`
+    - `backend/src/test/java/com/retailshop/service/impl/BillingServiceImplTest.java`
+  - Root causes:
+    - Active bot memory was in process-local static maps, causing context loss on restart and inconsistent results across instances.
+    - Duplicate webhook checks were process-local, causing replay risk after restart.
+    - Follow-up modifiers restored category but not previous budget.
+  - Implementation notes:
+    - Persisted bot session JSON on conversations and reload it before contextual interpretation.
+    - Stored inbound/outbound external message IDs and correlation IDs.
+    - Added durable inbound duplicate check and same-mobile in-instance processing lock.
+    - Added `whatsapp_bot_trace` logs for correlation/session/message/intent/send diagnostics.
+    - Preserved prior budget when contextualizing modifier-only follow-ups such as "green".
+    - Added regression tests for persisted duplicate handling, persisted session restoration, and shop billing GST passthrough.
+  - Testing:
+    - `backend ./mvnw test` passed: 70 tests.
+    - `frontend npm run build` passed.
+    - `git diff --check` passed.
+  - Deployment:
+    - In progress.
+
+- Product Card Cleanup, Website UX, WhatsApp, Support Archive, and Offer Promotions
+  - Changed files:
+    - `frontend/src/pages/PublicProductsPage.jsx`
+    - `frontend/src/pages/PublicProductDetailPage.jsx`
+    - `frontend/src/pages/CartPage.jsx`
+    - `frontend/src/pages/WishlistPage.jsx`
+    - `frontend/src/pages/CheckoutPage.jsx`
+    - `frontend/src/pages/ProductsPage.jsx`
+    - `frontend/src/pages/SupportInboxPage.jsx`
+    - `frontend/src/services/retailService.js`
+    - `frontend/src/styles/global.css`
+    - `backend/src/main/java/com/retailshop/controller/SupportInboxController.java`
+    - `backend/src/main/java/com/retailshop/dto/SupportConversationDetailResponse.java`
+    - `backend/src/main/java/com/retailshop/dto/SupportConversationSummaryResponse.java`
+    - `backend/src/main/java/com/retailshop/entity/OmnichannelConversation.java`
+    - `backend/src/main/java/com/retailshop/service/SupportInboxService.java`
+    - `backend/src/main/java/com/retailshop/service/impl/SupportInboxServiceImpl.java`
+    - `backend/src/main/java/com/retailshop/service/impl/WhatsAppMessageServiceImpl.java`
+    - `backend/src/main/java/com/retailshop/service/impl/WhatsAppSalesBotServiceImpl.java`
+    - `backend/src/main/resources/schema.sql`
+    - `backend/src/test/java/com/retailshop/service/impl/WhatsAppSalesBotServiceImplTest.java`
+  - Implementation notes:
+    - Product listing cards use a clean pricing stack with only struck original price, one discount badge, final price, availability, image slider, View details, and Add to cart.
+    - Listing image sliders support arrows, dots, and swipe.
+    - Cart/wishlist product image and copy navigate to product detail without affecting controls.
+    - Product detail has gallery arrows, WhatsApp enquiry, collapsed AI description read more, and product structured data.
+    - Product detail avoids duplicating AI description near the price; generated text is shown in the formatted product guide section only.
+    - Checkout includes WhatsApp confirmation/support trust messaging.
+    - Admin product form shows AI status and a lightweight publish preview.
+    - Website product enquiry and checkout support WhatsApp links point to `wa.me/918830461523`.
+    - WhatsApp welcome now sends the configured image before one deterministic interactive menu.
+    - WhatsApp product media is sent before action buttons, with a short delay to avoid actions rendering above photos.
+    - Back to Products reuses the previous visible product mapping, Add to Cart replies include the selected product image, and Browse Categories shows the first three dynamic categories as quick buttons with View More for remaining categories.
+    - Category icon generation runs in a write transaction so generated AI/fallback S3 icon assets can persist.
+    - Campaign WhatsApp sends use media fallback from campaign, linked product, or category icon.
+    - Support inbox has Active/Archived tabs, archived date filters, resolved metadata, and reopen.
+  - Testing:
+    - `backend ./mvnw -Dtest=WhatsAppSalesBotServiceImplTest test` passed: 15 tests.
+    - `backend ./mvnw test` passed: 72 tests.
+    - `frontend npm run build` passed.
+    - `git diff --check` passed.
+  - Deployment:
+    - In progress.
+
+- Clean Product Card Pricing and Image Slider
+  - Changed files:
+    - `frontend/src/pages/PublicProductsPage.jsx`
+    - `frontend/src/styles/global.css`
+    - `backend/src/test/java/com/retailshop/service/impl/ProductServiceImplTest.java`
+  - Implementation notes:
+    - Customer listing cards now show only image, category, product name, final discounted price, availability badge, View details, and Add to cart.
+    - Removed original price, savings, coupon, offer, best-deal, featured, free-delivery, SKU, and duplicate availability clutter from listing cards.
+    - Listing price range filters and price sorting use final offer price from backend deal calculation.
+    - Product cards with multiple images show semi-transparent left/right arrows, dots, and smooth image transitions.
+    - Single-image product cards show no slider controls.
+    - Regression test covers a 20% offer with max discount cap applying final price as expected.
+  - Testing:
+    - `backend ./mvnw -Dtest=ProductServiceImplTest test` passed: 6 tests.
+    - `frontend npm run build` passed.
+  - Deployment:
+    - In progress.
+
+- Post-deploy support pricing, icon generation, and AI product description
+  - Changed files:
+    - `backend/src/main/java/com/retailshop/dto/ProductRequest.java`
+    - `backend/src/main/java/com/retailshop/dto/ProductResponse.java`
+    - `backend/src/main/java/com/retailshop/dto/PublicProductResponse.java`
+    - `backend/src/main/java/com/retailshop/entity/Product.java`
+    - `backend/src/main/java/com/retailshop/service/ProductAiDescriptionService.java`
+    - `backend/src/main/java/com/retailshop/service/impl/ProductAiDescriptionServiceImpl.java`
+    - `backend/src/main/java/com/retailshop/service/impl/ProductCategoryOptionServiceImpl.java`
+    - `backend/src/main/java/com/retailshop/service/impl/ProductServiceImpl.java`
+    - `backend/src/main/java/com/retailshop/service/impl/SupportInboxServiceImpl.java`
+    - `backend/src/main/resources/schema.sql`
+    - `backend/src/test/java/com/retailshop/service/impl/ProductServiceImplTest.java`
+    - `frontend/src/pages/ProductsPage.jsx`
+    - `frontend/src/pages/PublicProductDetailPage.jsx`
+    - `frontend/src/pages/SupportInboxPage.jsx`
+    - `frontend/src/styles/global.css`
+  - Implementation notes:
+    - Support product picker now filters by active deal price and displays original price, deal price, discount, savings, and coupon/offer.
+    - Support WhatsApp product messages compute the same active ecommerce offer price instead of showing raw website markup as the offer price.
+    - Category icon generation logs OpenAI failures and returns four transparent circular generated icon options as fallback so admin category addition does not fail.
+    - Product form adds a "Generate AI description" checkbox before the manual description field.
+    - Product save/update returns immediately; AI description generation runs after transaction commit and stores PENDING/GENERATED/FAILED status, generated text, timestamp, and failure reason.
+    - Customer product detail shows "Why you'll love this" only when an AI description has been generated.
+  - Testing:
+    - `backend ./mvnw test` passed: 66 tests.
+    - `frontend npm run build` passed.
+  - Deployment:
+    - Not deployed yet; waiting for user approval.
+
+- Pricing, Multiple Images, Category Icons, and WhatsApp Product Sequencing
+  - Changed files:
+    - `backend/src/main/java/com/retailshop/dto/*Product*Response.java`
+    - `backend/src/main/java/com/retailshop/dto/ReceiptSettings*.java`
+    - `backend/src/main/java/com/retailshop/entity/Product.java`
+    - `backend/src/main/java/com/retailshop/entity/ReceiptSettings.java`
+    - `backend/src/main/java/com/retailshop/entity/CustomerOrder.java`
+    - `backend/src/main/java/com/retailshop/entity/Invoice.java`
+    - `backend/src/main/java/com/retailshop/service/impl/ProductServiceImpl.java`
+    - `backend/src/main/java/com/retailshop/service/impl/OrderPricingServiceImpl.java`
+    - `backend/src/main/java/com/retailshop/service/impl/BillingServiceImpl.java`
+    - `backend/src/main/java/com/retailshop/service/impl/ProductCategoryOptionServiceImpl.java`
+    - `backend/src/main/java/com/retailshop/service/impl/WhatsAppSalesBotServiceImpl.java`
+    - `backend/src/main/resources/schema.sql`
+    - `frontend/src/pages/OffersPage.jsx`
+    - `frontend/src/pages/ProductsPage.jsx`
+    - `frontend/src/pages/PublicProductsPage.jsx`
+    - `frontend/src/pages/PublicProductDetailPage.jsx`
+    - `frontend/src/pages/PublicHomePage.jsx`
+    - `frontend/src/pages/CartPage.jsx`
+    - `frontend/src/pages/CheckoutPage.jsx`
+    - `frontend/src/pages/ReceiptSettingsPage.jsx`
+    - `frontend/src/styles/global.css`
+  - Implementation notes:
+    - Offer create/edit payload initializes and submits default selected values, including `type=PERCENT` and active status.
+    - Product multiple images are uploaded through existing S3 flow and stored as ordered URL references; binaries are not stored in backend entities.
+    - Public product listing/detail/homepage surfaces render sliders or thumbnails from `productImages`, falling back to the existing primary image.
+    - Active offers/coupons drive ecommerce deal display with original price, offer price, discount %, savings, coupon/offer badges, and free delivery labels.
+    - Brand Configuration now controls CGST, SGST, website delivery fee, and free-delivery threshold.
+    - Configured CGST/SGST apply to website checkout and shop billing; website delivery fee applies only to website orders.
+    - Order/invoice records persist CGST/SGST split alongside combined tax.
+    - Category icon generation requests transparent circular PNG-style icons and persists the selected icon.
+    - WhatsApp product results send up to four images first, pause briefly, then send a single product-action list for details/cart/more.
+  - Testing:
+    - `backend ./mvnw test` passed: 66 tests.
+    - `frontend npm run build` passed.
+  - Deployment:
+    - EC2 deployment succeeded for release `60e5765-20260517181314`.
+    - SSM command `de5c428d-de38-49a3-bd71-eb3a2e7e3d02` completed successfully.
+    - Live `https://kpskrishnai.com/actuator/health` returned `{"status":"UP"}`.
+    - Live `/products` returned HTTP 200.
 
 - TASK-1: Campaign Lead Tracking Backend
 - TASK-2: Campaign Studio source-wise analytics only.
@@ -220,3 +492,120 @@
 ## Pending
 
 - Live WhatsApp manual UX validation on the connected phone for the latest menu/order/cart flow.
+
+## Dynamic Facebook Catalog Sync
+
+- Changed files:
+  - `backend/src/main/java/com/retailshop/controller/MetaCatalogController.java`
+  - `backend/src/main/java/com/retailshop/dto/FacebookFeedPreviewItemResponse.java`
+  - `backend/src/main/java/com/retailshop/dto/FacebookFeedPreviewResponse.java`
+  - `backend/src/main/java/com/retailshop/dto/FacebookFeedTokenResponse.java`
+  - `backend/src/main/java/com/retailshop/dto/ProductCategoryOptionRequest.java`
+  - `backend/src/main/java/com/retailshop/dto/ProductCategoryOptionResponse.java`
+  - `backend/src/main/java/com/retailshop/dto/ProductRequest.java`
+  - `backend/src/main/java/com/retailshop/dto/ProductResponse.java`
+  - `backend/src/main/java/com/retailshop/dto/ReceiptSettingsRequest.java`
+  - `backend/src/main/java/com/retailshop/dto/ReceiptSettingsResponse.java`
+  - `backend/src/main/java/com/retailshop/entity/Product.java`
+  - `backend/src/main/java/com/retailshop/entity/ProductCategoryOption.java`
+  - `backend/src/main/java/com/retailshop/entity/ReceiptSettings.java`
+  - `backend/src/main/java/com/retailshop/service/MetaCatalogFeedService.java`
+  - `backend/src/main/java/com/retailshop/service/impl/MetaCatalogFeedServiceImpl.java`
+  - `backend/src/main/java/com/retailshop/service/impl/ProductCategoryOptionServiceImpl.java`
+  - `backend/src/main/java/com/retailshop/service/impl/ProductServiceImpl.java`
+  - `backend/src/main/java/com/retailshop/service/impl/ReceiptSettingsServiceImpl.java`
+  - `backend/src/main/resources/schema.sql`
+  - `frontend/src/App.jsx`
+  - `frontend/src/pages/CheckoutPage.jsx`
+  - `frontend/src/pages/ProductsPage.jsx`
+  - `frontend/src/pages/PublicProductDetailPage.jsx`
+  - `frontend/src/pages/PublicProductsPage.jsx`
+  - `frontend/src/pages/ReceiptSettingsPage.jsx`
+  - `frontend/src/services/retailService.js`
+  - `frontend/src/styles/global.css`
+  - `frontend/src/utils/branding.js`
+  - `frontend/src/utils/metaPixel.js`
+  - `docs/CURRENT_TASK.md`
+  - `docs/TASK_TRACKER.md`
+  - `docs/krishnai.md`
+- Implementation notes:
+  - Added Brand Configuration > Facebook Catalog tab with enablement, Pixel ID, feed token generation, XML/CSV feed URLs, feed status, and first-20 product feed preview.
+  - Added category-level Facebook sync settings and product-level Facebook sync flag.
+  - Added public `/api/meta/catalog-feed.xml` and `/api/meta/catalog-feed.csv` endpoints with disabled/forbidden token behavior.
+  - Feed includes only active, website-visible, Facebook-enabled, in-stock products with public images and Facebook-enabled mapped categories.
+  - Feed uses existing offer logic for original price and sale price and produces escaped XML plus UTF-8 CSV.
+  - Added Meta Pixel PageView, ViewContent, AddToCart, and Purchase tracking hooks plus Product JSON-LD on product detail pages.
+- Local testing:
+  - `backend ./mvnw test` passed: 75 tests.
+  - `frontend npm run build` passed.
+- Deployment:
+  - Deployed release `local-20260520234323` to EC2 using SSM command `eec15a8a-ea04-4cce-bb32-b7b9d58ab063`.
+  - Live verification passed: `/actuator/health` returned `UP`, `/app/settings/receipt` returned `200`, and `/api/meta/catalog-feed.xml` without token returned `403` because the feed token is configured.
+
+## Latest Category Icon And Offer Builder Fixes
+
+- Changed files:
+  - `backend/src/main/java/com/retailshop/dto/OfferRequest.java`
+  - `backend/src/main/java/com/retailshop/dto/OfferResponse.java`
+  - `backend/src/main/java/com/retailshop/entity/Offer.java`
+  - `backend/src/main/java/com/retailshop/enums/OfferType.java`
+  - `backend/src/main/java/com/retailshop/service/impl/MarketingAutomationServiceImpl.java`
+  - `backend/src/main/java/com/retailshop/service/impl/OfferServiceImpl.java`
+  - `backend/src/main/java/com/retailshop/service/impl/OrderPricingServiceImpl.java`
+  - `backend/src/main/java/com/retailshop/service/impl/ProductCategoryOptionServiceImpl.java`
+  - `backend/src/main/java/com/retailshop/service/impl/ProductServiceImpl.java`
+  - `backend/src/main/java/com/retailshop/service/impl/SupportInboxServiceImpl.java`
+  - `backend/src/main/resources/schema.sql`
+  - `backend/src/test/java/com/retailshop/service/impl/OfferServiceImplTest.java`
+  - `backend/src/test/java/com/retailshop/service/impl/ProductCategoryOptionServiceImplTest.java`
+  - `frontend/src/pages/OffersPage.jsx`
+  - `frontend/src/styles/global.css`
+  - `docs/CURRENT_TASK.md`
+  - `docs/TASK_TRACKER.md`
+  - `docs/krishnai.md`
+- Implementation notes:
+  - Superseded by the OpenAI-only category icon generation task: backend and frontend fallback icon generation has been removed, and OpenAI configuration errors now surface to the admin.
+  - Offer page time inputs were removed; date range and schedule labels remain.
+  - Offer product/category selectors are sorted predictably for easier lookup.
+  - Offer form layout now keeps category/product selectors and preview directly below "Offer applies to"; schedule date/day fields now sit directly below "Offer schedule".
+  - Offer page now supports Buy One Get One, Buy X Get Y, and Combo Offer creation metadata with buy/get target selectors.
+  - Backend schema and DTOs now persist buy/get offer metadata; same-product Buy/Get rewards can calculate line discounts.
+- Local testing:
+  - `frontend npm run build` passed.
+  - `backend ./mvnw test` passed: 75 tests.
+  - `backend ./mvnw -Dtest=OfferServiceImplTest test` passed: 5 tests.
+  - `backend ./mvnw -Dtest=ProductCategoryOptionServiceImplTest test` passed: 1 test.
+  - `git diff --check` passed.
+- Deployment:
+  - Pending.
+
+## Latest Admin/Billing Refinement
+
+- Changed files:
+  - `backend/src/main/java/com/retailshop/repository/CustomerOrderRepository.java`
+  - `backend/src/main/java/com/retailshop/service/impl/ReportServiceImpl.java`
+  - `backend/src/main/resources/application.yml`
+  - `frontend/src/pages/BillingPage.jsx`
+  - `frontend/src/pages/ProductsPage.jsx`
+  - `frontend/src/pages/ReportsPage.jsx`
+  - `frontend/src/pages/UsersPage.jsx`
+  - `frontend/src/styles/global.css`
+  - `docs/CURRENT_TASK.md`
+  - `docs/TASK_TRACKER.md`
+  - `docs/krishnai.md`
+- Implementation notes:
+  - Billing checkout preview, latest invoice, and print receipt display CGST/SGST/tax totals from the shared billing configuration.
+  - Product create auto-fills SKU from product name and shop/website price from cost price while the user has not manually overridden values.
+  - WEBSITE report filter now loads all pending website orders across dates before falling back to today's website orders.
+  - User management copy/menu labels were cleaned up, and edit-existing-invoice moved to the end of billing so mobile checkout is not blocked.
+  - Storefront collection image arrows now use subtle hover reveal, glass styling, smoother transition, and touch-visible controls.
+  - Backend rolling file logging is enabled with `APP_LOG_FILE` and `APP_LOG_*` limits.
+- Local testing:
+  - `frontend npm run build` passed.
+  - `backend ./mvnw test` passed: 72 tests.
+  - `git diff --check` passed.
+- Deployment:
+  - EC2 deployment succeeded for release `local-20260518150207`.
+  - SSM command `9fcc1df9-a243-431e-abbb-cb48b6aeb676` completed successfully.
+  - Live `https://kpskrishnai.com/actuator/health` returned `{"status":"UP"}`.
+  - Live `/app/products`, `/app/billing`, and `/app/reports` returned HTTP 200.

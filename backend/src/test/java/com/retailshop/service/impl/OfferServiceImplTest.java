@@ -136,4 +136,46 @@ class OfferServiceImplTest {
 
         assertEquals(BigDecimal.valueOf(119.60).setScale(2), discount);
     }
+
+    @Test
+    void shouldCreateAndApplySameProductBogoOffer() {
+        OfferRequest request = new OfferRequest();
+        request.setName("Buy one get one lipstick");
+        request.setType(OfferType.BUY_ONE_GET_ONE);
+        request.setValue(BigDecimal.ZERO);
+        request.setBuyProductId(product.getId());
+        request.setBuyQuantity(1);
+        request.setGetProductId(product.getId());
+        request.setGetQuantity(1);
+        request.setRewardDiscountPercent(BigDecimal.valueOf(100));
+        request.setStartDate(LocalDate.now());
+        request.setEndDate(LocalDate.now().plusDays(5));
+        request.setActive(true);
+
+        when(productRepository.findById(product.getId())).thenReturn(Optional.of(product));
+        when(offerRepository.save(any(Offer.class))).thenAnswer(invocation -> {
+            Offer offer = invocation.getArgument(0);
+            offer.setId(UUID.randomUUID());
+            return offer;
+        });
+
+        var response = offerService.createOffer(request);
+        assertEquals(product.getId(), response.getBuyProductId());
+        assertEquals(product.getId(), response.getGetProductId());
+
+        Offer offer = new Offer();
+        offer.setId(UUID.randomUUID());
+        offer.setType(OfferType.BUY_ONE_GET_ONE);
+        offer.setValue(BigDecimal.ZERO);
+        offer.setBuyProduct(product);
+        offer.setBuyQuantity(1);
+        offer.setGetProduct(product);
+        offer.setGetQuantity(1);
+        offer.setRewardDiscountPercent(BigDecimal.valueOf(100));
+        when(offerRepository.findActiveOffers(LocalDate.now())).thenReturn(List.of(offer));
+
+        BigDecimal discount = offerService.calculateBestDiscount(product, 2);
+
+        assertEquals(BigDecimal.valueOf(299).setScale(2), discount);
+    }
 }

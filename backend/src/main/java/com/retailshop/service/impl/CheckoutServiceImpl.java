@@ -36,7 +36,11 @@ public class CheckoutServiceImpl implements CheckoutService {
                 .couponDiscount(pricing.getCouponDiscount())
                 .discount(pricing.getDiscount())
                 .tax(pricing.getTax())
+                .cgst(pricing.getCgst())
+                .sgst(pricing.getSgst())
                 .delivery(pricing.getDelivery())
+                .freeDelivery(pricing.getFreeDelivery())
+                .freeDeliveryThreshold(pricing.getFreeDeliveryThreshold())
                 .finalTotal(pricing.getFinalTotal())
                 .build();
     }

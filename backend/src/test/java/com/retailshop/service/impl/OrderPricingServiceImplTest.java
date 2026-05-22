@@ -1,10 +1,10 @@
 package com.retailshop.service.impl;
 
-import com.retailshop.config.AppProperties;
 import com.retailshop.dto.CartItemResponse;
 import com.retailshop.dto.CartResponse;
 import com.retailshop.entity.Offer;
 import com.retailshop.entity.Product;
+import com.retailshop.repository.ReceiptSettingsRepository;
 import com.retailshop.enums.DiscountType;
 import com.retailshop.enums.OfferType;
 import com.retailshop.exception.BusinessException;
@@ -44,7 +44,8 @@ class OrderPricingServiceImplTest {
     @Mock
     private ProductRepository productRepository;
 
-    private AppProperties appProperties;
+    @Mock
+    private ReceiptSettingsRepository receiptSettingsRepository;
 
     @InjectMocks
     private OrderPricingServiceImpl orderPricingService;
@@ -53,8 +54,7 @@ class OrderPricingServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        appProperties = new AppProperties();
-        orderPricingService = new OrderPricingServiceImpl(appProperties, cartService, offerRepository, productRepository);
+        orderPricingService = new OrderPricingServiceImpl(cartService, offerRepository, productRepository, receiptSettingsRepository);
 
         product = new Product();
         product.setId(UUID.randomUUID());
@@ -67,6 +67,7 @@ class OrderPricingServiceImplTest {
         when(productRepository.findAllById(any())).thenReturn(List.of(product));
         lenient().when(productRepository.findById(product.getId())).thenReturn(Optional.of(product));
         lenient().when(offerRepository.findActiveOffers(any())).thenReturn(List.of());
+        lenient().when(receiptSettingsRepository.findAll()).thenReturn(List.of());
     }
 
     @Test

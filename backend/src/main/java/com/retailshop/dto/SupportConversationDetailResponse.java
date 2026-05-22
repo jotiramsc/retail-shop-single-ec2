@@ -17,5 +17,7 @@ public class SupportConversationDetailResponse {
     private long unreadCount;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private LocalDateTime resolvedAt;
+    private String resolvedBy;
     private List<SupportConversationMessageResponse> messages;
 }

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import DataTable from '../components/DataTable';
 import PageHeader from '../components/PageHeader';
 import Panel from '../components/Panel';
@@ -17,6 +18,13 @@ const createBlankProduct = (defaultCategory = '') => ({
   quantity: '',
   lowStockThreshold: '5',
   imageDataUrl: '',
+  productImages: [],
+  description: '',
+  generateAiDescription: false,
+  aiDescriptionStatus: '',
+  aiDescription: '',
+  aiDescriptionGeneratedAt: '',
+  aiDescriptionError: '',
   showOnWebsite: true,
   useForBilling: true,
   showInEditorsPicks: false,
@@ -26,27 +34,67 @@ const createBlankProduct = (defaultCategory = '') => ({
   showInFeaturedPieces: false,
   showInStory: false,
   showInCuratedSelections: false,
+  facebookSyncEnabled: true,
   expiryDate: ''
 });
 
 const blankCategoryForm = {
   displayName: '',
   iconImageUrl: '',
+  facebookSyncEnabled: true,
+  facebookCategory: '',
+  facebookCollectionName: '',
   active: true
 };
 
+const skuFromProductName = (name) => String(name || '')
+  .replace(/[^a-z0-9]/gi, '')
+  .slice(0, 3)
+  .toUpperCase();
+
+const defaultFacebookCategoryFor = (name) => {
+  const normalized = String(name || '').toLowerCase();
+  if (normalized.includes('neck') || normalized.includes('mala') || normalized.includes('mangalsutra') || normalized.includes('pearl')) {
+    return 'Apparel & Accessories > Jewelry > Necklaces';
+  }
+  if (normalized.includes('ear') || normalized.includes('jhum')) {
+    return 'Apparel & Accessories > Jewelry > Earrings';
+  }
+  if (normalized.includes('bangle') || normalized.includes('bracelet') || normalized.includes('bali')) {
+    return 'Apparel & Accessories > Jewelry > Bracelets';
+  }
+  if (normalized.includes('ring')) {
+    return 'Apparel & Accessories > Jewelry > Rings';
+  }
+  if (normalized.includes('cosmetic') || normalized.includes('lip') || normalized.includes('kajal') || normalized.includes('makeup') || normalized.includes('beauty') || normalized.includes('skin')) {
+    return 'Health & Beauty > Personal Care > Cosmetics';
+  }
+  return 'Apparel & Accessories > Jewelry';
+};
+
+const defaultFacebookCollectionFor = (name) => {
+  const displayName = String(name || '').trim();
+  return displayName ? `${displayName} Collection` : '';
+};
+
 export default function ProductsPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTab = searchParams.get('tab');
   const [productsPage, setProductsPage] = useState({ items: [], page: 0, totalPages: 0, totalItems: 0, hasNext: false, hasPrevious: false });
   const [inventoryDirectory, setInventoryDirectory] = useState([]);
   const [categoriesPage, setCategoriesPage] = useState({ items: [], page: 0, totalPages: 0, totalItems: 0, hasNext: false, hasPrevious: false });
   const [categoryOptions, setCategoryOptions] = useState([]);
   const [form, setForm] = useState(createBlankProduct());
   const [categoryForm, setCategoryForm] = useState(blankCategoryForm);
+  const [activeInventoryTab, setActiveInventoryTab] = useState('products');
   const [editingId, setEditingId] = useState(null);
   const [editingCategoryId, setEditingCategoryId] = useState(null);
   const [formMode, setFormMode] = useState('create');
   const [inventorySearch, setInventorySearch] = useState('');
   const [inventoryTableSearch, setInventoryTableSearch] = useState('');
+  const [inventoryCategoryFilter, setInventoryCategoryFilter] = useState('');
+  const [inventoryStockFilter, setInventoryStockFilter] = useState('ALL');
+  const [inventoryWebsiteFilter, setInventoryWebsiteFilter] = useState('ALL');
   const [searchFocused, setSearchFocused] = useState(false);
   const [selectedProductSnapshot, setSelectedProductSnapshot] = useState(null);
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -59,6 +107,17 @@ export default function ProductsPage() {
   const [iconOptions, setIconOptions] = useState([]);
 
   const defaultCategoryCode = categoryOptions[0]?.code || '';
+
+  useEffect(() => {
+    if (['products', 'categories', 'collections', 'brands'].includes(requestedTab) && requestedTab !== activeInventoryTab) {
+      setActiveInventoryTab(requestedTab);
+    }
+  }, [requestedTab, activeInventoryTab]);
+
+  const selectInventoryTab = (tab) => {
+    setActiveInventoryTab(tab);
+    setSearchParams(tab === 'products' ? {} : { tab });
+  };
 
   const loadProducts = async (page = 0) => {
     try {
@@ -115,6 +174,7 @@ export default function ProductsPage() {
     }
     return (shopPrice + (shopPrice * websitePricePercentage / 100)).toFixed(2);
   }, [form.sellingPrice, form.websitePricePercentage]);
+  const previewImage = form.productImages?.[0] || form.imageDataUrl || '';
 
   const resetForm = () => {
     setForm(createBlankProduct(defaultCategoryCode));
@@ -122,6 +182,51 @@ export default function ProductsPage() {
     setFormMode('create');
     setInventorySearch('');
     setSelectedProductSnapshot(null);
+  };
+
+  const handleProductNameChange = (value) => {
+    setForm((current) => {
+      const currentAutoSku = skuFromProductName(current.name);
+      const nextAutoSku = skuFromProductName(value);
+      const shouldAutoSku = formMode === 'create'
+        && (!current.sku || current.sku === currentAutoSku);
+
+      return {
+        ...current,
+        name: value,
+        sku: shouldAutoSku ? nextAutoSku : current.sku
+      };
+    });
+  };
+
+  const handleCostPriceChange = (value) => {
+    setForm((current) => {
+      const shouldUseCostAsShopPrice = formMode === 'create'
+        && (!current.sellingPrice || current.sellingPrice === current.costPrice);
+
+      return {
+        ...current,
+        costPrice: value,
+        sellingPrice: shouldUseCostAsShopPrice ? value : current.sellingPrice
+      };
+    });
+  };
+
+  const handleCategoryNameChange = (value) => {
+    setCategoryForm((current) => {
+      const previousAutoCategory = defaultFacebookCategoryFor(current.displayName);
+      const previousAutoCollection = defaultFacebookCollectionFor(current.displayName);
+      return {
+        ...current,
+        displayName: value,
+        facebookCategory: !current.facebookCategory || current.facebookCategory === previousAutoCategory
+          ? defaultFacebookCategoryFor(value)
+          : current.facebookCategory,
+        facebookCollectionName: !current.facebookCollectionName || current.facebookCollectionName === previousAutoCollection
+          ? defaultFacebookCollectionFor(value)
+          : current.facebookCollectionName
+      };
+    });
   };
 
   const resetCategoryForm = () => {
@@ -145,6 +250,13 @@ export default function ProductsPage() {
       quantity: mode === 'restock' ? '' : product.quantity,
       lowStockThreshold: product.lowStockThreshold,
       imageDataUrl: product.imageDataUrl || '',
+      productImages: product.productImages?.length ? product.productImages : (product.imageDataUrl ? [product.imageDataUrl] : []),
+      description: product.description || '',
+      generateAiDescription: false,
+      aiDescriptionStatus: product.aiDescriptionStatus || '',
+      aiDescription: product.aiDescription || '',
+      aiDescriptionGeneratedAt: product.aiDescriptionGeneratedAt || '',
+      aiDescriptionError: product.aiDescriptionError || '',
       showOnWebsite: product.showOnWebsite !== false,
       useForBilling: product.useForBilling !== false,
       showInEditorsPicks: Boolean(product.showInEditorsPicks),
@@ -154,18 +266,19 @@ export default function ProductsPage() {
       showInFeaturedPieces: Boolean(product.showInFeaturedPieces),
       showInStory: Boolean(product.showInStory),
       showInCuratedSelections: Boolean(product.showInCuratedSelections),
+      facebookSyncEnabled: product.facebookSyncEnabled !== false,
       expiryDate: product.expiryDate || ''
     });
     setSearchFocused(false);
   };
 
   const handleImageChange = async (event) => {
-    const file = event.target.files?.[0];
-    if (!file) {
+    const files = Array.from(event.target.files || []);
+    if (!files.length) {
       return;
     }
 
-    if (!file.type.startsWith('image/')) {
+    if (files.some((file) => !file.type.startsWith('image/'))) {
       setError('Please choose a valid image file.');
       return;
     }
@@ -173,13 +286,15 @@ export default function ProductsPage() {
     setError('');
     setUploadingImage(true);
     try {
-      const upload = await retailService.uploadImage({
+      const uploads = await Promise.all(files.map((file) => retailService.uploadImage({
         file,
         category: form.category || 'products'
-      });
+      })));
+      const uploadedUrls = uploads.map((upload) => upload.cloudfrontUrl).filter(Boolean);
       setForm((current) => ({
         ...current,
-        imageDataUrl: upload.cloudfrontUrl
+        imageDataUrl: current.imageDataUrl || uploadedUrls[0] || '',
+        productImages: [...(current.productImages || []), ...uploadedUrls].filter(Boolean)
       }));
     } catch (requestError) {
       setError(getApiErrorMessage(requestError, 'Unable to upload image.'));
@@ -217,8 +332,29 @@ export default function ProductsPage() {
       setError('Stock and low-stock threshold cannot be negative.');
       return;
     }
+    const selectedCategory = categoryOptions.find((category) => category.code === form.category);
+    const selectedImages = form.productImages?.length ? form.productImages : (form.imageDataUrl ? [form.imageDataUrl] : []);
+    if (form.facebookSyncEnabled) {
+      if (form.showOnWebsite === false) {
+        setError('Facebook synced products must be visible on the website.');
+        return;
+      }
+      if (!selectedImages.length) {
+        setError('Facebook synced products need at least one public product image.');
+        return;
+      }
+      if (selectedCategory?.facebookSyncEnabled === false) {
+        setError('Enable Facebook Catalog sync on the selected category first.');
+        return;
+      }
+    }
     const payload = {
       ...form,
+      imageDataUrl: selectedImages[0] || '',
+      productImages: selectedImages,
+      description: form.description?.trim() || null,
+      generateAiDescription: Boolean(form.generateAiDescription),
+      facebookSyncEnabled: form.facebookSyncEnabled !== false,
       websitePricePercentage: Number(form.websitePricePercentage || 0) > 0 ? Number(form.websitePricePercentage) : null,
       quantity: Number(form.quantity),
       lowStockThreshold: Number(form.lowStockThreshold)
@@ -239,8 +375,8 @@ export default function ProductsPage() {
         formMode === 'restock'
           ? `Inventory added successfully. New stock: ${Number(selectedProductSnapshot?.quantity || 0) + Number(form.quantity)}`
           : editingId
-            ? 'Product updated successfully.'
-            : 'Product added successfully.'
+            ? `Product updated successfully.${form.generateAiDescription ? ' AI description is generating in the background.' : ''}`
+            : `Product added successfully.${form.generateAiDescription ? ' AI description is generating in the background.' : ''}`
       );
       resetForm();
       loadProducts(productsPage.page || 0);
@@ -283,6 +419,9 @@ export default function ProductsPage() {
     setCategoryForm({
       displayName: category.displayName,
       iconImageUrl: category.iconImageUrl || '',
+      facebookSyncEnabled: category.facebookSyncEnabled !== false,
+      facebookCategory: category.facebookCategory || defaultFacebookCategoryFor(category.displayName),
+      facebookCollectionName: category.facebookCollectionName || defaultFacebookCollectionFor(category.displayName),
       active: Boolean(category.active)
     });
     setIconOptions([]);
@@ -294,19 +433,48 @@ export default function ProductsPage() {
       setCategoryError('Enter category name before generating icons.');
       return;
     }
+    if (editingCategoryId) {
+      const replace = Boolean(categoryForm.iconImageUrl);
+      if (replace && !window.confirm('Regenerate this category icon and replace the existing one?')) {
+        return;
+      }
+      setCategoryError('');
+      setCategorySuccess('');
+      setIconGenerating(true);
+      try {
+        const updated = await retailService.generateProductCategoryIcon(editingCategoryId, replace);
+        setCategoryForm((current) => ({ ...current, iconImageUrl: updated.iconImageUrl || '' }));
+        setIconOptions([]);
+        setCategorySuccess(replace ? 'Category icon regenerated.' : 'Category icon generated.');
+        await loadCategories(categoriesPage.page || 0);
+      } catch (requestError) {
+        setCategoryError(getApiErrorMessage(requestError, 'Unable to generate category icon.'));
+      } finally {
+        setIconGenerating(false);
+      }
+      return;
+    }
     setCategoryError('');
     setIconGenerating(true);
     try {
-      setIconOptions(await retailService.generateProductCategoryIcons({ categoryName }));
+      const options = await retailService.generateProductCategoryIcons({ categoryName });
+      if (Array.isArray(options) && options.length) {
+        setCategoryForm((current) => ({ ...current, iconImageUrl: options[0].imageUrl }));
+        setIconOptions([]);
+        setCategorySuccess('Category icon generated. Save the category to keep it.');
+      } else {
+        setCategoryError('OpenAI returned no category icon. Please try again.');
+      }
     } catch (requestError) {
-      setCategoryError(getApiErrorMessage(requestError, 'Unable to generate icon options.'));
+      setIconOptions([]);
+      setCategoryError(getApiErrorMessage(requestError, 'Unable to generate category icon with OpenAI.'));
     } finally {
       setIconGenerating(false);
     }
   };
 
   const handleDeleteProduct = async (product) => {
-    const confirmed = window.confirm(`Delete "${product.name}" from inventory? This cannot be undone.`);
+    const confirmed = window.confirm(`Remove "${product.name}" from active inventory? Receipts and invoices will stay preserved.`);
     if (!confirmed) {
       return;
     }
@@ -319,13 +487,68 @@ export default function ProductsPage() {
       if (editingId === product.id) {
         resetForm();
       }
-      setSuccess('Product deleted successfully.');
+      setSuccess('Product removed from active inventory. Existing receipts and invoices are preserved.');
       const nextPage = products.length === 1 && productsPage.page > 0 ? productsPage.page - 1 : productsPage.page;
       loadProducts(nextPage);
       loadProductDirectory();
     } catch (requestError) {
       setError(getApiErrorMessage(requestError, 'Unable to delete product.'));
     }
+  };
+
+  const productUpdatePayload = (product, overrides = {}) => ({
+    name: product.name,
+    category: product.category,
+    sku: product.sku,
+    costPrice: product.costPrice,
+    sellingPrice: product.sellingPrice,
+    websitePricePercentage: product.websitePricePercentage ?? null,
+    quantity: product.quantity,
+    lowStockThreshold: product.lowStockThreshold,
+    imageDataUrl: product.productImages?.[0] || product.imageDataUrl || '',
+    productImages: product.productImages?.length ? product.productImages : (product.imageDataUrl ? [product.imageDataUrl] : []),
+    description: product.description || null,
+    showOnWebsite: product.showOnWebsite !== false,
+    useForBilling: product.useForBilling !== false,
+    showInEditorsPicks: Boolean(product.showInEditorsPicks),
+    showInNewRelease: Boolean(product.showInNewRelease),
+    showInCustomerAccess: Boolean(product.showInCustomerAccess),
+    showInShopCollection: Boolean(product.showInShopCollection),
+    showInFeaturedPieces: Boolean(product.showInFeaturedPieces),
+    showInStory: Boolean(product.showInStory),
+    showInCuratedSelections: Boolean(product.showInCuratedSelections),
+    facebookSyncEnabled: product.facebookSyncEnabled !== false,
+    expiryDate: product.expiryDate || null,
+    ...overrides
+  });
+
+  const quickUpdateProduct = async (product, overrides, successMessage) => {
+    setError('');
+    setSuccess('');
+    try {
+      await retailService.updateProduct(product.id, productUpdatePayload(product, overrides));
+      setSuccess(successMessage || `${product.name} updated.`);
+      await loadProducts(productsPage.page || 0);
+      await loadProductDirectory();
+    } catch (requestError) {
+      setError(getApiErrorMessage(requestError, 'Unable to update product.'));
+    }
+  };
+
+  const duplicateProduct = (product) => {
+    setEditingId(null);
+    setFormMode('create');
+    setSelectedProductSnapshot(null);
+    setInventorySearch('');
+    setForm({
+      ...createBlankProduct(defaultCategoryCode),
+      ...productUpdatePayload(product),
+      name: `${product.name} Copy`,
+      sku: `${skuFromProductName(product.name)}${Date.now().toString().slice(-4)}`,
+      quantity: product.quantity || 0,
+      expiryDate: product.expiryDate || ''
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const searchResults = inventorySearch
@@ -366,16 +589,31 @@ export default function ProductsPage() {
 
   const inventoryRows = useMemo(() => {
     const normalized = inventoryTableSearch.trim().toLowerCase();
-    if (!normalized) {
-      return products;
-    }
+    const source = normalized ? searchableProducts : products;
 
-    return searchableProducts
-      .filter((product) =>
-        `${product.name} ${product.sku} ${product.category}`.toLowerCase().includes(normalized)
-      )
-      .slice(0, 50);
-  }, [inventoryTableSearch, products, searchableProducts]);
+    return source
+      .filter((product) => !normalized || `${product.name} ${product.sku} ${product.category}`.toLowerCase().includes(normalized))
+      .filter((product) => !inventoryCategoryFilter || product.category === inventoryCategoryFilter)
+      .filter((product) => {
+        if (inventoryWebsiteFilter === 'WEBSITE_ON') {
+          return product.showOnWebsite !== false;
+        }
+        if (inventoryWebsiteFilter === 'WEBSITE_OFF') {
+          return product.showOnWebsite === false;
+        }
+        return true;
+      })
+      .filter((product) => {
+        if (inventoryStockFilter === 'LOW') {
+          return Number(product.quantity || 0) <= Number(product.lowStockThreshold || 0);
+        }
+        if (inventoryStockFilter === 'OUT') {
+          return Number(product.quantity || 0) <= 0;
+        }
+        return true;
+      })
+      .slice(0, normalized || inventoryCategoryFilter || inventoryStockFilter !== 'ALL' || inventoryWebsiteFilter !== 'ALL' ? 80 : products.length);
+  }, [inventoryTableSearch, inventoryCategoryFilter, inventoryStockFilter, inventoryWebsiteFilter, products, searchableProducts]);
 
   const categoryTableRows = useMemo(() => categoriesPage.items || [], [categoriesPage.items]);
 
@@ -387,7 +625,27 @@ export default function ProductsPage() {
         description="Track cosmetics and jewellery stock, keep expiry dates visible, and update prices without mutating historical invoices."
       />
 
+      <div className="admin-tab-row inventory-tabs" role="tablist" aria-label="Inventory sections">
+        {[
+          ['products', 'Products'],
+          ['categories', 'Categories'],
+          ['collections', 'Collections'],
+          ['brands', 'Brands']
+        ].map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            className={activeInventoryTab === value ? 'is-active' : ''}
+            onClick={() => selectInventoryTab(value)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       <div className="inventory-stack">
+        {activeInventoryTab === 'products' ? (
+          <>
         <Panel
           title={formMode === 'restock' ? 'Add inventory' : editingId ? 'Edit product' : 'Add product'}
           subtitle="Search an existing product to restock it quickly, or enter a brand-new product from scratch."
@@ -430,14 +688,14 @@ export default function ProductsPage() {
               </div>
             ) : null}
 
-            <input placeholder="Product name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+            <input placeholder="Product name" value={form.name} onChange={(e) => handleProductNameChange(e.target.value)} required />
             <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} required>
               {categoryOptions.map((category) => (
                 <option key={category.id} value={category.code}>{category.displayName}</option>
               ))}
             </select>
             <input placeholder="SKU" value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} required />
-            <input type="number" step="0.01" min="0" placeholder="Cost Price" value={form.costPrice} onChange={(e) => setForm({ ...form, costPrice: e.target.value })} required />
+            <input type="number" step="0.01" min="0" placeholder="Cost Price" value={form.costPrice} onChange={(e) => handleCostPriceChange(e.target.value)} required />
             <input type="number" step="0.01" min="0" placeholder="Shop Price" value={form.sellingPrice} onChange={(e) => setForm({ ...form, sellingPrice: e.target.value })} required />
             <input
               type="number"
@@ -478,23 +736,56 @@ export default function ProductsPage() {
                 id="product-image"
                 type="file"
                 accept="image/*"
+                multiple
                 onChange={handleImageChange}
                 disabled={uploadingImage}
               />
               {uploadingImage ? <p className="field-note">Uploading image to S3...</p> : null}
-              {form.imageDataUrl ? (
+              {(form.productImages?.length || form.imageDataUrl) ? (
                 <div className="image-preview-card">
-                  <img src={form.imageDataUrl} alt={form.name || 'Product preview'} className="image-preview" />
-                  <button
-                    type="button"
-                    className="ghost-btn"
-                    onClick={() => setForm({ ...form, imageDataUrl: '' })}
-                  >
-                    Remove picture
-                  </button>
+                  <div className="product-image-strip">
+                    {(form.productImages?.length ? form.productImages : [form.imageDataUrl]).map((imageUrl, index) => (
+                      <div key={`${imageUrl}-${index}`} className={index === 0 ? 'product-image-thumb is-primary' : 'product-image-thumb'}>
+                        <img src={imageUrl} alt={`${form.name || 'Product'} preview ${index + 1}`} className="image-preview" />
+                        <span>{index === 0 ? 'Primary' : `Image ${index + 1}`}</span>
+                        <button
+                          type="button"
+                          className="ghost-btn compact-btn"
+                          onClick={() => {
+                            const nextImages = (form.productImages?.length ? form.productImages : [form.imageDataUrl]).filter((_, imageIndex) => imageIndex !== index);
+                            setForm({ ...form, productImages: nextImages, imageDataUrl: nextImages[0] || '' });
+                          }}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ) : null}
             </div>
+            <label className="toggle-field">
+              <input
+                type="checkbox"
+                checked={Boolean(form.generateAiDescription)}
+                onChange={(e) => setForm({ ...form, generateAiDescription: e.target.checked })}
+              />
+              <span>{editingId ? 'Regenerate AI description after save' : 'Generate AI description'}</span>
+            </label>
+            <textarea
+              className="form-textarea"
+              placeholder="Product description"
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+            />
+            {editingId && (form.aiDescriptionStatus || form.aiDescription || form.aiDescriptionError) ? (
+              <div className="admin-ai-description-card">
+                <strong>AI description: {form.aiDescriptionStatus || 'Not requested'}</strong>
+                {form.aiDescription ? <p>{form.aiDescription}</p> : null}
+                {form.aiDescriptionError ? <small>{form.aiDescriptionError}</small> : null}
+                {form.aiDescriptionStatus === 'FAILED' ? <small>Check “Regenerate AI description after save” and update the product to retry.</small> : null}
+              </div>
+            ) : null}
             <label className="toggle-field">
               <input
                 type="checkbox"
@@ -511,6 +802,23 @@ export default function ProductsPage() {
               />
               <span>Use for Shop Billing</span>
             </label>
+            <div className="facebook-catalog-box">
+              <label className="toggle-field">
+                <input
+                  type="checkbox"
+                  checked={Boolean(form.facebookSyncEnabled)}
+                  onChange={(e) => setForm({ ...form, facebookSyncEnabled: e.target.checked })}
+                />
+                <span>Sync this product to Facebook Catalog</span>
+              </label>
+              <p className="field-note">
+                Facebook Category: {(() => {
+                  const selectedCategory = categoryOptions.find((category) => category.code === form.category);
+                  if (!selectedCategory) return 'Select a category to auto-map';
+                  return selectedCategory.facebookCategory || defaultFacebookCategoryFor(selectedCategory.displayName);
+                })()}
+              </p>
+            </div>
             <label className="toggle-field">
               <input
                 type="checkbox"
@@ -560,6 +868,17 @@ export default function ProductsPage() {
               <span>Customer Access hero image (single product only)</span>
             </label>
             <input type="date" value={form.expiryDate} onChange={(e) => setForm({ ...form, expiryDate: e.target.value })} />
+            {(form.name || previewImage || form.category || computedWebsitePrice) ? (
+              <div className="admin-product-preview-card">
+                {previewImage ? <img src={previewImage} alt={`${form.name || 'Product'} preview`} /> : <div className="support-product-placeholder" />}
+                <div>
+                  <span>{form.category || 'Category'}</span>
+                  <strong>{form.name || 'Product preview'}</strong>
+                  <p>{currency(computedWebsitePrice || form.sellingPrice || 0)}</p>
+                  <small>{form.showOnWebsite !== false ? 'Visible on website' : 'Website hidden'} · {form.useForBilling !== false ? 'Billing enabled' : 'Billing hidden'}</small>
+                </div>
+              </div>
+            ) : null}
             {error ? <p className="error-text">{error}</p> : null}
             {success ? <p className="success-text">{success}</p> : null}
             <button className="primary-btn" type="submit">
@@ -583,23 +902,33 @@ export default function ProductsPage() {
                     : 'Filter by name, SKU, or category to jump straight to the right product.'}
                 </p>
               </div>
+              <select value={inventoryCategoryFilter} onChange={(e) => setInventoryCategoryFilter(e.target.value)}>
+                <option value="">All categories</option>
+                {categoryOptions.map((category) => (
+                  <option key={category.id} value={category.code}>{category.displayName}</option>
+                ))}
+              </select>
+              <select value={inventoryStockFilter} onChange={(e) => setInventoryStockFilter(e.target.value)}>
+                <option value="ALL">All stock</option>
+                <option value="LOW">Low stock</option>
+                <option value="OUT">Out of stock</option>
+              </select>
+              <select value={inventoryWebsiteFilter} onChange={(e) => setInventoryWebsiteFilter(e.target.value)}>
+                <option value="ALL">Website: all</option>
+                <option value="WEBSITE_ON">Website on</option>
+                <option value="WEBSITE_OFF">Website off</option>
+              </select>
             </div>
             <DataTable
               columns={[
                 {
                   key: 'image',
                   label: 'Photo',
-                  render: (row) => row.imageDataUrl ? <img src={row.imageDataUrl} alt={row.name} className="table-thumb" /> : '—'
+                  render: (row) => (row.productImages?.[0] || row.imageDataUrl) ? <img src={row.productImages?.[0] || row.imageDataUrl} alt={row.name} className="table-thumb" /> : '—'
                 },
                 { key: 'name', label: 'Name' },
                 { key: 'category', label: 'Category' },
-                { key: 'sku', label: 'SKU' },
                 { key: 'sellingPrice', label: 'Shop Price', render: (row) => currency(row.sellingPrice) },
-                {
-                  key: 'websitePricePercentage',
-                  label: 'Web %',
-                  render: (row) => row.websitePricePercentage ? `${row.websitePricePercentage}%` : 'Same'
-                },
                 {
                   key: 'websitePrice',
                   label: 'Website Price',
@@ -609,34 +938,30 @@ export default function ProductsPage() {
                 {
                   key: 'showOnWebsite',
                   label: 'Website',
-                  render: (row) => row.showOnWebsite !== false ? 'On' : 'Off'
+                  render: (row) => (
+                    <button type="button" className={row.showOnWebsite !== false ? 'mini-switch is-on' : 'mini-switch'} onClick={() => quickUpdateProduct(row, { showOnWebsite: row.showOnWebsite === false }, 'Website visibility updated.')}>
+                      <span />
+                    </button>
+                  )
                 },
                 {
                   key: 'useForBilling',
                   label: 'Billing',
-                  render: (row) => row.useForBilling !== false ? 'On' : 'Off'
-                },
-                {
-                  key: 'showInShopCollection',
-                  label: 'Collection',
-                  render: (row) => row.showInShopCollection ? 'On' : 'Off'
+                  render: (row) => (
+                    <button type="button" className={row.useForBilling !== false ? 'mini-switch is-on' : 'mini-switch'} onClick={() => quickUpdateProduct(row, { useForBilling: row.useForBilling === false }, 'Billing visibility updated.')}>
+                      <span />
+                    </button>
+                  )
                 },
                 {
                   key: 'showInFeaturedPieces',
                   label: 'Featured',
-                  render: (row) => row.showInFeaturedPieces ? 'On' : 'Off'
+                  render: (row) => (
+                    <button type="button" className={row.showInFeaturedPieces ? 'mini-switch is-on' : 'mini-switch'} onClick={() => quickUpdateProduct(row, { showInFeaturedPieces: !row.showInFeaturedPieces }, 'Featured flag updated.')}>
+                      <span />
+                    </button>
+                  )
                 },
-                {
-                  key: 'showInStory',
-                  label: 'Story',
-                  render: (row) => row.showInStory ? 'On' : 'Off'
-                },
-                {
-                  key: 'showInCuratedSelections',
-                  label: 'Curated',
-                  render: (row) => row.showInCuratedSelections ? 'On' : 'Off'
-                },
-                { key: 'lowStockThreshold', label: 'Alert At' },
                 {
                   key: 'actions',
                   label: 'Actions',
@@ -651,6 +976,16 @@ export default function ProductsPage() {
                       </button>
                       <button
                         type="button"
+                        className="ghost-btn compact-btn table-action-btn"
+                        onClick={() => duplicateProduct(row)}
+                      >
+                        Duplicate
+                      </button>
+                      <a className="ghost-btn compact-btn table-action-btn" href={`/product/${row.id}`} target="_blank" rel="noreferrer">
+                        Preview
+                      </a>
+                      <button
+                        type="button"
                         className="ghost-btn compact-btn table-action-btn danger-btn"
                         onClick={() => handleDeleteProduct(row)}
                       >
@@ -662,17 +997,20 @@ export default function ProductsPage() {
               ]}
               rows={inventoryRows}
               emptyMessage="No inventory matched this search."
-              pagination={inventoryTableSearch.trim() ? null : productsPage}
-              onPageChange={inventoryTableSearch.trim() ? null : loadProducts}
+              pagination={inventoryTableSearch.trim() || inventoryCategoryFilter || inventoryStockFilter !== 'ALL' || inventoryWebsiteFilter !== 'ALL' ? null : productsPage}
+              onPageChange={inventoryTableSearch.trim() || inventoryCategoryFilter || inventoryStockFilter !== 'ALL' || inventoryWebsiteFilter !== 'ALL' ? null : loadProducts}
             />
         </Panel>
+          </>
+        ) : null}
 
+        {activeInventoryTab === 'categories' ? (
         <Panel title="Product categories" subtitle="Add categories like Jewellery or Cosmetics and use them immediately while creating products.">
             <form className="form-grid compact-form" onSubmit={submitCategory}>
               <input
                 placeholder="Category name"
                 value={categoryForm.displayName}
-                onChange={(e) => setCategoryForm({ ...categoryForm, displayName: e.target.value })}
+                onChange={(e) => handleCategoryNameChange(e.target.value)}
                 required
               />
               <div className="category-icon-builder">
@@ -680,7 +1018,7 @@ export default function ProductsPage() {
                   {categoryForm.iconImageUrl ? <img src={categoryForm.iconImageUrl} alt="Selected category icon" /> : <span>No icon selected</span>}
                 </div>
                 <button type="button" className="ghost-btn compact-btn" onClick={generateCategoryIcons} disabled={iconGenerating}>
-                  {iconGenerating ? 'Generating...' : 'Generate icon options'}
+                  {iconGenerating ? 'Generating...' : categoryForm.iconImageUrl ? 'Regenerate Icon' : 'Generate Icon'}
                 </button>
               </div>
               {iconOptions.length ? (
@@ -706,6 +1044,35 @@ export default function ProductsPage() {
                 />
                 <span>Available in product forms</span>
               </label>
+              <div className="facebook-catalog-box">
+                <label className="toggle-field">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(categoryForm.facebookSyncEnabled)}
+                    onChange={(e) => setCategoryForm((current) => ({
+                      ...current,
+                      facebookSyncEnabled: e.target.checked,
+                      facebookCategory: e.target.checked && !current.facebookCategory ? defaultFacebookCategoryFor(current.displayName) : current.facebookCategory,
+                      facebookCollectionName: e.target.checked && !current.facebookCollectionName ? defaultFacebookCollectionFor(current.displayName) : current.facebookCollectionName
+                    }))}
+                  />
+                  <span>Sync this category to Facebook</span>
+                </label>
+                {categoryForm.facebookSyncEnabled ? (
+                  <div className="settings-two-column">
+                    <input
+                      placeholder="Facebook Product Category"
+                      value={categoryForm.facebookCategory || ''}
+                      onChange={(e) => setCategoryForm({ ...categoryForm, facebookCategory: e.target.value })}
+                    />
+                    <input
+                      placeholder="Facebook Collection Name"
+                      value={categoryForm.facebookCollectionName || ''}
+                      onChange={(e) => setCategoryForm({ ...categoryForm, facebookCollectionName: e.target.value })}
+                    />
+                  </div>
+                ) : null}
+              </div>
               {categoryError ? <p className="error-text">{categoryError}</p> : null}
               {categorySuccess ? <p className="success-text">{categorySuccess}</p> : null}
               <div className="table-action-group">
@@ -726,6 +1093,16 @@ export default function ProductsPage() {
                   render: (row) => row.iconImageUrl ? <img src={row.iconImageUrl} alt={row.displayName} className="table-thumb" /> : '—'
                 },
                 { key: 'displayName', label: 'Name' },
+                {
+                  key: 'productCount',
+                  label: 'Products',
+                  render: (row) => products.filter((product) => product.category === row.code).length
+                },
+                {
+                  key: 'facebookSyncEnabled',
+                  label: 'Facebook',
+                  render: (row) => row.facebookSyncEnabled ? 'Synced' : 'Off'
+                },
                 { key: 'code', label: 'Code' },
                 { key: 'active', label: 'Status', render: (row) => row.active ? 'Active' : 'Hidden' },
                 {
@@ -743,6 +1120,23 @@ export default function ProductsPage() {
               onPageChange={loadCategories}
             />
         </Panel>
+        ) : null}
+        {activeInventoryTab === 'collections' ? (
+          <Panel title="Collections" subtitle="Collection controls reuse the product homepage flags today. Use product quick toggles for Featured, Shop Collection, Story, and Curated sections.">
+            <div className="empty-state-card">
+              <strong>Collection controls are available on each product row.</strong>
+              <span>Dedicated collection grouping can be added later without changing product visibility behavior.</span>
+            </div>
+          </Panel>
+        ) : null}
+        {activeInventoryTab === 'brands' ? (
+          <Panel title="Brands" subtitle="Brand management is reserved for future cosmetics and jewellery vendor grouping.">
+            <div className="empty-state-card">
+              <strong>No brand records yet.</strong>
+              <span>Products continue to work with existing category and SKU fields.</span>
+            </div>
+          </Panel>
+        ) : null}
       </div>
     </div>
   );

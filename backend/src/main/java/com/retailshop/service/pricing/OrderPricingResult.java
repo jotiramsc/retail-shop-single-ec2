@@ -19,6 +19,10 @@ public class OrderPricingResult {
     private BigDecimal couponDiscount;
     private BigDecimal discount;
     private BigDecimal tax;
+    private BigDecimal cgst;
+    private BigDecimal sgst;
     private BigDecimal delivery;
+    private Boolean freeDelivery;
+    private BigDecimal freeDeliveryThreshold;
     private BigDecimal finalTotal;
 }

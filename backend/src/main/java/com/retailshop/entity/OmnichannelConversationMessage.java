@@ -39,6 +39,12 @@ public class OmnichannelConversationMessage {
     @Column(name = "raw_payload", length = 12000)
     private String rawPayload;
 
+    @Column(name = "external_message_id", length = 255)
+    private String externalMessageId;
+
+    @Column(name = "correlation_id", length = 80)
+    private String correlationId;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 

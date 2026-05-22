@@ -10,13 +10,16 @@ const permissionOptions = [
   { value: 'PRODUCTS', label: 'Inventory' },
   { value: 'CUSTOMERS', label: 'Customers' },
   { value: 'OFFERS', label: 'Offers' },
-  { value: 'MARKETING_AUTOMATION', label: 'Marketing Automation' },
+  { value: 'MARKETING_AUTOMATION', label: 'Campaign Studio' },
   { value: 'REPORTS', label: 'Reports' },
-  { value: 'SITE_INTERACTIONS', label: 'Site Interaction' },
-  { value: 'SALESPERSON_SALES', label: 'Salesperson Sales' },
-  { value: 'RECEIPT_SETTINGS', label: 'Brand Configuration' },
-  { value: 'USER_MANAGEMENT', label: 'User Management' }
+  { value: 'SITE_INTERACTIONS', label: 'Website Activity' },
+  { value: 'SALESPERSON_SALES', label: 'Salesperson Performance' },
+  { value: 'RECEIPT_SETTINGS', label: 'Store Configuration' },
+  { value: 'USER_MANAGEMENT', label: 'Users' }
 ];
+
+const permissionLabel = (permission) =>
+  permissionOptions.find((option) => option.value === permission)?.label || permission.replaceAll('_', ' ');
 
 const blankForm = {
   username: '',
@@ -118,14 +121,14 @@ export default function UsersPage() {
     <div className="page">
       <PageHeader
         eyebrow="Users"
-        title="Staff access and menu permissions"
-        description="Create store users, assign only the menus they should see, and keep staff logins inside the database."
+        title="Team Accounts"
+        description="Create staff logins, choose billing visibility, and assign the admin sections each person can open."
       />
 
       <div className="two-column">
         <Panel
           title={editingId ? 'Edit user' : 'Create user'}
-          subtitle="Admins always keep full access. Staff users can be restricted menu by menu."
+          subtitle="Admins keep full access. Staff accounts can be limited to only the sections they need."
         >
           <form className="form-grid" onSubmit={submit}>
             <input
@@ -159,7 +162,7 @@ export default function UsersPage() {
                 checked={Boolean(form.enabled)}
                 onChange={(e) => setForm({ ...form, enabled: e.target.checked })}
               />
-              <span>User can sign in</span>
+              <span>Allow login</span>
             </label>
 
             <label className="toggle-field">
@@ -168,7 +171,7 @@ export default function UsersPage() {
                 checked={Boolean(form.salesPerson)}
                 onChange={(e) => setForm({ ...form, salesPerson: e.target.checked })}
               />
-              <span>Available in billing sales person list</span>
+              <span>Show in billing salesperson list</span>
             </label>
 
             <div className="permission-grid">
@@ -189,7 +192,7 @@ export default function UsersPage() {
 
             <div className="table-action-group">
               <button className="primary-btn" type="submit">
-                {editingId ? 'Update User' : 'Create User'}
+              {editingId ? 'Update Account' : 'Create Account'}
               </button>
               {editingId ? (
                 <button type="button" className="ghost-btn" onClick={resetForm}>
@@ -200,21 +203,21 @@ export default function UsersPage() {
           </form>
         </Panel>
 
-        <Panel title="Existing users" subtitle="Click edit to change menu access, password, or enabled status.">
+        <Panel title="Team Accounts" subtitle="Click edit to change access, password, billing visibility, or enabled status.">
           <DataTable
             columns={[
               { key: 'displayName', label: 'Name' },
               { key: 'username', label: 'Username' },
               { key: 'role', label: 'Role' },
               { key: 'enabled', label: 'Status', render: (row) => row.enabled ? 'Active' : 'Disabled' },
-              { key: 'salesPerson', label: 'Sales Person', render: (row) => row.salesPerson ? 'Yes' : 'No' },
+              { key: 'salesPerson', label: 'Billing Salesperson', render: (row) => row.salesPerson ? 'Yes' : 'No' },
               {
                 key: 'permissions',
                 label: 'Menus',
                 render: (row) => (
                   <div className="permission-chip-row">
                     {(row.permissions || []).map((permission) => (
-                      <span key={permission} className="trust-chip small-chip">{permission.replaceAll('_', ' ')}</span>
+                      <span key={permission} className="trust-chip small-chip">{permissionLabel(permission)}</span>
                     ))}
                   </div>
                 )

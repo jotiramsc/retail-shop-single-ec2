@@ -43,6 +43,15 @@ public class OmnichannelConversation {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
+    @Column(name = "resolved_at")
+    private LocalDateTime resolvedAt;
+
+    @Column(name = "resolved_by", length = 255)
+    private String resolvedBy;
+
+    @Column(name = "bot_session_json", columnDefinition = "TEXT")
+    private String botSessionJson;
+
     @PrePersist
     public void prePersist() {
         if (id == null) {

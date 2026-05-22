@@ -2,8 +2,10 @@ package com.retailshop.controller;
 
 import com.retailshop.dto.CustomerRequest;
 import com.retailshop.dto.CustomerDetailsResponse;
+import com.retailshop.dto.CustomerEngagementUpdateRequest;
 import com.retailshop.dto.CustomerResponse;
 import com.retailshop.dto.CustomerLookupResponse;
+import com.retailshop.dto.CustomerSupportChatResponse;
 import com.retailshop.dto.PaginatedResponse;
 import com.retailshop.dto.PurchaseHistoryResponse;
 import com.retailshop.service.CustomerService;
@@ -15,6 +17,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -42,9 +45,10 @@ public class CustomerController {
     @GetMapping
     @PreAuthorize("hasAuthority('PERM_CUSTOMERS')")
     public PaginatedResponse<CustomerResponse> getCustomers(@RequestParam(defaultValue = "0") int page,
-                                                            @RequestParam(defaultValue = "10") int size) {
+                                                            @RequestParam(defaultValue = "10") int size,
+                                                            @RequestParam(required = false) String segment) {
         Pageable pageable = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 100));
-        return customerService.getAllCustomers(pageable);
+        return customerService.getAllCustomers(pageable, segment);
     }
 
     @GetMapping("/search")
@@ -57,6 +61,33 @@ public class CustomerController {
     @PreAuthorize("hasAuthority('PERM_CUSTOMERS')")
     public CustomerDetailsResponse getCustomerDetails(@PathVariable UUID customerId) {
         return customerService.getCustomerDetails(customerId);
+    }
+
+    @PatchMapping("/{customerId}/details")
+    @PreAuthorize("hasAuthority('PERM_CUSTOMERS')")
+    public CustomerDetailsResponse updateCustomerDetails(@PathVariable UUID customerId,
+                                                         @RequestBody CustomerEngagementUpdateRequest request) {
+        return customerService.updateCustomerEngagement(customerId, request == null ? new CustomerEngagementUpdateRequest() : request);
+    }
+
+    @PostMapping("/{customerId}/tags")
+    @PreAuthorize("hasAuthority('PERM_CUSTOMERS')")
+    public CustomerDetailsResponse updateTags(@PathVariable UUID customerId,
+                                              @RequestBody CustomerEngagementUpdateRequest request) {
+        return customerService.updateCustomerEngagement(customerId, request == null ? new CustomerEngagementUpdateRequest() : request);
+    }
+
+    @PostMapping("/{customerId}/notes")
+    @PreAuthorize("hasAuthority('PERM_CUSTOMERS')")
+    public CustomerDetailsResponse updateNotes(@PathVariable UUID customerId,
+                                               @RequestBody CustomerEngagementUpdateRequest request) {
+        return customerService.updateCustomerEngagement(customerId, request == null ? new CustomerEngagementUpdateRequest() : request);
+    }
+
+    @PostMapping("/{customerId}/support-chat/start")
+    @PreAuthorize("hasAuthority('PERM_CUSTOMERS')")
+    public CustomerSupportChatResponse startSupportChat(@PathVariable UUID customerId) {
+        return customerService.startSupportChat(customerId);
     }
 
     @GetMapping("/history")

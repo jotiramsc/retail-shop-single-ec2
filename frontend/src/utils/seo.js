@@ -39,7 +39,8 @@ export function applySeo({
   path = '/',
   image = '',
   keywords = '',
-  jsonLd = null
+  jsonLd = null,
+  extraMeta = []
 }) {
   const resolvedTitle = title || 'Krishnai Pearl Shopee';
   const resolvedDescription = description || 'Krishnai Pearl Shopee offers pearl jewellery, bangles, earrings, festive sets, and cosmetics online.';
@@ -68,6 +69,13 @@ export function applySeo({
   if (imageUrl) {
     upsertMeta('meta[name="twitter:image"]', { name: 'twitter:image' }, imageUrl);
   }
+
+  extraMeta.forEach((meta) => {
+    if (!meta?.property || meta.content == null) {
+      return;
+    }
+    upsertMeta(`meta[property="${meta.property}"]`, { property: meta.property }, String(meta.content));
+  });
 
   upsertLink('link[rel="canonical"]', { rel: 'canonical', href: canonicalUrl });
 

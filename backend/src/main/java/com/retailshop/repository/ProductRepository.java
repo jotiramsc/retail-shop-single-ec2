@@ -13,8 +13,8 @@ import java.util.UUID;
 public interface ProductRepository extends JpaRepository<Product, UUID> {
     Optional<Product> findBySku(String sku);
 
-    Page<Product> findAllByOrderByCreatedAtDesc(Pageable pageable);
+    Page<Product> findAllByActiveTrueOrderByCreatedAtDesc(Pageable pageable);
 
-    @Query("select p from Product p where p.quantity <= p.lowStockThreshold")
+    @Query("select p from Product p where p.active = true and p.quantity <= p.lowStockThreshold")
     Page<Product> findLowStockProducts(Pageable pageable);
 }

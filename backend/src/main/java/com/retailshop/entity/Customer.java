@@ -58,6 +58,51 @@ public class Customer {
     @Column(name = "date_of_birth")
     private LocalDate dateOfBirth;
 
+    @Column(name = "anniversary_date")
+    private LocalDate anniversaryDate;
+
+    @Column(name = "spouse_name")
+    private String spouseName;
+
+    @Column(name = "preferred_language", length = 80)
+    private String preferredLanguage;
+
+    @Column(name = "preferred_categories", length = 1000)
+    private String preferredCategories;
+
+    @Column(name = "preferred_products", length = 1000)
+    private String preferredProducts;
+
+    @Column(name = "preferred_brands", length = 1000)
+    private String preferredBrands;
+
+    @Column(name = "preferred_price_range", length = 120)
+    private String preferredPriceRange;
+
+    @Column(name = "shopping_interests", length = 1000)
+    private String shoppingInterests;
+
+    @Column(name = "customer_notes", length = 2000)
+    private String customerNotes;
+
+    @Column(name = "customer_tags", length = 1000)
+    private String customerTags;
+
+    @Column(name = "birthday_reminder_enabled", nullable = false)
+    private boolean birthdayReminderEnabled = true;
+
+    @Column(name = "anniversary_reminder_enabled", nullable = false)
+    private boolean anniversaryReminderEnabled = true;
+
+    @Column(name = "last_login_at")
+    private LocalDateTime lastLoginAt;
+
+    @Column(name = "last_login_method", length = 80)
+    private String lastLoginMethod;
+
+    @Column(name = "last_known_location", length = 500)
+    private String lastKnownLocation;
+
     @Column
     private String gender;
 

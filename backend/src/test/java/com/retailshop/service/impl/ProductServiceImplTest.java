@@ -1,10 +1,17 @@
 package com.retailshop.service.impl;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.retailshop.dto.ProductRequest;
+import com.retailshop.entity.Offer;
 import com.retailshop.entity.Product;
+import com.retailshop.enums.DiscountType;
+import com.retailshop.enums.OfferType;
 import com.retailshop.repository.InvoiceItemRepository;
+import com.retailshop.repository.OfferRepository;
 import com.retailshop.repository.OrderItemRepository;
 import com.retailshop.repository.ProductRepository;
+import com.retailshop.repository.ReceiptSettingsRepository;
+import com.retailshop.service.ProductAiDescriptionService;
 import com.retailshop.service.ProductCategoryOptionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -24,6 +31,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -39,13 +48,31 @@ class ProductServiceImplTest {
     private ProductRepository productRepository;
 
     @Mock
+    private OfferRepository offerRepository;
+
+    @Mock
+    private ReceiptSettingsRepository receiptSettingsRepository;
+
+    @Mock
     private ProductCategoryOptionService productCategoryOptionService;
+
+    @Mock
+    private ProductAiDescriptionService productAiDescriptionService;
 
     private ProductServiceImpl productService;
 
     @BeforeEach
     void setUp() {
-        productService = new ProductServiceImpl(invoiceItemRepository, orderItemRepository, productRepository, productCategoryOptionService);
+        productService = new ProductServiceImpl(
+                invoiceItemRepository,
+                orderItemRepository,
+                productRepository,
+                offerRepository,
+                receiptSettingsRepository,
+                productCategoryOptionService,
+                productAiDescriptionService,
+                new ObjectMapper()
+        );
     }
 
     @Test
@@ -223,5 +250,79 @@ class ProductServiceImplTest {
         assertEquals(List.of(visible.getId()), productService.getPublicCatalog().stream().map(product -> product.getId()).toList());
         assertEquals(List.of(visible.getId()), productService.getPublicTrendingProducts(5).stream().map(product -> product.getId()).toList());
         assertThrows(com.retailshop.exception.ResourceNotFoundException.class, () -> productService.getPublicProduct(localOnly.getId()));
+    }
+
+    @Test
+    void shouldSoftDeleteProductAndHideItFromActiveSurfaces() {
+        UUID productId = UUID.randomUUID();
+        Product product = new Product();
+        product.setId(productId);
+        product.setName("Receipt Linked Necklace");
+        product.setCategory("NECKLACE");
+        product.setSku("NEC-REC-001");
+        product.setCostPrice(BigDecimal.valueOf(500));
+        product.setSellingPrice(BigDecimal.valueOf(1000));
+        product.setQuantity(4);
+        product.setLowStockThreshold(2);
+        product.setShowOnWebsite(true);
+        product.setUseForBilling(true);
+        product.setShowInEditorsPicks(true);
+        product.setShowInNewRelease(true);
+        product.setShowInCustomerAccess(true);
+        product.setShowInShopCollection(true);
+        product.setShowInFeaturedPieces(true);
+        product.setShowInStory(true);
+        product.setShowInCuratedSelections(true);
+        product.prePersist();
+
+        when(productRepository.findById(productId)).thenReturn(Optional.of(product));
+
+        productService.deleteProduct(productId);
+
+        assertFalse(product.getActive());
+        assertFalse(product.getShowOnWebsite());
+        assertFalse(product.getUseForBilling());
+        assertFalse(product.getShowInEditorsPicks());
+        assertFalse(product.getShowInNewRelease());
+        assertFalse(product.getShowInCustomerAccess());
+        assertFalse(product.getShowInShopCollection());
+        assertFalse(product.getShowInFeaturedPieces());
+        assertFalse(product.getShowInStory());
+        assertFalse(product.getShowInCuratedSelections());
+        verify(productRepository).save(product);
+        verify(productRepository, never()).delete(any(Product.class));
+    }
+
+    @Test
+    void shouldApplyPercentageOfferMaxDiscountCapOnPublicProductPrice() {
+        Product product = new Product();
+        product.setId(UUID.randomUUID());
+        product.setName("Premium Necklace");
+        product.setCategory("NECKLACE");
+        product.setSku("NECK-CAP-001");
+        product.setCostPrice(BigDecimal.valueOf(5000));
+        product.setSellingPrice(BigDecimal.valueOf(10000));
+        product.setQuantity(5);
+        product.setLowStockThreshold(2);
+        product.setCreatedAt(LocalDateTime.now());
+        product.prePersist();
+
+        Offer offer = new Offer();
+        offer.setId(UUID.randomUUID());
+        offer.setName("Necklace Offer");
+        offer.setType(OfferType.PERCENT);
+        offer.setDiscountType(DiscountType.PERCENT);
+        offer.setDiscountValue(BigDecimal.valueOf(20));
+        offer.setMaxDiscountAmount(BigDecimal.valueOf(1500));
+        offer.setCategory("NECKLACE");
+        offer.setActive(true);
+
+        when(productRepository.findAll()).thenReturn(List.of(product));
+        when(offerRepository.findActiveOffers(any())).thenReturn(List.of(offer));
+
+        var catalog = productService.getPublicCatalog();
+
+        assertEquals(BigDecimal.valueOf(8500.00).setScale(2), catalog.get(0).getOfferPrice());
+        assertEquals(BigDecimal.valueOf(1500.00).setScale(2), catalog.get(0).getYouSave());
     }
 }

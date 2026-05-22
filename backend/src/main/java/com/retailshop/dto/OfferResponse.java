@@ -7,6 +7,7 @@ import lombok.Getter;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 @Getter
@@ -30,4 +31,16 @@ public class OfferResponse {
     private String applicableOn;
     private LocalDate validFrom;
     private LocalDate validTo;
+    private String buyCategory;
+    private UUID buyProductId;
+    private String buyProductName;
+    private Integer buyQuantity;
+    private String getCategory;
+    private UUID getProductId;
+    private String getProductName;
+    private Integer getQuantity;
+    private String rewardMode;
+    private BigDecimal rewardDiscountPercent;
+    private String scheduleType;
+    private List<String> specificDays;
 }

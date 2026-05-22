@@ -79,6 +79,38 @@ public class Offer {
     @Column(name = "valid_to")
     private LocalDate validTo;
 
+    @Column(name = "buy_category")
+    private String buyCategory;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "buy_product_id")
+    private Product buyProduct;
+
+    @Column(name = "buy_quantity")
+    private Integer buyQuantity;
+
+    @Column(name = "get_category")
+    private String getCategory;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "get_product_id")
+    private Product getProduct;
+
+    @Column(name = "get_quantity")
+    private Integer getQuantity;
+
+    @Column(name = "reward_mode")
+    private String rewardMode;
+
+    @Column(name = "reward_discount_percent", precision = 12, scale = 2)
+    private BigDecimal rewardDiscountPercent;
+
+    @Column(name = "schedule_type", length = 50)
+    private String scheduleType;
+
+    @Column(name = "specific_days", length = 100)
+    private String specificDays;
+
     @PrePersist
     public void prePersist() {
         if (id == null) {

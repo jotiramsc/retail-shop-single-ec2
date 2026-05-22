@@ -29,6 +29,15 @@ public class ProductCategoryOption {
     @Column(name = "icon_image_url", columnDefinition = "text")
     private String iconImageUrl;
 
+    @Column(name = "facebook_sync_enabled", nullable = false)
+    private Boolean facebookSyncEnabled;
+
+    @Column(name = "facebook_category", length = 500)
+    private String facebookCategory;
+
+    @Column(name = "facebook_collection_name")
+    private String facebookCollectionName;
+
     @Column(nullable = false)
     private Boolean active;
 
@@ -45,6 +54,9 @@ public class ProductCategoryOption {
         }
         if (active == null) {
             active = Boolean.TRUE;
+        }
+        if (facebookSyncEnabled == null) {
+            facebookSyncEnabled = Boolean.TRUE;
         }
     }
 }

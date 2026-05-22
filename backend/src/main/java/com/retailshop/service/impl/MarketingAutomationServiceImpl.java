@@ -563,6 +563,7 @@ public class MarketingAutomationServiceImpl implements MarketingAutomationServic
         return switch (type) {
             case FLAT -> MarketingDiscountType.FLAT;
             case PERCENT, CATEGORY -> MarketingDiscountType.PERCENTAGE;
+            case BUY_ONE_GET_ONE, BUY_X_GET_Y, COMBO -> MarketingDiscountType.NONE;
         };
     }
 

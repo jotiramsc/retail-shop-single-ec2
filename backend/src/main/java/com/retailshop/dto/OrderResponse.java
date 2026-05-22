@@ -21,6 +21,8 @@ public class OrderResponse {
     private BigDecimal subtotal;
     private BigDecimal discount;
     private BigDecimal tax;
+    private BigDecimal cgst;
+    private BigDecimal sgst;
     private BigDecimal delivery;
     private BigDecimal finalAmount;
     private String couponCode;

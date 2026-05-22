@@ -110,7 +110,7 @@ export default function BillingPage() {
 
   useEffect(() => {
     const normalizedName = form.customerName.trim();
-    if (normalizedName.length < 1 || !customerSearchFocused) {
+    if (!customerSearchFocused) {
       setCustomerSuggestions([]);
       return;
     }
@@ -334,6 +334,9 @@ export default function BillingPage() {
           <div class="totals">
             <div><strong>Total:</strong> ${currency(printableInvoice.totalAmount)}</div>
             <div><strong>Discount:</strong> ${currency(printableInvoice.discount)}</div>
+            <div><strong>CGST:</strong> ${currency(printableInvoice.cgst || 0)}</div>
+            <div><strong>SGST:</strong> ${currency(printableInvoice.sgst || 0)}</div>
+            <div><strong>Tax Total:</strong> ${currency(printableInvoice.tax || 0)}</div>
             <div><strong>Final Amount:</strong> ${currency(printableInvoice.finalAmount)}</div>
             ${receiptSettings?.footerNote ? `<div style="margin-top:10px;text-align:center;">${receiptSettings.footerNote}</div>` : ''}
           </div>
@@ -436,6 +439,9 @@ export default function BillingPage() {
   const previewFinalAmount = Number(previewInvoice?.finalAmount ?? Math.max(subtotal - customDiscount, 0));
   const autoOrCouponDiscount = Math.max(Number(previewInvoice?.discount ?? 0) - customDiscount, 0);
   const previewTotalDiscount = Number(autoOrCouponDiscount + customDiscount);
+  const previewCgst = Number(previewInvoice?.cgst || 0);
+  const previewSgst = Number(previewInvoice?.sgst || 0);
+  const previewTax = Number(previewInvoice?.tax || previewCgst + previewSgst);
   const remainingStockAfterEdit = (item) => Number(item.currentStock || 0) + Number(item.originalQuantity || 0) - Number(item.quantity || 0);
   const lowStockBillingAlerts = cart.filter(
     (item) => Number(item.currentStock || 0) <= item.lowStockThreshold || remainingStockAfterEdit(item) <= item.lowStockThreshold
@@ -542,6 +548,67 @@ export default function BillingPage() {
       setInvoiceSuggestions({ invoices: [], page: 0, totalPages: 0, totalItems: 0, hasNext: false, hasPrevious: false });
     }
   };
+
+  const invoiceEditPanel = (
+    <Panel
+      title="Edit Existing Invoice"
+      subtitle={editingInvoiceId
+        ? 'An invoice is already loaded into checkout.'
+        : 'Search by customer name and load an existing bill into checkout.'}
+    >
+      <div className="invoice-search-panel">
+        <div className="search-box-wrap">
+          <label className="input-label" htmlFor="invoice-search-name">Customer name</label>
+          <input
+            id="invoice-search-name"
+            placeholder="Search customer name for invoice correction"
+            value={invoiceSearchName}
+            onChange={(e) => setInvoiceSearchName(e.target.value)}
+            autoComplete="off"
+          />
+        </div>
+        <label className="date-field">
+          <span>From date</span>
+          <input
+            type="date"
+            max={today}
+            value={invoiceSearchFromDate}
+            onChange={(e) => setInvoiceSearchFromDate(e.target.value)}
+          />
+        </label>
+      </div>
+
+      {invoiceSearchName.trim() ? (
+        <DataTable
+          columns={[
+            { key: 'invoiceNumber', label: 'Invoice' },
+            { key: 'salesPersonName', label: 'Sales Person' },
+            { key: 'customerName', label: 'Customer' },
+            { key: 'customerMobile', label: 'Mobile' },
+            { key: 'createdAt', label: 'Date', render: (row) => formatDate(row.createdAt) },
+            { key: 'finalAmount', label: 'Amount', render: (row) => currency(row.finalAmount) },
+            {
+              key: 'load',
+              label: 'Action',
+              render: (row) => (
+                <button
+                  className="ghost-btn compact-btn"
+                  type="button"
+                  onClick={() => loadInvoiceForEdit(row)}
+                >
+                  Edit
+                </button>
+              )
+            }
+          ]}
+          rows={invoiceSuggestions.invoices || []}
+          emptyMessage="No matching invoices found for this customer and date."
+          pagination={invoiceSuggestions}
+          onPageChange={loadInvoiceSuggestionPage}
+        />
+      ) : null}
+    </Panel>
+  );
 
   return (
     <div className="page billing-page">
@@ -670,64 +737,6 @@ export default function BillingPage() {
           </div>
         </Panel>
 
-        <Panel
-          title="Find Invoice To Edit"
-          subtitle={editingInvoiceId
-            ? 'An invoice is already loaded into checkout.'
-            : 'Search by customer name and load the bill into checkout.'}
-        >
-          <div className="invoice-search-panel">
-            <div className="search-box-wrap">
-              <label className="input-label" htmlFor="invoice-search-name">Customer name</label>
-              <input
-                id="invoice-search-name"
-                placeholder="Search customer name for invoice correction"
-                value={invoiceSearchName}
-                onChange={(e) => setInvoiceSearchName(e.target.value)}
-                autoComplete="off"
-              />
-            </div>
-            <label className="date-field">
-              <span>From date</span>
-              <input
-                type="date"
-                max={today}
-                value={invoiceSearchFromDate}
-                onChange={(e) => setInvoiceSearchFromDate(e.target.value)}
-              />
-            </label>
-          </div>
-
-          {invoiceSearchName.trim() ? (
-            <DataTable
-              columns={[
-                { key: 'invoiceNumber', label: 'Invoice' },
-                { key: 'salesPersonName', label: 'Sales Person' },
-                { key: 'customerName', label: 'Customer' },
-                { key: 'customerMobile', label: 'Mobile' },
-                { key: 'createdAt', label: 'Date', render: (row) => formatDate(row.createdAt) },
-                { key: 'finalAmount', label: 'Amount', render: (row) => currency(row.finalAmount) },
-                {
-                  key: 'load',
-                  label: 'Action',
-                  render: (row) => (
-                    <button
-                      className="ghost-btn compact-btn"
-                      type="button"
-                      onClick={() => loadInvoiceForEdit(row)}
-                    >
-                      Edit
-                    </button>
-                  )
-                }
-              ]}
-              rows={invoiceSuggestions.invoices || []}
-              emptyMessage="No matching invoices found for this customer and date."
-              pagination={invoiceSuggestions}
-              onPageChange={loadInvoiceSuggestionPage}
-            />
-          ) : null}
-        </Panel>
         </div>
 
         <Panel title="Checkout" subtitle="Keep billing controls, cart, and final actions in one fast view.">
@@ -866,13 +875,16 @@ export default function BillingPage() {
             {cart.length ? (
               <div className="discount-preview billing-field-wide">
                 <strong>Bill summary before save</strong>
-                <span>Total bill: <strong>{currency(previewTotalAmount)}</strong></span>
+                <span>Subtotal before GST: <strong>{currency(previewTotalAmount)}</strong></span>
                 <span>{couponSelected ? `Coupon (${form.couponCode})` : 'Offer discount'}: <strong>{currency(autoOrCouponDiscount || offerDiscount)}</strong></span>
                 <span>
                   Custom discount{form.manualDiscountType === 'PERCENT' ? ` (${Number(form.manualDiscount || 0)}%)` : ''}: <strong>{currency(customDiscount)}</strong>
                 </span>
                 <span>Total discount: <strong>{currency(previewTotalDiscount)}</strong></span>
-                <span>Discounted bill: <strong>{currency(previewFinalAmount)}</strong></span>
+                <span>CGST from store configuration: <strong>{currency(previewCgst)}</strong></span>
+                <span>SGST from store configuration: <strong>{currency(previewSgst)}</strong></span>
+                <span>Total GST: <strong>{currency(previewTax)}</strong></span>
+                <span>Final payable after GST: <strong>{currency(previewFinalAmount)}</strong></span>
               </div>
             ) : null}
 
@@ -986,6 +998,8 @@ export default function BillingPage() {
             <MetricCard label="Invoice No." value={invoice.invoiceNumber} />
             <MetricCard label="Sales Person" value={invoice.salesPersonName} />
             <MetricCard label="Customer" value={invoice.customerName} />
+            <MetricCard label="CGST" value={currency(invoice.cgst || 0)} />
+            <MetricCard label="SGST" value={currency(invoice.sgst || 0)} />
             <MetricCard label="Final Amount" value={currency(invoice.finalAmount)} tone="accent" />
             <MetricCard label="Created" value={formatDate(invoice.createdAt)} />
           </div>
@@ -1007,6 +1021,9 @@ export default function BillingPage() {
           </Panel>
         </div>
       ) : null}
+      <div className="billing-existing-invoice-panel">
+        {invoiceEditPanel}
+      </div>
     </div>
   );
 }

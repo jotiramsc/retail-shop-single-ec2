@@ -9,6 +9,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+
 @Service
 @RequiredArgsConstructor
 public class ReceiptSettingsServiceImpl implements ReceiptSettingsService {
@@ -26,6 +28,13 @@ public class ReceiptSettingsServiceImpl implements ReceiptSettingsService {
                         .showAddress(true)
                         .showPhoneNumber(true)
                         .showGstNumber(false)
+                        .taxEnabled(false)
+                        .cgstPercent(BigDecimal.ZERO)
+                        .sgstPercent(BigDecimal.ZERO)
+                        .deliveryFeeEnabled(false)
+                        .deliveryFee(BigDecimal.ZERO)
+                        .freeDeliveryThreshold(BigDecimal.ZERO)
+                        .facebookCatalogEnabled(false)
                         .build());
     }
 
@@ -55,6 +64,15 @@ public class ReceiptSettingsServiceImpl implements ReceiptSettingsService {
         settings.setShowAddress(request.getShowAddress());
         settings.setShowPhoneNumber(request.getShowPhoneNumber());
         settings.setShowGstNumber(request.getShowGstNumber());
+        settings.setTaxEnabled(Boolean.TRUE.equals(request.getTaxEnabled()));
+        settings.setCgstPercent(nonNegative(request.getCgstPercent()));
+        settings.setSgstPercent(nonNegative(request.getSgstPercent()));
+        settings.setDeliveryFeeEnabled(Boolean.TRUE.equals(request.getDeliveryFeeEnabled()));
+        settings.setDeliveryFee(nonNegative(request.getDeliveryFee()));
+        settings.setFreeDeliveryThreshold(nonNegative(request.getFreeDeliveryThreshold()));
+        settings.setFacebookCatalogEnabled(Boolean.TRUE.equals(request.getFacebookCatalogEnabled()));
+        settings.setMetaPixelId(normalizeOptionalText(request.getMetaPixelId()));
+        settings.setFacebookFeedToken(normalizeOptionalText(request.getFacebookFeedToken()));
         return mapToResponse(receiptSettingsRepository.save(settings));
     }
 
@@ -80,6 +98,28 @@ public class ReceiptSettingsServiceImpl implements ReceiptSettingsService {
                 .showAddress(settings.getShowAddress())
                 .showPhoneNumber(settings.getShowPhoneNumber())
                 .showGstNumber(settings.getShowGstNumber())
+                .taxEnabled(Boolean.TRUE.equals(settings.getTaxEnabled()))
+                .cgstPercent(nonNegative(settings.getCgstPercent()))
+                .sgstPercent(nonNegative(settings.getSgstPercent()))
+                .deliveryFeeEnabled(Boolean.TRUE.equals(settings.getDeliveryFeeEnabled()))
+                .deliveryFee(nonNegative(settings.getDeliveryFee()))
+                .freeDeliveryThreshold(nonNegative(settings.getFreeDeliveryThreshold()))
+                .facebookCatalogEnabled(Boolean.TRUE.equals(settings.getFacebookCatalogEnabled()))
+                .metaPixelId(settings.getMetaPixelId())
+                .facebookFeedToken(settings.getFacebookFeedToken())
+                .facebookFeedLastGeneratedAt(settings.getFacebookFeedLastGeneratedAt())
                 .build();
+    }
+
+    private BigDecimal nonNegative(BigDecimal value) {
+        if (value == null || value.compareTo(BigDecimal.ZERO) < 0) {
+            return BigDecimal.ZERO;
+        }
+        return value;
+    }
+
+    private String normalizeOptionalText(String value) {
+        String normalized = value == null ? null : value.trim();
+        return normalized == null || normalized.isBlank() ? null : normalized;
     }
 }

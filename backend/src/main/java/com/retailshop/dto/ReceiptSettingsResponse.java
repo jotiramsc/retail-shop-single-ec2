@@ -3,6 +3,8 @@ package com.retailshop.dto;
 import lombok.Builder;
 import lombok.Getter;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Getter
@@ -28,4 +30,14 @@ public class ReceiptSettingsResponse {
     private Boolean showAddress;
     private Boolean showPhoneNumber;
     private Boolean showGstNumber;
+    private Boolean taxEnabled;
+    private BigDecimal cgstPercent;
+    private BigDecimal sgstPercent;
+    private Boolean deliveryFeeEnabled;
+    private BigDecimal deliveryFee;
+    private BigDecimal freeDeliveryThreshold;
+    private Boolean facebookCatalogEnabled;
+    private String metaPixelId;
+    private String facebookFeedToken;
+    private LocalDateTime facebookFeedLastGeneratedAt;
 }

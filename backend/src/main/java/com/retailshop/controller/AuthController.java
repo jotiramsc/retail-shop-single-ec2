@@ -10,7 +10,9 @@ import com.retailshop.dto.LoginResponse;
 import com.retailshop.entity.StaffUser;
 import com.retailshop.security.StaffJwtService;
 import com.retailshop.service.CustomerAuthService;
+import com.retailshop.service.CustomerService;
 import com.retailshop.service.StaffUserService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -28,6 +30,7 @@ public class AuthController {
     private final AuthenticationManager authenticationManager;
     private final StaffUserService staffUserService;
     private final CustomerAuthService customerAuthService;
+    private final CustomerService customerService;
     private final StaffJwtService staffJwtService;
 
     @PostMapping("/login")
@@ -54,17 +57,31 @@ public class AuthController {
     }
 
     @PostMapping("/verify-otp")
-    public CustomerAuthResponse verifyOtp(@Valid @RequestBody CustomerOtpVerifyRequest request) {
-        return customerAuthService.verifyOtp(request);
+    public CustomerAuthResponse verifyOtp(@Valid @RequestBody CustomerOtpVerifyRequest request, HttpServletRequest httpRequest) {
+        CustomerAuthResponse response = customerAuthService.verifyOtp(request);
+        recordCustomerLogin(response, "SIGNUP".equalsIgnoreCase(request.getPurpose()) ? "Mobile OTP Signup" : "Mobile OTP", httpRequest);
+        return response;
     }
 
     @PostMapping("/google/verify-mobile")
-    public CustomerAuthResponse verifyGoogleMobileOtp(@Valid @RequestBody CustomerOtpVerifyRequest request) {
-        return customerAuthService.verifyGoogleMobileOtp(request);
+    public CustomerAuthResponse verifyGoogleMobileOtp(@Valid @RequestBody CustomerOtpVerifyRequest request, HttpServletRequest httpRequest) {
+        CustomerAuthResponse response = customerAuthService.verifyGoogleMobileOtp(request);
+        recordCustomerLogin(response, "Google + Mobile OTP", httpRequest);
+        return response;
     }
 
     @PostMapping("/google")
-    public CustomerAuthResponse googleLogin(@Valid @RequestBody CustomerGoogleLoginRequest request) {
-        return customerAuthService.loginWithGoogle(request);
+    public CustomerAuthResponse googleLogin(@Valid @RequestBody CustomerGoogleLoginRequest request, HttpServletRequest httpRequest) {
+        CustomerAuthResponse response = customerAuthService.loginWithGoogle(request);
+        if (response != null && response.getToken() != null && !response.isRequiresMobileOtp()) {
+            recordCustomerLogin(response, "Google login", httpRequest);
+        }
+        return response;
+    }
+
+    private void recordCustomerLogin(CustomerAuthResponse response, String method, HttpServletRequest request) {
+        if (response != null && response.getCustomerId() != null && response.getToken() != null) {
+            customerService.recordLogin(response.getCustomerId(), method, "SUCCESS", request);
+        }
     }
 }

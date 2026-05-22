@@ -200,11 +200,68 @@ Product visibility rules:
 - Public storefront catalog, home, trending, and product detail APIs return only `showOnWebsite=true` products.
 - Billing/POS product selectors use only `useForBilling=true` products.
 
+Product images and pricing:
+
+- Product multiple-image sliders use ordered S3/CloudFront URL references stored on the product; image binaries are uploaded through the existing S3 image upload flow and are not stored in backend entities.
+- The first image URL is the primary/default image; old single-image products continue to work.
+- Website pricing surfaces display active offer/coupon deals with original price, offer price, discount percent, savings, coupon/offer badges, and free-delivery labels when applicable.
+- Customer listing product cards intentionally stay minimal: they show only final offer price, category, product name, availability, image, View details, and Add to cart.
+- Customer product cards show a clean deal stack only when applicable: small struck original price, one discount percent badge, final price, availability, image slider, View details, and Add to cart. Savings text, coupon chips, and extra badges are intentionally hidden from listing cards.
+- Customer listing price filters and sorting use final offer price after product/category/coupon discount and max-discount cap rules.
+- Cart and wishlist product image/name areas open the public product detail page while quantity/remove/action controls remain isolated.
+- Public product detail includes product structured data, gallery navigation, WhatsApp enquiry, and a collapsed AI description section with read more. Generated AI description appears only in the formatted product guide section to avoid duplicated prose near the price.
+- Checkout summary includes WhatsApp confirmation/support and delivery/payment trust copy.
+- Customer-facing website WhatsApp links use `+91 8830461523` (`wa.me/918830461523`) for product enquiry and checkout support.
+- Admin product form includes AI description status and a lightweight product preview before publish/update.
+- Admin support product suggestions use the same active ecommerce offer/coupon deal values and WhatsApp support product messages include MRP, deal price, discount, savings, and coupon/offer when available.
+- Support inbox keeps resolved chats as archives. Active and Archived tabs share conversation history; archive filters support date ranges and resolved chats can be reopened.
+- Offer forms submit initialized defaults such as `type=PERCENT` and active status even when the dropdown is not manually changed.
+- Campaign/offer WhatsApp promotion sending uses campaign media first, then linked product image, then category icon when media is available.
+- Products can optionally generate a separate AI customer description asynchronously after save; creation/update stays successful if generation is pending or fails.
+- Category icon generation creates AI/fallback transparent circular icons and runs as a write transaction so generated S3 icon assets can persist.
+
+WhatsApp bot stability:
+
+- WhatsApp bot active session context is persisted on `omnichannel_conversations.bot_session_json` and mirrored in memory for speed.
+- Session context keeps last category, last min/max budget, last intent, last product, and shown product history so follow-up messages such as "green" or "show more" remain contextual after restart.
+- Incoming WhatsApp message IDs are stored on `omnichannel_conversation_messages.external_message_id`; durable duplicate checks prevent reprocessing across app restarts.
+- Conversation messages store `correlation_id`; bot logs emit `whatsapp_bot_trace` with correlationId, sessionId, leadId, messageId, intent/category, product count, send result, provider message id, and error.
+- Same-mobile webhook processing is synchronized inside a running instance to reduce out-of-order state writes.
+
+Billing GST:
+
+- Shop billing uses the shared order pricing service, so configured CGST/SGST from Brand Configuration apply to billing invoices and mirrored billing orders. Website delivery fees remain website-only.
+
+WhatsApp bot:
+
+- Welcome/greeting replies send the configured banner once per session and a single interactive menu with Shop Products, Browse Categories, Today's Offers, Track Order, and Talk to Shop. Repeat greetings use a compact menu without resending the banner.
+- Product search replies are image-first. Each product card shows visible numbering, customer-facing pricing, discount, product-specific description, availability, and per-product View Details/Add to Cart buttons. Internal product IDs are hidden from customers.
+- Product image media is sent before action buttons, with a short action delay so WhatsApp renders photos first.
+- Bot session JSON stores the visible product number to product ID mapping so `VIEW 1`/`ADD 1` actions resolve correctly after restarts.
+- Product details resolve the selected product only and do not trigger a fresh search. Back to Products reuses the previous visible product mapping instead of starting fallback search. Suspicious jewellery prices under the configured sanity threshold are filtered from WhatsApp recommendations unless normalized catalog data supplies a valid price.
+- Add to Cart replies use the selected product image plus cart total/open-cart caption and cart action buttons.
+- Browse Categories uses the greeting/category image, first three dynamic categories as quick buttons, and remaining categories under View More.
+- Interactive menu replies are deterministic and are not rewritten by the bot orchestrator, preventing duplicate or delayed menu text.
+
+Billing configuration:
+
+- Brand Configuration stores CGST %, SGST %, tax enabled flag, website delivery fee, delivery enabled flag, and free-delivery threshold.
+- CGST/SGST are calculated from configuration for both website orders and shop billing invoices.
+- Website delivery fee applies only to website/ecommerce checkout and becomes free when the discounted subtotal reaches the configured threshold.
+- Orders and invoices persist CGST/SGST split, combined tax, delivery, discounts, and final totals.
+
 WhatsApp greeting/menu:
 
 - Greeting sends `/assets/krishnai-whatsapp-greeting.png` first.
 - The greeting menu is a single WhatsApp list card with View Collections, Offers, Track Order, and Show More.
+
+Category icons:
+
+- Admin category icon generation uses the campaign/marketing OpenAI configuration, post-processes the result into a transparent circular PNG icon, uploads to S3/CloudFront, and persists the selected URL.
+- Backend-generated and frontend-generated fallback category icons have been removed; missing OpenAI configuration or image generation failure now returns a clear admin error.
 - Show More opens Talk to Shop, dynamic categories, My Cart, and Support in one secondary list.
+- Product search/listing sends up to four product images first, then one product action list for Details, Add to Cart, and More Similar to keep message order clean.
+- Category icon generation creates transparent circular premium jewelry/cosmetics icons and stores the selected S3/CloudFront URL for admin, website, and WhatsApp category surfaces where supported.
 
 ## Frontend Structure Summary
 
@@ -333,7 +390,11 @@ It already covers:
 - Support chat has Enter-to-send, Shift+Enter newline, auto-scroll, loading states, unread badge polling, and a global admin popup when unread WhatsApp support messages arrive outside `/app/support`.
 - Customer signup by OTP asks only for name after OTP verification and allows immediate skip/continue; OTP validation accepts 4-8 numeric digits.
 - Admin customer details show name, mobile, email, latest address, total orders, pending orders, total spent, order history, and purchase history.
-- Product categories can store `icon_image_url`; Inventory generates four selectable category icon options through OpenAI image generation and stores the selected CloudFront image URL for website and WhatsApp category surfaces.
+- Customer Intelligence / Customer CRM is a spacious green/gold customer 360 workspace with a left customer list and right-side overview, timeline, orders, preferences, search activity, login history, support chat, AI insights, and notes.
+- Customer search dropdowns can return recent customers before typing, and customer search/filter/product/cart/wishlist/order/support activity is captured into CRM intelligence where a customer session exists.
+- CRM support chat starts with the Krishnai greeting and a conversational onboarding flow for birthday, anniversary, language, favorite categories, budget, and shopping interests instead of showing a large static form first.
+- Customer intelligence derives sentiment, purchase prediction, churn risk, engagement score, smart segments, high-value badge, and recommended product/category signals from profile, order, login, and activity data.
+- Product categories can store `icon_image_url`; Inventory generates an OpenAI category icon through the marketing/campaign OpenAI configuration and stores the selected CloudFront image URL for website and WhatsApp category surfaces.
 - Reports with salesperson filter `WEBSITE`/`Website` show pending website orders first; if none exist, they show today's website orders. Delivered/completed/cancelled/returned orders are excluded from the pending-first view, and the Reports UI labels this as the website order priority queue.
 
 ## External Integrations Present In Code/Config
@@ -411,8 +472,18 @@ Useful existing references:
 - WhatsApp welcome now sends the configured greeting banner and one menu list only: Browse Categories, My Cart, Track Orders, Talk to Agent, Support. Category/product/order flows use dynamic DB data and session context before falling back.
 - WhatsApp order tracking focuses on in-progress orders, excludes completed/delivered/cancelled failures, and shows a 7-step progress tracker: Placed, Confirmed, Processing, Packed, Shipped, Out For Delivery, Delivered.
 - Public storefront category navigation and product filters show the saved category icon as a small rounded visual chip when one is configured.
-- Product category icon generation uses OpenAI image generation and uploads selected options to CloudFront; backend hardcoded SVG/data URI icon generation is no longer used.
-- Website order reports use the `WEBSITE` salesperson filter to show pending website orders first, then today's website orders when there are no pending website orders.
+- Product category icon generation is OpenAI-only, uses the campaign/marketing OpenAI configuration, uploads successful transparent circular PNG icons to CloudFront, and surfaces configuration/generation failures to the admin instead of returning generated fallbacks.
+- Customer CRM is now a green/gold customer intelligence workspace with a 30/70 customer-list/detail layout, spacious tabs, timeline, search activity, login history, preferences, support chat, AI insights, notes, richer storefront event tracking, and conversational onboarding instead of first showing a large static profile form. EC2 release `local-20260521215711` is live after additive CRM tracking columns were applied.
+- Website order reports use the `WEBSITE` salesperson filter to show all pending website orders across dates first, then today's website orders when there are no pending website orders.
+- Billing invoices now surface configured CGST/SGST in the admin checkout preview, latest invoice summary, printed receipt, and billing-backed customer order records.
+- Inventory product create auto-fills SKU from the first three product-name characters and auto-fills shop/website pricing from cost price until the user edits those price fields.
+- Inventory product delete is a soft delete: products are marked inactive and hidden from website, billing, homepage, search, and merchandising surfaces while historical receipts/invoices keep their product references.
+- Admin dashboard UI is being compacted for faster shop work: reduced non-billing headers, tabbed Inventory with separate Products/Categories views, compact product table with visibility toggles, clearer Offer targeting/schedule controls, Campaign one-click approve/publish shortcuts, embedded Offers builder without suggestions, tighter Billing checkout space, and Site Interaction overflow guards.
+- Offer creation supports sorted store/category/product targeting with target selectors grouped directly under "Offer applies to", date-based scheduling fields grouped under "Offer schedule" without time pickers, and Buy One Get One / Buy X Get Y / Combo metadata; same-product Buy/Get rewards can contribute to line discount calculation.
+- Offer schedules default to a one-month period for Date Range, Specific Days, and Weekend Only when dates are empty. Weekend offers automatically use Saturday/Sunday, Specific Days requires at least one selected weekday, Always Active omits invalid blank date fields, and coupon codes auto-generate as unique six-character uppercase codes from the offer name.
+- Category icons are stored as a single active URL on the category. Generate creates one icon when missing; Regenerate replaces the existing icon reference so duplicate category icon records are not created.
+- Backend writes rolling application logs to `${APP_LOG_FILE:/tmp/retail-shop/retail-shop.log}` with configurable size/history through `APP_LOG_*` environment variables.
+- Facebook Catalog sync is configured only inside Brand Configuration > Facebook Catalog. Brand config stores enablement, Meta Pixel ID, feed token, and last generated time. Active website-visible products and active categories sync by default, missing Facebook category fields are auto-mapped from category names, and admin can override per product/category when needed. Public XML/CSV feeds are read-only, token-protected when a token is configured, and include only active website-visible in-stock products with public images, mapped Facebook categories, gallery `additional_image_link` values, inventory, category labels, offer labels, and website source labels. Public product pages emit Meta item identifiers in OpenGraph plus Product JSON-LD and Meta Pixel ViewContent/AddToCart; checkout emits Purchase. Catalog add-to-cart links can use `/cart/add?product={sku}&qty=1&source=whatsapp&campaign={campaignName}` or the older `productId` form; the storefront resolves SKU links and adds to customer or guest cart.
 
 The worktree is currently dirty and the codebase is actively evolving. Based on the current diff, these areas appear to be in motion:
 

@@ -13,6 +13,9 @@ public class ProductCategoryOptionResponse {
     private String code;
     private String displayName;
     private String iconImageUrl;
+    private Boolean facebookSyncEnabled;
+    private String facebookCategory;
+    private String facebookCollectionName;
     private Boolean active;
     private LocalDateTime createdAt;
 }

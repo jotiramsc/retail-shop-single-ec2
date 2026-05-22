@@ -1,17 +1,25 @@
 package com.retailshop.service.impl;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.retailshop.dto.LowStockProductResponse;
 import com.retailshop.dto.PaginatedResponse;
 import com.retailshop.dto.ProductRequest;
 import com.retailshop.dto.ProductResponse;
 import com.retailshop.dto.PublicProductResponse;
+import com.retailshop.entity.Offer;
 import com.retailshop.entity.Product;
+import com.retailshop.entity.ReceiptSettings;
+import com.retailshop.enums.DiscountType;
 import com.retailshop.enums.OrderStatus;
 import com.retailshop.exception.BusinessException;
 import com.retailshop.exception.ResourceNotFoundException;
 import com.retailshop.repository.InvoiceItemRepository;
+import com.retailshop.repository.OfferRepository;
 import com.retailshop.repository.OrderItemRepository;
 import com.retailshop.repository.ProductRepository;
+import com.retailshop.repository.ReceiptSettingsRepository;
+import com.retailshop.service.ProductAiDescriptionService;
 import com.retailshop.service.ProductCategoryOptionService;
 import com.retailshop.service.ProductService;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +29,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.LocalDate;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -35,7 +46,11 @@ public class ProductServiceImpl implements ProductService {
     private final InvoiceItemRepository invoiceItemRepository;
     private final OrderItemRepository orderItemRepository;
     private final ProductRepository productRepository;
+    private final OfferRepository offerRepository;
+    private final ReceiptSettingsRepository receiptSettingsRepository;
     private final ProductCategoryOptionService productCategoryOptionService;
+    private final ProductAiDescriptionService productAiDescriptionService;
+    private final ObjectMapper objectMapper;
 
     @Override
     @Transactional
@@ -48,20 +63,21 @@ public class ProductServiceImpl implements ProductService {
         mapRequest(product, request);
         Product savedProduct = productRepository.save(product);
         syncCustomerAccessProduct(savedProduct);
+        queueAiDescriptionIfRequested(savedProduct, request);
         return mapToResponse(savedProduct);
     }
 
     @Override
     @Transactional(readOnly = true)
     public PaginatedResponse<ProductResponse> getAllProducts(Pageable pageable) {
-        return PaginatedResponse.from(productRepository.findAllByOrderByCreatedAtDesc(pageable)
+        return PaginatedResponse.from(productRepository.findAllByActiveTrueOrderByCreatedAtDesc(pageable)
                 .map(this::mapToResponse));
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<ProductResponse> getTrendingProducts(int limit) {
-        Map<UUID, Product> products = productRepository.findAll()
+        Map<UUID, Product> products = activeProducts()
                 .stream()
                 .collect(Collectors.toMap(Product::getId, Function.identity()));
 
@@ -78,7 +94,7 @@ public class ProductServiceImpl implements ProductService {
         }
 
         List<UUID> selectedIds = trending.stream().map(ProductResponse::getId).toList();
-        List<ProductResponse> fallback = productRepository.findAll()
+        List<ProductResponse> fallback = activeProducts()
                 .stream()
                 .filter(product -> !selectedIds.contains(product.getId()))
                 .sorted((left, right) -> right.getCreatedAt().compareTo(left.getCreatedAt()))
@@ -92,30 +108,18 @@ public class ProductServiceImpl implements ProductService {
     @Override
     @Transactional(readOnly = true)
     public List<PublicProductResponse> getPublicTrendingProducts(int limit) {
-        List<PublicProductResponse> trending = getTrendingProducts(limit * 2)
+        Map<UUID, Product> products = activeProducts()
                 .stream()
-                .filter(product -> Boolean.TRUE.equals(product.getShowOnWebsite()))
+                .collect(Collectors.toMap(Product::getId, Function.identity()));
+
+        List<PublicProductResponse> trending = orderItemRepository.findTrendingProductSales(OrderStatus.CANCELLED)
+                .stream()
+                .map(row -> products.get((UUID) row[0]))
+                .filter(product -> product != null)
+                .filter(this::isVisibleOnWebsite)
                 .filter(product -> isInStock(product.getQuantity()))
-                .map(product -> PublicProductResponse.builder()
-                        .id(product.getId())
-                        .name(product.getName())
-                        .category(product.getCategory())
-                        .sku(product.getSku())
-                        .sellingPrice(product.getWebsitePrice())
-                        .quantity(product.getQuantity())
-                        .inStock(isInStock(product.getQuantity()))
-                        .stockLabel(customerStockLabel(product.getQuantity(), product.getLowStockThreshold()))
-                        .imageDataUrl(publicImageUrl(product.getImageDataUrl()))
-                        .showInEditorsPicks(product.getShowInEditorsPicks())
-                        .showInNewRelease(product.getShowInNewRelease())
-                        .showInCustomerAccess(product.getShowInCustomerAccess())
-                        .showInShopCollection(product.getShowInShopCollection())
-                        .showInFeaturedPieces(product.getShowInFeaturedPieces())
-                        .showInStory(product.getShowInStory())
-                        .showInCuratedSelections(product.getShowInCuratedSelections())
-                        .createdAt(product.getCreatedAt())
-                        .build())
                 .limit(limit)
+                .map(this::mapToPublicResponse)
                 .toList();
 
         if (trending.size() >= limit) {
@@ -123,7 +127,7 @@ public class ProductServiceImpl implements ProductService {
         }
 
         List<UUID> selectedIds = trending.stream().map(PublicProductResponse::getId).toList();
-        List<PublicProductResponse> fallback = productRepository.findAll()
+        List<PublicProductResponse> fallback = products.values()
                 .stream()
                 .filter(this::isVisibleOnWebsite)
                 .filter(product -> isInStock(product.getQuantity()))
@@ -150,6 +154,7 @@ public class ProductServiceImpl implements ProductService {
         mapRequest(product, request);
         Product savedProduct = productRepository.save(product);
         syncCustomerAccessProduct(savedProduct);
+        queueAiDescriptionIfRequested(savedProduct, request);
         return mapToResponse(savedProduct);
     }
 
@@ -159,11 +164,17 @@ public class ProductServiceImpl implements ProductService {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
 
-        if (invoiceItemRepository.existsByProductId(id)) {
-            throw new BusinessException("This product is already used in invoices and cannot be deleted");
-        }
-
-        productRepository.delete(product);
+        product.setActive(Boolean.FALSE);
+        product.setShowOnWebsite(Boolean.FALSE);
+        product.setUseForBilling(Boolean.FALSE);
+        product.setShowInEditorsPicks(Boolean.FALSE);
+        product.setShowInNewRelease(Boolean.FALSE);
+        product.setShowInCustomerAccess(Boolean.FALSE);
+        product.setShowInShopCollection(Boolean.FALSE);
+        product.setShowInFeaturedPieces(Boolean.FALSE);
+        product.setShowInStory(Boolean.FALSE);
+        product.setShowInCuratedSelections(Boolean.FALSE);
+        productRepository.save(product);
     }
 
     @Override
@@ -184,7 +195,7 @@ public class ProductServiceImpl implements ProductService {
     @Override
     @Transactional(readOnly = true)
     public List<PublicProductResponse> getPublicCatalog() {
-        return productRepository.findAll()
+        return activeProducts()
                 .stream()
                 .filter(this::isVisibleOnWebsite)
                 .sorted((left, right) -> right.getCreatedAt().compareTo(left.getCreatedAt()))
@@ -195,7 +206,7 @@ public class ProductServiceImpl implements ProductService {
     @Override
     @Transactional(readOnly = true)
     public List<PublicProductResponse> getPublicHomepageCatalog() {
-        List<Product> products = productRepository.findAll()
+        List<Product> products = activeProducts()
                 .stream()
                 .filter(this::isVisibleOnWebsite)
                 .sorted((left, right) -> right.getCreatedAt().compareTo(left.getCreatedAt()))
@@ -225,6 +236,7 @@ public class ProductServiceImpl implements ProductService {
     @Transactional(readOnly = true)
     public PublicProductResponse getPublicProduct(UUID id) {
         return productRepository.findById(id)
+                .filter(this::isActive)
                 .filter(this::isVisibleOnWebsite)
                 .map(this::mapToPublicResponse)
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
@@ -240,7 +252,10 @@ public class ProductServiceImpl implements ProductService {
         product.setWebsitePricePercentage(normalizeWebsitePricePercentage(request.getWebsitePricePercentage()));
         product.setQuantity(request.getQuantity());
         product.setLowStockThreshold(request.getLowStockThreshold());
-        product.setImageDataUrl(request.getImageDataUrl());
+        List<String> productImages = normalizedProductImages(request.getProductImages(), request.getImageDataUrl());
+        product.setImageDataUrl(productImages.isEmpty() ? null : productImages.get(0));
+        product.setProductImagesJson(serializeProductImages(productImages));
+        product.setDescription(normalizeOptionalText(request.getDescription()));
         product.setShowOnWebsite(request.getShowOnWebsite() == null || Boolean.TRUE.equals(request.getShowOnWebsite()));
         product.setUseForBilling(request.getUseForBilling() == null || Boolean.TRUE.equals(request.getUseForBilling()));
         product.setShowInEditorsPicks(Boolean.TRUE.equals(request.getShowInEditorsPicks()));
@@ -250,10 +265,12 @@ public class ProductServiceImpl implements ProductService {
         product.setShowInFeaturedPieces(Boolean.TRUE.equals(request.getShowInFeaturedPieces()));
         product.setShowInStory(Boolean.TRUE.equals(request.getShowInStory()));
         product.setShowInCuratedSelections(Boolean.TRUE.equals(request.getShowInCuratedSelections()));
+        product.setFacebookSyncEnabled(request.getFacebookSyncEnabled() == null || Boolean.TRUE.equals(request.getFacebookSyncEnabled()));
         product.setExpiryDate(request.getExpiryDate());
     }
 
     private ProductResponse mapToResponse(Product product) {
+        DealDisplay deal = dealDisplay(product);
         return ProductResponse.builder()
                 .id(product.getId())
                 .name(product.getName())
@@ -266,6 +283,19 @@ public class ProductServiceImpl implements ProductService {
                 .quantity(product.getQuantity())
                 .lowStockThreshold(product.getLowStockThreshold())
                 .imageDataUrl(product.getImageDataUrl())
+                .productImages(productImages(product))
+                .description(product.getDescription())
+                .aiDescriptionStatus(product.getAiDescriptionStatus())
+                .aiDescription(product.getAiDescription())
+                .aiDescriptionGeneratedAt(product.getAiDescriptionGeneratedAt())
+                .aiDescriptionError(product.getAiDescriptionError())
+                .originalPrice(deal.originalPrice())
+                .offerPrice(deal.offerPrice())
+                .discountPercent(deal.discountPercent())
+                .youSave(deal.youSave())
+                .offerName(deal.offerName())
+                .couponCode(deal.couponCode())
+                .freeDeliveryEligible(deal.freeDeliveryEligible())
                 .showOnWebsite(product.getShowOnWebsite())
                 .useForBilling(product.getUseForBilling())
                 .showInEditorsPicks(product.getShowInEditorsPicks())
@@ -275,22 +305,37 @@ public class ProductServiceImpl implements ProductService {
                 .showInFeaturedPieces(product.getShowInFeaturedPieces())
                 .showInStory(product.getShowInStory())
                 .showInCuratedSelections(product.getShowInCuratedSelections())
+                .facebookSyncEnabled(Boolean.TRUE.equals(product.getFacebookSyncEnabled()))
+                .active(product.getActive())
                 .expiryDate(product.getExpiryDate())
                 .createdAt(product.getCreatedAt())
                 .build();
     }
 
     private PublicProductResponse mapToPublicResponse(Product product) {
+        DealDisplay deal = dealDisplay(product);
         return PublicProductResponse.builder()
                 .id(product.getId())
                 .name(product.getName())
                 .category(product.getCategory())
                 .sku(product.getSku())
-                .sellingPrice(product.getResolvedWebsitePrice())
+                .sellingPrice(deal.offerPrice())
+                .originalPrice(deal.originalPrice())
+                .offerPrice(deal.offerPrice())
+                .discountPercent(deal.discountPercent())
+                .youSave(deal.youSave())
+                .offerName(deal.offerName())
+                .couponCode(deal.couponCode())
+                .freeDeliveryEligible(deal.freeDeliveryEligible())
                 .quantity(product.getQuantity())
                 .inStock(isInStock(product.getQuantity()))
                 .stockLabel(customerStockLabel(product.getQuantity(), product.getLowStockThreshold()))
                 .imageDataUrl(publicImageUrl(product.getImageDataUrl()))
+                .productImages(publicProductImages(product))
+                .description(product.getDescription())
+                .aiDescriptionStatus(product.getAiDescriptionStatus())
+                .aiDescription(product.getAiDescription())
+                .aiDescriptionGeneratedAt(product.getAiDescriptionGeneratedAt())
                 .showInEditorsPicks(product.getShowInEditorsPicks())
                 .showInNewRelease(product.getShowInNewRelease())
                 .showInCustomerAccess(product.getShowInCustomerAccess())
@@ -302,6 +347,87 @@ public class ProductServiceImpl implements ProductService {
                 .build();
     }
 
+    private DealDisplay dealDisplay(Product product) {
+        BigDecimal originalPrice = money(product.getResolvedWebsitePrice());
+        Offer bestOffer = bestDisplayOffer(product, originalPrice);
+        BigDecimal discount = bestOffer == null ? BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP) : discountFor(bestOffer, originalPrice);
+        BigDecimal offerPrice = originalPrice.subtract(discount).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal discountPercent = originalPrice.compareTo(BigDecimal.ZERO) > 0 && discount.compareTo(BigDecimal.ZERO) > 0
+                ? discount.multiply(BigDecimal.valueOf(100)).divide(originalPrice, 0, RoundingMode.HALF_UP)
+                : BigDecimal.ZERO.setScale(0, RoundingMode.HALF_UP);
+        BigDecimal freeDeliveryThreshold = receiptSettingsRepository.findAll().stream()
+                .findFirst()
+                .filter(settings -> Boolean.TRUE.equals(settings.getDeliveryFeeEnabled()))
+                .map(ReceiptSettings::getFreeDeliveryThreshold)
+                .orElse(BigDecimal.ZERO);
+        return new DealDisplay(
+                originalPrice,
+                offerPrice,
+                discountPercent,
+                discount,
+                bestOffer != null ? bestOffer.getName() : null,
+                bestOffer != null ? bestOffer.getCouponCode() : null,
+                freeDeliveryThreshold != null
+                        && freeDeliveryThreshold.compareTo(BigDecimal.ZERO) > 0
+                        && offerPrice.compareTo(freeDeliveryThreshold) >= 0
+        );
+    }
+
+    private Offer bestDisplayOffer(Product product, BigDecimal basePrice) {
+        if (basePrice.compareTo(BigDecimal.ZERO) <= 0) {
+            return null;
+        }
+        LocalDate today = LocalDate.now();
+        return offerRepository.findActiveOffers(today).stream()
+                .filter(offer -> appliesTo(offer, product))
+                .filter(offer -> offer.getMinOrderValue() == null || basePrice.compareTo(offer.getMinOrderValue()) >= 0)
+                .max(Comparator.comparing(offer -> discountFor(offer, basePrice)))
+                .orElse(null);
+    }
+
+    private boolean appliesTo(Offer offer, Product product) {
+        if (offer == null || product == null) {
+            return false;
+        }
+        if (offer.getProduct() != null) {
+            return offer.getProduct().getId().equals(product.getId());
+        }
+        if (offer.getCategory() != null && !offer.getCategory().isBlank()) {
+            return offer.getCategory().equalsIgnoreCase(product.getCategory());
+        }
+        return true;
+    }
+
+    private BigDecimal discountFor(Offer offer, BigDecimal basePrice) {
+        DiscountType discountType = offer.getDiscountType();
+        BigDecimal value = offer.getDiscountValue();
+        if (discountType == null || value == null) {
+            discountType = switch (offer.getType()) {
+                case FLAT -> DiscountType.FLAT;
+                case PERCENT, CATEGORY -> DiscountType.PERCENT;
+                case BUY_ONE_GET_ONE, BUY_X_GET_Y, COMBO -> null;
+            };
+            if (discountType == null) {
+                return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+            }
+            value = offer.getValue();
+        }
+        if (value == null || value.compareTo(BigDecimal.ZERO) <= 0) {
+            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        }
+        BigDecimal discount = discountType == DiscountType.PERCENT
+                ? basePrice.multiply(value).divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP)
+                : value;
+        if (discountType == DiscountType.PERCENT && offer.getMaxDiscountAmount() != null) {
+            discount = discount.min(offer.getMaxDiscountAmount());
+        }
+        return discount.min(basePrice).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal money(BigDecimal value) {
+        return value == null ? BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP) : value.setScale(2, RoundingMode.HALF_UP);
+    }
+
     private String publicImageUrl(String imageDataUrl) {
         if (imageDataUrl == null || imageDataUrl.isBlank()) {
             return imageDataUrl;
@@ -309,8 +435,81 @@ public class ProductServiceImpl implements ProductService {
         return imageDataUrl.startsWith("data:image/") ? null : imageDataUrl;
     }
 
+    private List<String> normalizedProductImages(List<String> productImages, String primaryImage) {
+        java.util.LinkedHashSet<String> images = new java.util.LinkedHashSet<>();
+        if (primaryImage != null && !primaryImage.isBlank()) {
+            images.add(primaryImage.trim());
+        }
+        if (productImages != null) {
+            productImages.stream()
+                    .filter(image -> image != null && !image.isBlank())
+                    .map(String::trim)
+                    .forEach(images::add);
+        }
+        return images.stream().limit(12).toList();
+    }
+
+    private String serializeProductImages(List<String> productImages) {
+        if (productImages == null || productImages.isEmpty()) {
+            return null;
+        }
+        try {
+            return objectMapper.writeValueAsString(productImages);
+        } catch (Exception exception) {
+            throw new BusinessException("Unable to save product images");
+        }
+    }
+
+    private List<String> productImages(Product product) {
+        List<String> parsed = parseProductImages(product.getProductImagesJson());
+        if (parsed.isEmpty() && product.getImageDataUrl() != null && !product.getImageDataUrl().isBlank()) {
+            return List.of(product.getImageDataUrl());
+        }
+        return parsed;
+    }
+
+    private List<String> publicProductImages(Product product) {
+        return productImages(product).stream()
+                .map(this::publicImageUrl)
+                .filter(image -> image != null && !image.isBlank())
+                .toList();
+    }
+
+    private List<String> parseProductImages(String productImagesJson) {
+        if (productImagesJson == null || productImagesJson.isBlank()) {
+            return List.of();
+        }
+        try {
+            return objectMapper.readValue(productImagesJson, new TypeReference<List<String>>() {});
+        } catch (Exception exception) {
+            return List.of();
+        }
+    }
+
+    private void queueAiDescriptionIfRequested(Product product, ProductRequest request) {
+        if (Boolean.TRUE.equals(request.getGenerateAiDescription())) {
+            productAiDescriptionService.queueDescriptionGeneration(product.getId());
+        }
+    }
+
+    private String normalizeOptionalText(String value) {
+        String normalized = value == null ? null : value.trim();
+        return normalized == null || normalized.isBlank() ? null : normalized;
+    }
+
     private boolean isVisibleOnWebsite(Product product) {
-        return Boolean.TRUE.equals(product.getShowOnWebsite());
+        return isActive(product) && Boolean.TRUE.equals(product.getShowOnWebsite());
+    }
+
+    private boolean isActive(Product product) {
+        return product != null && !Boolean.FALSE.equals(product.getActive());
+    }
+
+    private List<Product> activeProducts() {
+        return productRepository.findAll()
+                .stream()
+                .filter(this::isActive)
+                .toList();
     }
 
     private void syncCustomerAccessProduct(Product activeProduct) {
@@ -320,6 +519,7 @@ public class ProductServiceImpl implements ProductService {
 
         List<Product> productsToClear = productRepository.findAll()
                 .stream()
+                .filter(this::isActive)
                 .filter(product -> !product.getId().equals(activeProduct.getId()))
                 .filter(product -> Boolean.TRUE.equals(product.getShowInCustomerAccess()))
                 .toList();
@@ -364,5 +564,14 @@ public class ProductServiceImpl implements ProductService {
             return "Last few remaining";
         }
         return "Available now";
+    }
+
+    private record DealDisplay(BigDecimal originalPrice,
+                               BigDecimal offerPrice,
+                               BigDecimal discountPercent,
+                               BigDecimal youSave,
+                               String offerName,
+                               String couponCode,
+                               Boolean freeDeliveryEligible) {
     }
 }

@@ -5,6 +5,7 @@ import lombok.Getter;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Getter
@@ -21,6 +22,19 @@ public class ProductResponse {
     private Integer quantity;
     private Integer lowStockThreshold;
     private String imageDataUrl;
+    private List<String> productImages;
+    private String description;
+    private String aiDescriptionStatus;
+    private String aiDescription;
+    private LocalDateTime aiDescriptionGeneratedAt;
+    private String aiDescriptionError;
+    private BigDecimal originalPrice;
+    private BigDecimal offerPrice;
+    private BigDecimal discountPercent;
+    private BigDecimal youSave;
+    private String offerName;
+    private String couponCode;
+    private Boolean freeDeliveryEligible;
     private Boolean showOnWebsite;
     private Boolean useForBilling;
     private Boolean showInEditorsPicks;
@@ -30,6 +44,8 @@ public class ProductResponse {
     private Boolean showInFeaturedPieces;
     private Boolean showInStory;
     private Boolean showInCuratedSelections;
+    private Boolean facebookSyncEnabled;
+    private Boolean active;
     private LocalDate expiryDate;
     private LocalDateTime createdAt;
 }

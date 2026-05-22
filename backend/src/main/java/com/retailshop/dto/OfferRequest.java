@@ -10,6 +10,7 @@ import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 @Getter
@@ -30,10 +31,8 @@ public class OfferRequest {
 
     private UUID productId;
 
-    @NotNull
     private LocalDate startDate;
 
-    @NotNull
     private LocalDate endDate;
 
     @NotNull
@@ -57,4 +56,25 @@ public class OfferRequest {
     private LocalDate validFrom;
 
     private LocalDate validTo;
+
+    private String buyCategory;
+
+    private UUID buyProductId;
+
+    private Integer buyQuantity;
+
+    private String getCategory;
+
+    private UUID getProductId;
+
+    private Integer getQuantity;
+
+    private String rewardMode;
+
+    @DecimalMin("0.0")
+    private BigDecimal rewardDiscountPercent;
+
+    private String scheduleType;
+
+    private List<String> specificDays;
 }

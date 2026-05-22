@@ -129,7 +129,11 @@ export default function CartPage() {
   const appliedDiscount = appliedDiscountDetails.totalDiscount;
   const cartTotal = Number(quote?.finalTotal ?? subtotal);
   const taxAmount = Number(quote?.tax ?? 0);
+  const cgstAmount = Number(quote?.cgst ?? 0);
+  const sgstAmount = Number(quote?.sgst ?? 0);
   const deliveryAmount = Number(quote?.delivery ?? 0);
+  const freeDelivery = quote?.freeDelivery === true;
+  const freeDeliveryThreshold = Number(quote?.freeDeliveryThreshold ?? 0);
   const shouldShowDiscountBreakdown = appliedDiscountDetails.entries.length > 1
     || appliedDiscountDetails.entries.some((entry) => entry.caption);
 
@@ -209,6 +213,12 @@ export default function CartPage() {
     navigate('/checkout');
   };
 
+  const openProduct = (productId) => {
+    if (productId) {
+      navigate(`/products/${productId}`);
+    }
+  };
+
   return (
     <main className="glow-site customer-flow-page">
       <section className="customer-flow-shell">
@@ -239,13 +249,24 @@ export default function CartPage() {
           <div className="customer-cart-layout">
             <section className="customer-flow-panel customer-cart-list">
               {items.map((item) => (
-                <article key={item.productId} className="customer-cart-item">
-                  <img src={item.imageDataUrl || fallbackImage} alt={item.name} />
-                  <div className="customer-cart-copy">
+                <article key={item.productId} className="customer-cart-item is-clickable">
+                  <button
+                    type="button"
+                    className="customer-cart-product-link"
+                    onClick={() => openProduct(item.productId)}
+                    aria-label={`View ${item.name}`}
+                  >
+                    <img src={item.imageDataUrl || fallbackImage} alt={item.name} />
+                  </button>
+                  <button
+                    type="button"
+                    className="customer-cart-copy customer-cart-product-link"
+                    onClick={() => openProduct(item.productId)}
+                  >
                     <p>{item.category}</p>
                     <h3>{item.name}</h3>
                     <span>{item.sku}</span>
-                  </div>
+                  </button>
                   <label className="customer-qty-field">
                     Qty
                     <input
@@ -309,13 +330,31 @@ export default function CartPage() {
                 </>
               ) : null}
               <div className="customer-summary-row">
-                <span>Tax</span>
-                <strong>{currency(taxAmount)}</strong>
+                <span>CGST</span>
+                <strong>{currency(cgstAmount)}</strong>
               </div>
               <div className="customer-summary-row">
-                <span>Delivery</span>
-                <strong>{currency(deliveryAmount)}</strong>
+                <span>SGST</span>
+                <strong>{currency(sgstAmount)}</strong>
               </div>
+              {taxAmount > 0 && cgstAmount + sgstAmount <= 0 ? (
+                <div className="customer-summary-row">
+                  <span>Tax</span>
+                  <strong>{currency(taxAmount)}</strong>
+                </div>
+              ) : null}
+              <div className="customer-summary-row">
+                <span>
+                  Delivery
+                  {freeDelivery && freeDeliveryThreshold > 0 ? (
+                    <small className="summary-subtext">Free above {currency(freeDeliveryThreshold)}</small>
+                  ) : null}
+                </span>
+                <strong className={freeDelivery ? 'deal-positive' : ''}>{freeDelivery ? 'FREE' : currency(deliveryAmount)}</strong>
+              </div>
+              {freeDelivery ? (
+                <div className="deal-note-chip">Free delivery unlocked</div>
+              ) : null}
               <div className="customer-summary-row total">
                 <span>Cart total</span>
                 <strong>{currency(cartTotal)}</strong>

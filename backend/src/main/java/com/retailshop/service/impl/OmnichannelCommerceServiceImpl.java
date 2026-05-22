@@ -99,13 +99,18 @@ public class OmnichannelCommerceServiceImpl implements OmnichannelCommerceServic
         conversation.setStatus("OPEN");
         OmnichannelConversation savedConversation = conversationRepository.save(conversation);
 
-        if (hasText(messageText) || hasText(request.getRawPayload())) {
+        String sourceMessageId = trimToNull(request.getSourceMessageId());
+        boolean duplicateInbound = sourceMessageId != null
+                && messageRepository.existsByConversation_IdAndDirectionAndExternalMessageId(savedConversation.getId(), "INBOUND", sourceMessageId);
+        if (!duplicateInbound && (hasText(messageText) || hasText(request.getRawPayload()))) {
             OmnichannelConversationMessage message = new OmnichannelConversationMessage();
             message.setConversation(savedConversation);
             message.setDirection("INBOUND");
             message.setMessageType("TEXT");
             message.setMessageText(trimToNull(messageText));
             message.setRawPayload(truncate(trimToNull(request.getRawPayload()), 12000));
+            message.setExternalMessageId(sourceMessageId);
+            message.setCorrelationId(trimToNull(request.getCorrelationId()));
             messageRepository.save(message);
         }
 

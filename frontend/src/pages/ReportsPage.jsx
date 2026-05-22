@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import DataTable from '../components/DataTable';
 import MetricCard from '../components/MetricCard';
 import PageHeader from '../components/PageHeader';
@@ -47,6 +48,8 @@ const prettyPayload = (payload) => {
 };
 
 export default function ReportsPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTab = searchParams.get('tab');
   const [activeReportTab, setActiveReportTab] = useState('dashboard');
   const [daily, setDaily] = useState(null);
   const [lowStockPage, setLowStockPage] = useState({ items: [], page: 0, totalPages: 0, totalItems: 0, hasNext: false, hasPrevious: false });
@@ -79,6 +82,17 @@ export default function ReportsPage() {
     status: '',
     search: ''
   });
+
+  useEffect(() => {
+    if (['dashboard', 'sales', 'payments'].includes(requestedTab) && requestedTab !== activeReportTab) {
+      setActiveReportTab(requestedTab);
+    }
+  }, [requestedTab, activeReportTab]);
+
+  const selectReportTab = (tab) => {
+    setActiveReportTab(tab);
+    setSearchParams(tab === 'dashboard' ? {} : { tab });
+  };
   const [paymentPage, setPaymentPage] = useState({ items: [], page: 0, totalPages: 0, totalItems: 0, hasNext: false, hasPrevious: false });
   const [paymentError, setPaymentError] = useState('');
   const [paymentLoading, setPaymentLoading] = useState(false);
@@ -265,7 +279,7 @@ export default function ReportsPage() {
 
   useEffect(() => {
     const normalized = customerFilter.trim();
-    if (!customerSearchFocused || normalized.length < 1) {
+    if (!customerSearchFocused) {
       setCustomerSuggestions([]);
       return;
     }
@@ -382,7 +396,7 @@ export default function ReportsPage() {
           role="tab"
           aria-selected={activeReportTab === 'dashboard'}
           className={`report-tab-btn ${activeReportTab === 'dashboard' ? 'is-active' : ''}`}
-          onClick={() => setActiveReportTab('dashboard')}
+          onClick={() => selectReportTab('dashboard')}
         >
           Dashboard
         </button>
@@ -391,7 +405,7 @@ export default function ReportsPage() {
           role="tab"
           aria-selected={activeReportTab === 'sales'}
           className={`report-tab-btn ${activeReportTab === 'sales' ? 'is-active' : ''}`}
-          onClick={() => setActiveReportTab('sales')}
+          onClick={() => selectReportTab('sales')}
         >
           Sales report
         </button>
@@ -400,7 +414,7 @@ export default function ReportsPage() {
           role="tab"
           aria-selected={activeReportTab === 'payments'}
           className={`report-tab-btn ${activeReportTab === 'payments' ? 'is-active' : ''}`}
-          onClick={() => setActiveReportTab('payments')}
+          onClick={() => selectReportTab('payments')}
         >
           Payments
         </button>
@@ -757,7 +771,7 @@ export default function ReportsPage() {
           <Panel
             title={isWebsiteOrderView ? 'Website order priority queue' : 'Orders in selected range'}
             subtitle={isWebsiteOrderView
-              ? "Showing pending website orders first. If none are pending, today's website orders are shown."
+              ? "Showing all pending website orders first, across dates. If none are pending, today's website orders are shown."
               : 'Review both website orders and billing orders in the chosen date range, with live delivery status for online purchases.'}
           >
             {orderStatusFeedback ? (
