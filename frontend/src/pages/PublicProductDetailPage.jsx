@@ -106,7 +106,7 @@ export default function PublicProductDetailPage({ branding }) {
     setActiveImageIndex(0);
     setLoading(true);
     Promise.all([
-      retailService.getPublicProduct(productId),
+      isUuid(productId) ? retailService.getPublicProduct(productId) : retailService.getPublicProductBySlug(productId),
       retailService.getPublicCatalog()
     ])
       .then(([detail, catalog]) => {
@@ -169,32 +169,91 @@ export default function PublicProductDetailPage({ branding }) {
   useEffect(() => {
     if (!product) return;
     const image = productImage(product);
+    const productPath = `/product/${product.slug || product.id}`;
+    const productUrl = `${window.location.origin}${productPath}`;
+    const description = product.aiDescription || product.description || `${product.name} from ${branding.shopName || defaultBranding.shopName}. Suitable for gifting, festive styling, daily wear, and Maharashtrian jewellery shopping.`;
     applySeo({
       title: `${product.name} | ${branding.shopName || defaultBranding.shopName}`,
-      description: `${product.name} in ${titleCaseCategory(product.category)} with live stock, best deal pricing, secure checkout, and WhatsApp support from ${branding.shopName || defaultBranding.shopName}.`,
-      path: `/products/${product.id}`,
+      description: `${description} Live stock, best deal pricing, secure checkout, and WhatsApp support from ${branding.shopName || defaultBranding.shopName}.`,
+      path: productPath,
       image,
-      keywords: [product.name, product.category, product.sku, 'jewellery', 'online shopping'].filter(Boolean).join(', '),
-      jsonLd: {
-        '@context': 'https://schema.org',
-        '@type': 'Product',
-        '@id': `${window.location.origin}/products/${product.id}`,
-        id: product.sku || product.id,
-        productID: product.sku || product.id,
-        mpn: product.sku || product.id,
-        name: product.name,
-        sku: product.sku,
-        category: titleCaseCategory(product.category),
-        image: productImages(product),
-        description: product.description || product.aiDescription || `${product.name} from ${branding.shopName || defaultBranding.shopName}`,
-        offers: {
-          '@type': 'Offer',
-          priceCurrency: 'INR',
-          price: Number(product.offerPrice ?? product.sellingPrice ?? 0).toFixed(2),
-          availability: product.inStock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
-          url: `${window.location.origin}/products/${product.id}`
+      keywords: [product.name, product.category, product.sku, 'jewellery', 'mala', 'haar', 'हार', 'mangalsutra', 'bridal jewellery', 'gift for wife', 'Marathi jewellery', 'Hindi jewellery', 'online shopping'].filter(Boolean).join(', '),
+      jsonLd: [
+        {
+          '@context': 'https://schema.org',
+          '@type': 'Product',
+          '@id': productUrl,
+          id: product.sku || product.id,
+          productID: product.sku || product.id,
+          mpn: product.sku || product.id,
+          name: product.name,
+          sku: product.sku,
+          category: titleCaseCategory(product.category),
+          image: productImages(product),
+          description,
+          url: productUrl,
+          offers: {
+            '@type': 'Offer',
+            priceCurrency: 'INR',
+            price: Number(product.offerPrice ?? product.sellingPrice ?? 0).toFixed(2),
+            availability: product.inStock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+            url: productUrl
+          }
+        },
+        {
+          '@context': 'https://schema.org',
+          '@type': 'FAQPage',
+          mainEntity: [
+            {
+              '@type': 'Question',
+              name: `Is ${product.name} available online?`,
+              acceptedAnswer: { '@type': 'Answer', text: `${product.name} is available online when it is marked in stock on this page.` }
+            },
+            {
+              '@type': 'Question',
+              name: `Can I buy ${product.name} for gifting or festivals?`,
+              acceptedAnswer: { '@type': 'Answer', text: `${product.name} can be considered for gifting, festive styling, and KPS Krishnai jewellery shopping based on live availability.` }
+            }
+          ]
+        },
+        {
+          '@context': 'https://schema.org',
+          '@type': 'BreadcrumbList',
+          itemListElement: [
+            { '@type': 'ListItem', position: 1, name: 'Home', item: `${window.location.origin}/` },
+            { '@type': 'ListItem', position: 2, name: 'Products', item: `${window.location.origin}/products` },
+            { '@type': 'ListItem', position: 3, name: product.name, item: productUrl }
+          ]
+        },
+        {
+          '@context': 'https://schema.org',
+          '@type': 'Organization',
+          name: branding.shopName || defaultBranding.shopName,
+          url: window.location.origin,
+          logo: branding.media?.logo || '/assets/glowjewels/app_logo.png',
+          sameAs: [branding.social?.instagram, branding.social?.facebook].filter(Boolean)
+        },
+        {
+          '@context': 'https://schema.org',
+          '@type': 'LocalBusiness',
+          name: branding.shopName || defaultBranding.shopName,
+          image: image ? [image] : undefined,
+          url: window.location.origin,
+          telephone: branding.contact?.phoneLabel || undefined,
+          address: branding.contact?.address || undefined
+        },
+        {
+          '@context': 'https://schema.org',
+          '@type': 'WebSite',
+          name: branding.shopName || defaultBranding.shopName,
+          url: window.location.origin,
+          potentialAction: {
+            '@type': 'SearchAction',
+            target: `${window.location.origin}/products?q={search_term_string}`,
+            'query-input': 'required name=search_term_string'
+          }
         }
-      },
+      ],
       extraMeta: [
         { property: 'product:retailer_item_id', content: product.sku || product.id },
         { property: 'product:price:amount', content: Number(product.offerPrice ?? product.sellingPrice ?? 0).toFixed(2) },
@@ -219,7 +278,7 @@ export default function PublicProductDetailPage({ branding }) {
       }).catch(() => {});
     }
     preloadImage(image, 'high');
-  }, [branding.metaPixelId, branding.shopName, customerSession?.token, product]);
+  }, [branding, customerSession?.token, product]);
 
   const headerLinks = useMemo(() => [
     { to: '/', label: 'Home' },
@@ -311,7 +370,7 @@ export default function PublicProductDetailPage({ branding }) {
         <>
           <section className="glow-detail-hero">
             <div className="glow-detail-media shimmer-border">
-              <img src={activeDetailImage} alt={product.name} fetchPriority="high" loading="eager" decoding="async" />
+              <img src={activeDetailImage} alt={product.name} fetchpriority="high" loading="eager" decoding="async" />
               {detailImages.length > 1 ? (
                 <>
                   <button

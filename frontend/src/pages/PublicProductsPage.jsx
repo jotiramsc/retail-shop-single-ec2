@@ -69,6 +69,54 @@ function finalProductPrice(product) {
   return Number(product?.offerPrice ?? product?.websitePrice ?? product?.sellingPrice ?? 0);
 }
 
+function normalizeSearchText(value) {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function expandSearchQuery(query) {
+  const normalized = normalizeSearchText(query);
+  const aliases = {
+    neckless: 'necklace',
+    neckles: 'necklace',
+    mala: 'necklace',
+    maal: 'necklace',
+    haar: 'necklace',
+    har: 'necklace',
+    'हार': 'necklace',
+    'माळ': 'necklace',
+    'माला': 'necklace',
+    mangalsutra: 'mangalsutra',
+    'mangal sutra': 'mangalsutra',
+    bangels: 'bangles',
+    bangal: 'bangles',
+    chudi: 'bangles',
+    kangan: 'bangles',
+    'बांगड्या': 'bangles',
+    earings: 'earrings',
+    earing: 'earrings',
+    bridal: 'wedding bridal',
+    wife: 'gift'
+  };
+  const terms = new Set([normalized]);
+  Object.entries(aliases).forEach(([from, to]) => {
+    if (normalized.includes(from)) terms.add(normalized.replace(from, to));
+  });
+  normalized.split(' ').forEach((token) => {
+    if (aliases[token]) terms.add(aliases[token]);
+  });
+  return [...terms].filter(Boolean);
+}
+
+function searchBudgetMax(query) {
+  const match = normalizeSearchText(query).match(/(?:under|below|upto|less than|₹|rs\.?|inr)?\s*(\d{2,7})/i);
+  return match ? Number(match[1]) : null;
+}
+
 function ProductDealPrice({ product, compact = false }) {
   const originalPrice = Number(product?.originalPrice ?? product?.websitePrice ?? product?.sellingPrice ?? 0);
   const finalPrice = finalProductPrice(product);
@@ -356,8 +404,12 @@ export default function PublicProductsPage({ branding }) {
       .filter((product) => {
         const categoryIds = categoryIdsForProduct(product, categoryOptions);
         const matchesCategory = activeCategory === 'all' || categoryIds.has(activeCategory);
+        const searchable = normalizeSearchText(`${product.name} ${product.sku} ${product.category} ${product.description || ''} ${product.aiDescription || ''}`);
+        const searchTerms = expandSearchQuery(searchQuery);
+        const budgetMax = searchBudgetMax(searchQuery);
         const matchesSearch = !searchQuery.trim()
-          || `${product.name} ${product.sku} ${product.category}`.toLowerCase().includes(searchQuery.trim().toLowerCase());
+          || searchTerms.some((term) => searchable.includes(term) || term.split(' ').every((part) => searchable.includes(part)))
+          || (budgetMax != null && finalProductPrice(product) <= budgetMax);
         const matchesPrice = activePriceRange === 'All Prices'
           || priceRangeLabel(finalProductPrice(product)) === activePriceRange;
 
@@ -599,7 +651,7 @@ export default function PublicProductsPage({ branding }) {
         </div>
 
         <div className="glow-products-hero-image shimmer-border glow-reveal glow-reveal-delay-4">
-          <img src={heroImage} alt={heroTitle} fetchPriority="high" loading="eager" decoding="async" />
+          <img src={heroImage} alt={heroTitle} fetchpriority="high" loading="eager" decoding="async" />
         </div>
       </section>
 

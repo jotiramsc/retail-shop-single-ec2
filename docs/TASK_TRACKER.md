@@ -4,6 +4,24 @@
 
 ## Completed
 
+- Admin Panel Cleanup & Navigation Refactor.
+  - Current status:
+    - Implementation complete locally and build-verified.
+    - Billing submenu was removed; old Billing Checkout and Latest Invoices routes redirect to Billing.
+    - Inventory now shows only Products and Categories; Collections and Brands are removed from admin navigation and old routes redirect to Products.
+    - Customer CRM navigation was simplified to Dashboard, Customer Info, Search Activity, Login History, Support Chat, and AI Insights. Customer List now redirects directly to Customer Info.
+    - WhatsApp admin/debug frontend menus and page were removed; old `/app/whatsapp/*` routes redirect to Support Active Conversations while the existing support inbox remains intact.
+    - Campaign Studio navigation was consolidated to Dashboard, Campaign List, Create Campaign, Offers, and Approval Queue. Removed campaign routes redirect to active campaign screens.
+    - Reports, Salesperson Sales, Site Interaction, and Users duplicate submenus were removed or flattened.
+    - UI settings/options panel and related frontend preference storage were removed.
+    - Sidebar now auto-collapses unrelated submenus so only one submenu remains expanded at a time.
+    - Sneat-style sidebar, submenu, route, card, modal, dropdown, and image transitions were tightened for smoother UX.
+    - Campaign image generation was aligned with the stable category icon path by uploading OpenAI image bytes directly to `marketing-campaigns` with a 12-second OpenAI timeout.
+    - Frontend `npm run build` passed.
+    - Backend `./mvnw -DskipTests package` passed.
+    - Local browser login route loaded without console errors; authenticated browser smoke could not seed session storage due the in-app browser read-only evaluation surface.
+    - Not deployed in this pass.
+
 - Customer Intelligence CRM workspace redesign.
   - Current status:
     - Implementation complete, deployed, and live-checked.
@@ -578,6 +596,60 @@
   - `git diff --check` passed.
 - Deployment:
   - Pending.
+
+## Latest Sneat Admin, WhatsApp Bot, and SEO Discovery Work
+
+- Changed files:
+  - `frontend/src/App.jsx`
+  - `frontend/src/pages/AdminDashboardPage.jsx`
+  - `frontend/src/pages/CustomerCrmModulePage.jsx`
+  - `frontend/src/pages/CampaignStudioModulePage.jsx`
+  - `frontend/src/pages/WhatsAppModulePage.jsx`
+  - `frontend/src/pages/PublicProductDetailPage.jsx`
+  - `frontend/src/pages/PublicProductsPage.jsx`
+  - `frontend/src/styles/sneat-live.css`
+  - `frontend/src/services/retailService.js`
+  - `backend/src/main/java/com/retailshop/controller/ProductController.java`
+  - `backend/src/main/java/com/retailshop/controller/SeoDiscoveryController.java`
+  - `backend/src/main/java/com/retailshop/controller/WhatsAppBotTraceController.java`
+  - `backend/src/main/java/com/retailshop/dto/PublicProductResponse.java`
+  - `backend/src/main/java/com/retailshop/dto/WhatsAppBotTraceResponse.java`
+  - `backend/src/main/java/com/retailshop/entity/WhatsAppBotTrace.java`
+  - `backend/src/main/java/com/retailshop/repository/WhatsAppBotTraceRepository.java`
+  - `backend/src/main/java/com/retailshop/service/ProductService.java`
+  - `backend/src/main/java/com/retailshop/service/impl/ProductAiDescriptionServiceImpl.java`
+  - `backend/src/main/java/com/retailshop/service/impl/ProductServiceImpl.java`
+  - `backend/src/main/java/com/retailshop/service/impl/WhatsAppSalesBotServiceImpl.java`
+  - `backend/src/main/resources/schema.sql`
+  - `backend/src/test/java/com/retailshop/service/impl/WhatsAppSalesBotServiceImplTest.java`
+  - `docs/CURRENT_TASK.md`
+  - `docs/TASK_TRACKER.md`
+  - `docs/krishnai.md`
+- Implementation notes:
+  - Sneat admin shell now keeps the KPS green translucent background treatment while using smoother sidebar width transitions, submenu max-height animation, route/card hover animation, settings drawer animation, and shimmer utility styles.
+  - Removed the navbar "Live APIs via API" badge.
+  - CRM customer 360 sections are reachable as routed submenu screens instead of visible detail tabs.
+  - Campaign Studio list/create/offers/approval/analytics/scheduler/report/automation sections are reachable as submenu routes.
+  - WhatsApp support navigation now exposes Conversations, Templates, Bot Logs, Failed Messages, AI Context Viewer, Product Match Debug, and Product Sender menu entries.
+  - WhatsApp Templates, Bot Logs, Failed Messages, AI Context Viewer, and Product Match Debug now render as dedicated Sneat-style routed screens.
+  - Added persisted WhatsApp bot traces with an admin API at `/api/whatsapp/bot-traces` for incoming message, intent, context, search query, matched products, AI response, send status, and failure reason.
+  - WhatsApp product replies send text before images to reduce perceived delay, while still sending image cards/actions afterward.
+  - WhatsApp bot trace logging now includes search text, detected budget range, conversation stage, selected products, and provider send status.
+  - Public SEO discovery now includes `robots.txt`, `sitemap.xml`, product/category/image sitemaps, `ai-catalog.json`, product slugs, canonical product URLs, Product/FAQ/Breadcrumb/Organization/LocalBusiness/SearchAction JSON-LD, and multilingual AI-readable product keywords.
+  - Product create/update now queues async OpenAI SEO/AI description generation for website-visible products without blocking admin save.
+  - Storefront product search handles common jewellery misspellings, Marathi/Hinglish category words, and budget-only searches.
+- Local testing:
+  - `frontend npm run build` passed.
+  - `backend ./mvnw -DskipTests package` passed.
+  - `backend ./mvnw -Dtest=WhatsAppSalesBotServiceImplTest test` passed: 15 tests.
+  - `git diff --check` passed.
+- Deployment:
+  - Initial release bundle `local-20260522141915` was uploaded and deployed by EC2 Instance Connect fallback after SSM reported `ConnectionLost`.
+  - EC2 root volume was found 100% full, preventing Docker and SSM from starting; disposable Docker layer/cache data and old release folders were cleared without touching `/mnt/retail-data/postgres`.
+  - Follow-up release `local-20260522143002` deployed successfully after adding public security allowlist entries for SEO discovery endpoints.
+  - Live checks passed: `/actuator/health`, `/`, `/products?q=neckless%201500`, `/login`, `/app`, `/sitemap.xml`, `/sitemap-products.xml`, `/sitemap-categories.xml`, `/sitemap-images.xml`, `/robots.txt`, `/ai-catalog.json`, and the first product sitemap slug returned HTTP 200.
+  - `/opt/retail-shop/current` points to `/opt/retail-shop/releases/local-20260522143002`.
+  - Temporary SSH ingress used for deployment was revoked; no port 22 rule remains on the app security group.
 
 ## Latest Admin/Billing Refinement
 

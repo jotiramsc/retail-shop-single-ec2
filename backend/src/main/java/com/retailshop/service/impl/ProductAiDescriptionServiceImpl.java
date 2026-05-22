@@ -91,10 +91,18 @@ public class ProductAiDescriptionServiceImpl implements ProductAiDescriptionServ
 
     private String requestDescription(Product product) throws IOException, InterruptedException {
         String systemPrompt = """
-                You write concise ecommerce product descriptions for an Indian jewellery and cosmetics shop.
+                You write SEO-rich ecommerce product content for KPS Krishnai Pearl Shopee, an Indian jewellery and cosmetics shop.
                 Return plain text only. Keep it premium, simple, customer-friendly, and sales-focused without inventing facts.
-                Maximum 10 lines total. Use one short attractive paragraph followed by 3 to 5 bullet points.
-                Use bullet character "•" for each bullet.
+                Maximum 14 lines total.
+                Include:
+                SEO title:
+                SEO description:
+                Keywords: English, Hindi, Marathi, Hinglish
+                One short attractive paragraph
+                3 bullet benefits using bullet character "•"
+                FAQ: 2 short Q/A lines
+                Styling: one occasion or outfit suggestion
+                Use Marathi/Hindi searchable words where relevant, such as हार, माळ, दागिने, मंगलसूत्र, गहने.
                 """;
         String userPrompt = """
                 Product name: %s
@@ -103,7 +111,7 @@ public class ProductAiDescriptionServiceImpl implements ProductAiDescriptionServ
                 Website price: %s
                 Manual description: %s
 
-                Write a polished customer-facing description. Mention material, color, occasion, or style only if present in the product data.
+                Write polished customer-facing AI and SEO content. Mention material, color, occasion, or style only if present in the product data.
                 """.formatted(
                 defaultString(product.getName(), "Product"),
                 defaultString(product.getCategory(), "Krishnai collection"),
@@ -115,7 +123,7 @@ public class ProductAiDescriptionServiceImpl implements ProductAiDescriptionServ
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("model", defaultString(marketingProperties.getAi().getModel(), "gpt-4.1-mini"));
         payload.put("temperature", 0.55);
-        payload.put("max_tokens", 260);
+        payload.put("max_tokens", 520);
         payload.put("messages", java.util.List.of(
                 Map.of("role", "system", "content", systemPrompt),
                 Map.of("role", "user", "content", userPrompt)
@@ -150,7 +158,7 @@ public class ProductAiDescriptionServiceImpl implements ProductAiDescriptionServ
                 .lines()
                 .map(String::trim)
                 .filter(line -> !line.isBlank())
-                .limit(10)
+                .limit(14)
                 .toArray(String[]::new);
         return String.join("\n", lines);
     }

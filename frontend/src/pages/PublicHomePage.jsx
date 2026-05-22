@@ -447,7 +447,7 @@ export default function PublicHomePage({ branding, siteVisitCount }) {
               src={heroPrimary}
               alt={heroProduct?.name || shopName}
               className="glow-hero-main-image"
-              fetchPriority="high"
+              fetchpriority="high"
               loading="eager"
               decoding="async"
             />

@@ -103,14 +103,20 @@ export default function LoginPage({ onLogin, branding = defaultBranding }) {
 
           <form className="form-grid" onSubmit={handleSubmit}>
             <input
+              name="username"
               placeholder="Username"
+              autoComplete="username"
+              autoCapitalize="none"
+              spellCheck="false"
               value={form.username}
               onChange={(e) => setForm({ ...form, username: e.target.value })}
               required
             />
             <input
+              name="password"
               type="password"
               placeholder="Password"
+              autoComplete="current-password"
               value={form.password}
               onChange={(e) => setForm({ ...form, password: e.target.value })}
               required

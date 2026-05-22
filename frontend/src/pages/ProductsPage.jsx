@@ -77,7 +77,11 @@ const defaultFacebookCollectionFor = (name) => {
   return displayName ? `${displayName} Collection` : '';
 };
 
-export default function ProductsPage() {
+export default function ProductsPage({
+  initialTab = 'products',
+  hidePageHeader = false,
+  hideTabs = false
+}) {
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = searchParams.get('tab');
   const [productsPage, setProductsPage] = useState({ items: [], page: 0, totalPages: 0, totalItems: 0, hasNext: false, hasPrevious: false });
@@ -86,7 +90,7 @@ export default function ProductsPage() {
   const [categoryOptions, setCategoryOptions] = useState([]);
   const [form, setForm] = useState(createBlankProduct());
   const [categoryForm, setCategoryForm] = useState(blankCategoryForm);
-  const [activeInventoryTab, setActiveInventoryTab] = useState('products');
+  const [activeInventoryTab, setActiveInventoryTab] = useState(['products', 'categories', 'collections', 'brands'].includes(initialTab) ? initialTab : 'products');
   const [editingId, setEditingId] = useState(null);
   const [editingCategoryId, setEditingCategoryId] = useState(null);
   const [formMode, setFormMode] = useState('create');
@@ -109,14 +113,25 @@ export default function ProductsPage() {
   const defaultCategoryCode = categoryOptions[0]?.code || '';
 
   useEffect(() => {
+    if (hideTabs) return;
     if (['products', 'categories', 'collections', 'brands'].includes(requestedTab) && requestedTab !== activeInventoryTab) {
       setActiveInventoryTab(requestedTab);
     }
-  }, [requestedTab, activeInventoryTab]);
+  }, [requestedTab, activeInventoryTab, hideTabs]);
+
+  useEffect(() => {
+    if (!hideTabs) return;
+    const nextTab = ['products', 'categories', 'collections', 'brands'].includes(initialTab) ? initialTab : 'products';
+    if (nextTab !== activeInventoryTab) {
+      setActiveInventoryTab(nextTab);
+    }
+  }, [activeInventoryTab, hideTabs, initialTab]);
 
   const selectInventoryTab = (tab) => {
     setActiveInventoryTab(tab);
-    setSearchParams(tab === 'products' ? {} : { tab });
+    if (!hideTabs) {
+      setSearchParams(tab === 'products' ? {} : { tab });
+    }
   };
 
   const loadProducts = async (page = 0) => {
@@ -619,13 +634,15 @@ export default function ProductsPage() {
 
   return (
     <div className="page">
-      <PageHeader
-        eyebrow="Inventory"
-        title="Product and stock management"
-        description="Track cosmetics and jewellery stock, keep expiry dates visible, and update prices without mutating historical invoices."
-      />
+      {hidePageHeader ? null : (
+        <PageHeader
+          eyebrow="Inventory"
+          title="Product and stock management"
+          description="Track cosmetics and jewellery stock, keep expiry dates visible, and update prices without mutating historical invoices."
+        />
+      )}
 
-      <div className="admin-tab-row inventory-tabs" role="tablist" aria-label="Inventory sections">
+      {hideTabs ? null : <div className="admin-tab-row inventory-tabs" role="tablist" aria-label="Inventory sections">
         {[
           ['products', 'Products'],
           ['categories', 'Categories'],
@@ -641,7 +658,7 @@ export default function ProductsPage() {
             {label}
           </button>
         ))}
-      </div>
+      </div>}
 
       <div className="inventory-stack">
         {activeInventoryTab === 'products' ? (

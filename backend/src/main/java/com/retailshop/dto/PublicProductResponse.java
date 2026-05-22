@@ -11,6 +11,7 @@ import java.util.UUID;
 @Builder
 public class PublicProductResponse {
     private UUID id;
+    private String slug;
     private String name;
     private String category;
     private String sku;

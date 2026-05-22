@@ -727,6 +727,34 @@ create table if not exists ai_recommendation_logs (
 create index if not exists idx_ai_recommendation_logs_lead_created on ai_recommendation_logs(lead_id, created_at desc);
 create index if not exists idx_ai_recommendation_logs_channel_created on ai_recommendation_logs(channel, created_at desc);
 
+create table if not exists whatsapp_bot_traces (
+    id uuid primary key,
+    stage varchar(50) not null,
+    correlation_id varchar(100),
+    lead_id uuid,
+    session_id varchar(80),
+    message_id varchar(255),
+    incoming_message text,
+    intent varchar(80),
+    category varchar(255),
+    search_text varchar(1000),
+    min_price varchar(40),
+    max_price varchar(40),
+    conversation_stage varchar(120),
+    matched_products text,
+    ai_response text,
+    image_send_started boolean,
+    image_send_result varchar(1000),
+    sent boolean,
+    provider_message_id varchar(1000),
+    failure_reason text,
+    created_at timestamp not null
+);
+
+create index if not exists idx_whatsapp_bot_traces_created on whatsapp_bot_traces(created_at desc);
+create index if not exists idx_whatsapp_bot_traces_session_created on whatsapp_bot_traces(session_id, created_at desc);
+create index if not exists idx_whatsapp_bot_traces_failed_created on whatsapp_bot_traces(sent, created_at desc);
+
 create table if not exists campaign_logs (
     id uuid primary key,
     campaign_id uuid not null references campaigns(id),

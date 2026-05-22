@@ -67,6 +67,11 @@ public class ProductController {
         return productService.getPublicProduct(id);
     }
 
+    @GetMapping("/catalog/slug/{slug}")
+    public PublicProductResponse getPublicProductBySlug(@PathVariable String slug) {
+        return productService.getPublicProductBySlug(slug);
+    }
+
     @GetMapping("/trending")
     @PreAuthorize("hasAnyAuthority('PERM_PRODUCTS', 'PERM_BILLING')")
     public List<ProductResponse> getTrendingProducts() {

@@ -84,7 +84,11 @@ function SupportIcon({ name }) {
   );
 }
 
-export default function SupportInboxPage() {
+export default function SupportInboxPage({
+  initialTab = 'ACTIVE',
+  hidePageHeader = false,
+  hideTabs = false
+}) {
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = searchParams.get('tab');
@@ -93,7 +97,7 @@ export default function SupportInboxPage() {
   const [selected, setSelected] = useState(null);
   const [products, setProducts] = useState([]);
   const [filters, setFilters] = useState({ status: '', search: '' });
-  const [activeTab, setActiveTab] = useState('ACTIVE');
+  const [activeTab, setActiveTab] = useState(initialTab === 'ARCHIVED' ? 'ARCHIVED' : 'ACTIVE');
   const [archiveFilters, setArchiveFilters] = useState({ fromDate: '', toDate: '' });
   const [replyText, setReplyText] = useState('');
   const [showProductPicker, setShowProductPicker] = useState(false);
@@ -105,11 +109,20 @@ export default function SupportInboxPage() {
   const chatEndRef = useRef(null);
 
   useEffect(() => {
+    if (hideTabs) return;
     const nextTab = requestedTab === 'archived' ? 'ARCHIVED' : requestedTab === 'active' ? 'ACTIVE' : '';
     if (nextTab && nextTab !== activeTab) {
       switchTab(nextTab).catch((requestError) => setError(getApiErrorMessage(requestError, 'Unable to switch support inbox.')));
     }
-  }, [requestedTab]);
+  }, [requestedTab, hideTabs]);
+
+  useEffect(() => {
+    if (!hideTabs) return;
+    const nextTab = initialTab === 'ARCHIVED' ? 'ARCHIVED' : 'ACTIVE';
+    if (nextTab !== activeTab) {
+      switchTab(nextTab).catch((requestError) => setError(getApiErrorMessage(requestError, 'Unable to switch support inbox.')));
+    }
+  }, [hideTabs, initialTab]);
 
   const loadSummary = async () => {
     const next = await retailService.getSupportSummary();
@@ -208,7 +221,9 @@ export default function SupportInboxPage() {
 
   const switchTab = async (tab) => {
     setActiveTab(tab);
-    setSearchParams(tab === 'ACTIVE' ? {} : { tab: 'archived' });
+    if (!hideTabs) {
+      setSearchParams(tab === 'ACTIVE' ? {} : { tab: 'archived' });
+    }
     setSelected(null);
     const nextFilters = tab === 'ARCHIVED' ? { ...filters, status: 'RESOLVED' } : { ...filters, status: '' };
     setFilters(nextFilters);
@@ -311,11 +326,13 @@ export default function SupportInboxPage() {
 
   return (
     <div className="page support-inbox-page">
-      <PageHeader
-        eyebrow="WhatsApp Support"
-        title="Single-agent support inbox"
-        description="Handle customer handoffs, reply on WhatsApp, share products from inventory, and close resolved chats."
-      />
+      {hidePageHeader ? null : (
+        <PageHeader
+          eyebrow="WhatsApp Support"
+          title="Single-agent support inbox"
+          description="Handle customer handoffs, reply on WhatsApp, share products from inventory, and close resolved chats."
+        />
+      )}
 
       {toast ? <div className="support-toast">{toast}</div> : null}
       {error ? <p className="error-text">{error}</p> : null}
@@ -336,10 +353,10 @@ export default function SupportInboxPage() {
             <div><span>Unread</span><strong>{summary.unreadCount || 0}</strong></div>
           </div>
 
-          <div className="support-tabs">
+          {hideTabs ? null : <div className="support-tabs">
             <button type="button" className={activeTab === 'ACTIVE' ? 'is-active' : ''} onClick={() => switchTab('ACTIVE')}>Active</button>
             <button type="button" className={activeTab === 'ARCHIVED' ? 'is-active' : ''} onClick={() => switchTab('ARCHIVED')}>Archived</button>
-          </div>
+          </div>}
 
           <div className="support-filter-row">
             <label className="support-search-field">

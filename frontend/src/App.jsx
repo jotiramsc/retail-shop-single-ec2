@@ -1,9 +1,10 @@
-import { Link, NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import BillingPage from './pages/BillingPage';
+import AdminDashboardPage from './pages/AdminDashboardPage';
 import ProductsPage from './pages/ProductsPage';
-import CustomersPage from './pages/CustomersPage';
-import CampaignsPage from './pages/CampaignsPage';
+import CustomerCrmModulePage from './pages/CustomerCrmModulePage';
+import CampaignStudioModulePage from './pages/CampaignStudioModulePage';
 import ReportsPage from './pages/ReportsPage';
 import SalespersonSalesPage from './pages/SalespersonSalesPage';
 import SiteInteractionsPage from './pages/SiteInteractionsPage';
@@ -28,99 +29,59 @@ import { defaultBranding, getStoredBranding, normalizeBranding, storeBranding } 
 import { trackMetaEvent } from './utils/metaPixel';
 import { getStoredVisitCount, storeVisitCount, trackCurrentSiteVisit } from './utils/siteInteraction';
 
-const resolvedApiBaseUrl = window.__APP_CONFIG__?.API_BASE_URL || import.meta.env.VITE_API_BASE_URL || '/api';
-const UI_SETTINGS_KEY = 'kps_sneat_ui_settings';
-
-const defaultUiSettings = {
-  collapsed: false,
-  fixedNavbar: true,
-  compact: false,
-  rounded: true,
-  menuAnimation: true
-};
-
-const readUiSettings = () => {
-  try {
-    return { ...defaultUiSettings, ...JSON.parse(window.localStorage.getItem(UI_SETTINGS_KEY) || '{}') };
-  } catch {
-    return defaultUiSettings;
-  }
-};
-
 const navGroups = [
   {
     label: 'Store Operations',
     items: [
-      { to: '/app', label: 'Billing', icon: 'bx-receipt', permission: 'BILLING', children: [
-        { to: '/app', label: 'Product picker' },
-        { to: '/app', label: 'Checkout' },
-        { to: '/app', label: 'Latest invoices' }
+      { to: '/app/billing', label: 'Billing', icon: 'bx-receipt', permission: 'BILLING' },
+      { to: '/app/inventory/products', label: 'Inventory', icon: 'bx-package', permission: 'PRODUCTS', children: [
+        { to: '/app/inventory/products', label: 'Products' },
+        { to: '/app/inventory/categories', label: 'Categories' }
       ] },
-      { to: '/app/products', label: 'Inventory', icon: 'bx-package', permission: 'PRODUCTS', children: [
-        { to: '/app/products?tab=products', label: 'Products' },
-        { to: '/app/products?tab=categories', label: 'Categories' },
-        { to: '/app/products?tab=collections', label: 'Collections' },
-        { to: '/app/products?tab=brands', label: 'Brands' }
+      { to: '/app/crm/customers/overview', label: 'Customer CRM', icon: 'bx-user-voice', permission: 'CUSTOMERS', children: [
+        { to: '/app/crm/dashboard', label: 'Dashboard' },
+        { to: '/app/crm/customers/overview', label: 'Customer Info' },
+        { to: '/app/crm/customers/search-activity', label: 'Search Activity' },
+        { to: '/app/crm/customers/login-history', label: 'Login History' },
+        { to: '/app/crm/customers/support-chat', label: 'Support Chat' },
+        { to: '/app/crm/customers/ai-insights', label: 'AI Insights' }
       ] },
-      { to: '/app/customers', label: 'Customer CRM', icon: 'bx-user-voice', permission: 'CUSTOMERS', children: [
-        { to: '/app/customers', label: 'Customer list' },
-        { to: '/app/customers?tab=overview', label: 'Overview' },
-        { to: '/app/customers?tab=timeline', label: 'Timeline' },
-        { to: '/app/customers?tab=search', label: 'Search activity' },
-        { to: '/app/customers?tab=login', label: 'Login history' },
-        { to: '/app/customers?tab=ai', label: 'AI insights' }
-      ] },
-      { to: '/app/support', label: 'Support Inbox', icon: 'bx-conversation', permission: 'CUSTOMERS', badgeKey: 'supportUnread', children: [
-        { to: '/app/support?tab=active', label: 'Active chats' },
-        { to: '/app/support?tab=archived', label: 'Archived chats' },
-        { to: '/app/support', label: 'Product sender' }
+      { to: '/app/support/active', label: 'Support', icon: 'bx-support', permission: 'CUSTOMERS', badgeKey: 'supportUnread', children: [
+        { to: '/app/support/active', label: 'Active Conversations' },
+        { to: '/app/support/archived', label: 'Archived Conversations' }
       ] }
     ]
   },
   {
     label: 'Growth',
     items: [
-      { to: '/app/campaigns', label: 'Campaign Studio', icon: 'bx-broadcast', permission: ['MARKETING_AUTOMATION', 'OFFERS'], children: [
-        { to: '/app/campaigns', label: 'Campaign list' },
-        { to: '/app/campaigns?tab=create', label: 'Create campaign' },
-        { to: '/app/campaigns?tab=offers', label: 'Offers' },
-        { to: '/app/campaigns?tab=approval', label: 'Approval queue' },
-        { to: '/app/campaigns?tab=schedule', label: 'Scheduled publishing' },
-        { to: '/app/campaigns?tab=analytics', label: 'Analytics' }
+      { to: '/app/campaigns/dashboard', label: 'Campaign Studio', icon: 'bx-broadcast', permission: ['MARKETING_AUTOMATION', 'OFFERS'], children: [
+        { to: '/app/campaigns/dashboard', label: 'Campaign Dashboard' },
+        { to: '/app/campaigns/list', label: 'Campaign List' },
+        { to: '/app/campaigns/create', label: 'Create Campaign' },
+        { to: '/app/campaigns/offers', label: 'Offers' },
+        { to: '/app/campaigns/approval', label: 'Approval Queue' }
       ] },
       { to: '/app/reports', label: 'Reports', icon: 'bx-line-chart', permission: 'REPORTS', children: [
-        { to: '/app/reports?tab=dashboard', label: 'Dashboard' },
-        { to: '/app/reports?tab=sales', label: 'Sales reports' },
-        { to: '/app/reports?tab=payments', label: 'Razorpay diagnostics' },
-        { to: '/app/reports', label: 'Low stock' },
-        { to: '/app/reports', label: 'Website orders' }
+        { to: '/app/reports/dashboard', label: 'Dashboard' },
+        { to: '/app/reports/sales', label: 'Sales reports' },
+        { to: '/app/reports/payments', label: 'Razorpay diagnostics' }
       ] },
-      { to: '/app/salesperson-sales', label: 'Salesperson Sales', icon: 'bx-medal', permission: 'SALESPERSON_SALES', children: [
-        { to: '/app/salesperson-sales', label: 'Performance filters' },
-        { to: '/app/salesperson-sales', label: 'Sales trend' },
-        { to: '/app/salesperson-sales', label: 'Detailed records' }
-      ] },
-      { to: '/app/site-interactions', label: 'Site Interaction', icon: 'bx-map-alt', permission: 'SITE_INTERACTIONS', children: [
-        { to: '/app/site-interactions', label: 'Traffic by day' },
-        { to: '/app/site-interactions', label: 'Top sources' },
-        { to: '/app/site-interactions', label: 'Maharashtra map' },
-        { to: '/app/site-interactions', label: 'Recent visits' }
-      ] }
+      { to: '/app/salesperson-sales', label: 'Salesperson Sales', icon: 'bx-medal', permission: 'SALESPERSON_SALES' },
+      { to: '/app/site-interactions', label: 'Site Interaction', icon: 'bx-map-alt', permission: 'SITE_INTERACTIONS' }
     ]
   },
   {
     label: 'Admin',
     items: [
       { to: '/app/settings/receipt', label: 'Brand Configuration', icon: 'bx-palette', permission: 'RECEIPT_SETTINGS', children: [
-        { to: '/app/settings/receipt?tab=brand', label: 'Business details' },
-        { to: '/app/settings/receipt?tab=theme', label: 'Theme and media' },
-        { to: '/app/settings/receipt?tab=social', label: 'Social links' },
-        { to: '/app/settings/receipt?tab=facebook', label: 'Meta catalog' }
+        { to: '/app/settings/receipt/business', label: 'Business details' },
+        { to: '/app/settings/receipt/theme', label: 'Theme and media' },
+        { to: '/app/settings/receipt/social', label: 'Social links' },
+        { to: '/app/settings/receipt/meta-catalog', label: 'Meta catalog' }
       ] },
       { to: '/app/users', label: 'Users', icon: 'bx-lock-open-alt', permission: 'USER_MANAGEMENT', children: [
-        { to: '/app/users', label: 'Team accounts' },
-        { to: '/app/users', label: 'Permissions' },
-        { to: '/app/users', label: 'Access status' }
+        { to: '/app/users', label: 'Team Accounts' }
       ] }
     ]
   }
@@ -134,13 +95,28 @@ function pathFrom(to) {
   return to.split('?')[0];
 }
 
+function isRouteActive(location, to) {
+  const target = pathFrom(to);
+  if (target === '/app') {
+    return location.pathname === '/app';
+  }
+  return location.pathname === target || location.pathname.startsWith(`${target}/`);
+}
+
+function isNavItemActive(location, item) {
+  return isRouteActive(location, item.to) || Boolean(item.children?.some((child) => isRouteActive(location, child.to)));
+}
+
 function ProtectedApp({ auth, onLogout, branding }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [supportSummary, setSupportSummary] = useState({ unreadCount: 0 });
   const [supportAlert, setSupportAlert] = useState(null);
-  const [uiSettings, setUiSettings] = useState(readUiSettings);
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [isMenuCollapsed, setIsMenuCollapsed] = useState(false);
+  const [openMenus, setOpenMenus] = useState({});
+  const [submenuHeights, setSubmenuHeights] = useState({});
+  const submenuRefs = useRef({});
   const permissions = Array.isArray(auth.permissions) ? auth.permissions : [];
 
   const canAccess = (permission) => {
@@ -155,12 +131,23 @@ function ProtectedApp({ auth, onLogout, branding }) {
   const firstAllowedRoute = flattenNav(visibleGroups)[0]?.to || '/login';
 
   useEffect(() => {
-    window.localStorage.setItem(UI_SETTINGS_KEY, JSON.stringify(uiSettings));
-  }, [uiSettings]);
-
-  useEffect(() => {
     setIsMobileMenuOpen(false);
   }, [location.pathname, location.search]);
+
+  useEffect(() => {
+    const activeItem = visibleGroups
+      .flatMap((group) => group.items)
+      .find((item) => item.children?.length && isNavItemActive(location, item));
+    setOpenMenus(activeItem ? { [activeItem.label]: true } : {});
+  }, [location, visibleGroups]);
+
+  useLayoutEffect(() => {
+    const next = {};
+    Object.entries(submenuRefs.current).forEach(([key, node]) => {
+      if (node) next[key] = node.scrollHeight;
+    });
+    setSubmenuHeights(next);
+  }, [visibleGroups, openMenus, isMenuCollapsed]);
 
   useEffect(() => {
     let cancelled = false;
@@ -187,17 +174,15 @@ function ProtectedApp({ auth, onLogout, branding }) {
     };
   }, [location.pathname]);
 
-  const toggleSetting = (key) => {
-    setUiSettings((current) => ({ ...current, [key]: !current[key] }));
+  const handleParentMenuClick = (item) => {
+    setOpenMenus((current) => (current[item.label] ? {} : { [item.label]: true }));
+    navigate(item.to);
   };
 
   const shellClasses = [
     'layout-wrapper layout-content-navbar kps-sneat-app',
-    uiSettings.collapsed ? 'kps-menu-collapsed' : '',
-    uiSettings.fixedNavbar ? 'kps-fixed-navbar' : '',
-    uiSettings.compact ? 'kps-compact' : '',
-    uiSettings.rounded ? 'kps-rounded' : 'kps-square',
-    uiSettings.menuAnimation ? 'kps-menu-animated' : 'kps-no-animation',
+    isMenuCollapsed ? 'kps-menu-collapsed' : '',
+    'kps-fixed-navbar kps-rounded kps-menu-animated',
     isMobileMenuOpen ? 'layout-menu-expanded' : ''
   ].filter(Boolean).join(' ');
 
@@ -212,33 +197,55 @@ function ProtectedApp({ auth, onLogout, branding }) {
               </span>
               <span className="app-brand-text demo menu-text fw-bolder ms-2">{branding.shopName || 'KPS Admin'}</span>
             </NavLink>
-            <button type="button" className="layout-menu-toggle menu-link text-large ms-auto kps-icon-button" onClick={() => toggleSetting('collapsed')} aria-label={uiSettings.collapsed ? 'Expand menu' : 'Collapse menu'}>
-              <i className={`bx ${uiSettings.collapsed ? 'bx-chevron-right' : 'bx-chevron-left'} bx-sm align-middle`} />
+            <button type="button" className="layout-menu-toggle menu-link text-large ms-auto kps-icon-button" onClick={() => setIsMenuCollapsed((current) => !current)} aria-label={isMenuCollapsed ? 'Expand menu' : 'Collapse menu'}>
+              <i className={`bx ${isMenuCollapsed ? 'bx-chevron-right' : 'bx-chevron-left'} bx-sm align-middle`} />
             </button>
           </div>
 
           <div className="menu-inner-shadow" />
           <ul className="menu-inner py-1">
             {visibleGroups.map((group) => (
-              <li className="kps-menu-group" key={group.label}>
-                <div className="menu-header small text-uppercase">
+              <Fragment key={group.label}>
+                <li className="menu-header small text-uppercase kps-menu-group">
                   <span className="menu-header-text">{group.label}</span>
-                </div>
+                </li>
                 {group.items.map((item) => {
-                  const isParentActive = location.pathname === pathFrom(item.to) || (item.to !== '/app' && location.pathname.startsWith(pathFrom(item.to)));
+                  const isParentActive = isNavItemActive(location, item);
+                  const hasChildren = Boolean(item.children?.length);
+                  const isOpen = hasChildren && (openMenus[item.label] || isParentActive);
                   return (
-                    <li key={item.to} className={`menu-item ${isParentActive ? 'active open' : ''}`}>
-                      <NavLink to={item.to} end={item.to === '/app'} className="menu-link menu-toggle kps-parent-link">
-                        <i className={`menu-icon tf-icons bx ${item.icon}`} />
-                        <div>{item.label}</div>
-                        {item.badgeKey === 'supportUnread' && Number(supportSummary.unreadCount || 0) > 0 ? (
-                          <div className="badge bg-label-warning rounded-pill ms-auto">{supportSummary.unreadCount}</div>
-                        ) : null}
-                      </NavLink>
-                      {item.children?.length ? (
-                        <ul className="menu-sub">
+                    <li key={item.to} className={`menu-item ${isParentActive ? 'active' : ''} ${isOpen ? 'open' : ''}`}>
+                      {hasChildren ? (
+                        <button
+                          type="button"
+                          className="menu-link menu-toggle kps-parent-link"
+                          onClick={() => handleParentMenuClick(item)}
+                          aria-expanded={isOpen}
+                        >
+                          <i className={`menu-icon tf-icons bx ${item.icon}`} />
+                          <div>{item.label}</div>
+                          {item.badgeKey === 'supportUnread' && Number(supportSummary.unreadCount || 0) > 0 ? (
+                            <span className="badge bg-label-warning rounded-pill ms-auto">{supportSummary.unreadCount}</span>
+                          ) : null}
+                        </button>
+                      ) : (
+                        <NavLink to={item.to} end={item.to === '/app'} className="menu-link kps-parent-link">
+                          <i className={`menu-icon tf-icons bx ${item.icon}`} />
+                          <div>{item.label}</div>
+                        </NavLink>
+                      )}
+                      {hasChildren ? (
+                        <ul
+                          className="menu-sub"
+                          ref={(node) => {
+                            submenuRefs.current[item.label] = node;
+                          }}
+                          style={{
+                            maxHeight: isOpen && !isMenuCollapsed ? `${submenuHeights[item.label] || item.children.length * 42}px` : '0px'
+                          }}
+                        >
                           {item.children.map((child) => (
-                            <li className="menu-item" key={`${item.to}-${child.label}`}>
+                            <li className={`menu-item ${isRouteActive(location, child.to) ? 'active' : ''}`} key={`${item.to}-${child.label}`}>
                               <NavLink to={child.to} className="menu-link">
                                 <div>{child.label}</div>
                               </NavLink>
@@ -249,34 +256,26 @@ function ProtectedApp({ auth, onLogout, branding }) {
                     </li>
                   );
                 })}
-              </li>
+              </Fragment>
             ))}
           </ul>
         </aside>
 
         <div className="layout-page">
-          <nav className="layout-navbar container-xxl navbar navbar-expand-xl navbar-detached align-items-center bg-navbar-theme kps-sneat-navbar">
+          <nav className="layout-navbar container-fluid navbar navbar-expand-xl navbar-detached align-items-center bg-navbar-theme kps-sneat-navbar">
             <div className="layout-menu-toggle navbar-nav align-items-xl-center me-3 me-xl-0 d-xl-none">
               <button className="nav-item nav-link px-0 me-xl-4 kps-icon-button" type="button" onClick={() => setIsMobileMenuOpen((current) => !current)} aria-label="Toggle menu">
                 <i className="bx bx-menu bx-sm" />
               </button>
             </div>
             <div className="navbar-nav-right d-flex align-items-center w-100">
-              <div className="navbar-nav align-items-center w-100">
-                <div className="nav-item d-flex align-items-center w-100">
-                  <i className="bx bx-search fs-4 lh-0" />
-                  <input type="text" className="form-control border-0 shadow-none" placeholder="Search products, customers, invoices, campaigns..." />
+              <div className="navbar-nav align-items-center me-auto">
+                <div className="nav-item d-flex align-items-center kps-navbar-title">
+                  <i className="bx bx-grid-alt fs-4 lh-0" />
+                  <span>Admin Workspace</span>
                 </div>
               </div>
               <ul className="navbar-nav flex-row align-items-center ms-auto">
-                <li className="nav-item me-3 d-none d-md-block">
-                  <span className="badge bg-label-success">Live APIs via {resolvedApiBaseUrl}</span>
-                </li>
-                <li className="nav-item me-2">
-                  <button type="button" className="btn btn-icon btn-outline-primary" onClick={() => setSettingsOpen(true)} aria-label="Open UI settings">
-                    <i className="bx bx-cog" />
-                  </button>
-                </li>
                 <li className="nav-item dropdown">
                   <button className="nav-link dropdown-toggle hide-arrow kps-avatar-button" type="button" data-bs-toggle="dropdown">
                     <div className="avatar avatar-online">
@@ -303,29 +302,80 @@ function ProtectedApp({ auth, onLogout, branding }) {
                     <span className="d-block">{supportAlert.unreadCount} unread WhatsApp message{Number(supportAlert.unreadCount) === 1 ? '' : 's'} · {supportAlert.timestamp}</span>
                   </div>
                   <div className="d-flex gap-2">
-                    <Link to="/app/support" className="btn btn-primary btn-sm" onClick={() => setSupportAlert(null)}>Open chat</Link>
+                    <Link to="/app/support/active" className="btn btn-primary btn-sm" onClick={() => setSupportAlert(null)}>Open chat</Link>
                     <button type="button" className="btn btn-outline-secondary btn-sm" onClick={() => setSupportAlert(null)}>Dismiss</button>
                   </div>
                 </div>
               ) : null}
+              <div className="kps-route-transition" key={location.pathname}>
               <Routes>
-                <Route index element={canAccess('BILLING') ? <BillingPage /> : <Navigate to={firstAllowedRoute} replace />} />
-                <Route path="products" element={canAccess('PRODUCTS') ? <ProductsPage /> : <Navigate to={firstAllowedRoute} replace />} />
-                <Route path="customers" element={canAccess('CUSTOMERS') ? <CustomersPage /> : <Navigate to={firstAllowedRoute} replace />} />
-                <Route path="support" element={canAccess('CUSTOMERS') ? <SupportInboxPage /> : <Navigate to={firstAllowedRoute} replace />} />
-                <Route path="offers" element={canAccess(['MARKETING_AUTOMATION', 'OFFERS']) ? <Navigate to="/app/campaigns?tab=offers" replace /> : <Navigate to={firstAllowedRoute} replace />} />
-                <Route path="campaigns" element={canAccess(['MARKETING_AUTOMATION', 'OFFERS']) ? <CampaignsPage /> : <Navigate to={firstAllowedRoute} replace />} />
-                <Route path="reports" element={canAccess('REPORTS') ? <ReportsPage /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route index element={<AdminDashboardPage branding={branding} auth={auth} />} />
+                <Route path="billing" element={canAccess('BILLING') ? <BillingPage /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="billing/checkout" element={canAccess('BILLING') ? <Navigate to="/app/billing" replace /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="billing/invoices" element={canAccess('BILLING') ? <Navigate to="/app/billing" replace /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="products" element={canAccess('PRODUCTS') ? <Navigate to="/app/inventory/products" replace /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="inventory" element={<Navigate to="/app/inventory/products" replace />} />
+                <Route path="inventory/products" element={canAccess('PRODUCTS') ? <ProductsPage initialTab="products" hideTabs /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="inventory/categories" element={canAccess('PRODUCTS') ? <ProductsPage initialTab="categories" hideTabs /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="inventory/collections" element={canAccess('PRODUCTS') ? <Navigate to="/app/inventory/products" replace /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="inventory/brands" element={canAccess('PRODUCTS') ? <Navigate to="/app/inventory/products" replace /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="customers" element={canAccess('CUSTOMERS') ? <Navigate to="/app/crm/customers/overview" replace /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="crm" element={<Navigate to="/app/crm/customers/overview" replace />} />
+                <Route path="crm/dashboard" element={canAccess('CUSTOMERS') ? <CustomerCrmModulePage screen="dashboard" /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="crm/customers" element={canAccess('CUSTOMERS') ? <Navigate to="/app/crm/customers/overview" replace /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="crm/customers/overview" element={canAccess('CUSTOMERS') ? <CustomerCrmModulePage screen="customers" detailTab="Overview" /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="crm/customers/timeline" element={canAccess('CUSTOMERS') ? <Navigate to="/app/crm/customers/overview" replace /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="crm/customers/orders" element={canAccess('CUSTOMERS') ? <Navigate to="/app/crm/customers/overview" replace /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="crm/customers/preferences" element={canAccess('CUSTOMERS') ? <Navigate to="/app/crm/customers/overview" replace /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="crm/customers/search-activity" element={canAccess('CUSTOMERS') ? <CustomerCrmModulePage screen="customers" detailTab="Search Activity" /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="crm/customers/login-history" element={canAccess('CUSTOMERS') ? <CustomerCrmModulePage screen="customers" detailTab="Login History" /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="crm/customers/support-chat" element={canAccess('CUSTOMERS') ? <CustomerCrmModulePage screen="customers" detailTab="Support Chat" /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="crm/customers/ai-insights" element={canAccess('CUSTOMERS') ? <CustomerCrmModulePage screen="customers" detailTab="AI Insights" /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="crm/leads" element={canAccess('CUSTOMERS') ? <Navigate to="/app/crm/customers/overview" replace /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="crm/opportunities" element={canAccess('CUSTOMERS') ? <Navigate to="/app/crm/customers/overview" replace /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="crm/activities" element={canAccess('CUSTOMERS') ? <Navigate to="/app/crm/customers/overview" replace /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="crm/reports" element={canAccess('CUSTOMERS') ? <Navigate to="/app/crm/dashboard" replace /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="crm/settings" element={canAccess('CUSTOMERS') ? <Navigate to="/app/crm/customers/overview" replace /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="support" element={canAccess('CUSTOMERS') ? <Navigate to="/app/support/active" replace /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="support/active" element={canAccess('CUSTOMERS') ? <SupportInboxPage initialTab="ACTIVE" hideTabs /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="support/archived" element={canAccess('CUSTOMERS') ? <SupportInboxPage initialTab="ARCHIVED" hideTabs /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="support/product-sender" element={canAccess('CUSTOMERS') ? <Navigate to="/app/support/active" replace /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="whatsapp" element={canAccess('CUSTOMERS') ? <Navigate to="/app/support/active" replace /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="whatsapp/*" element={canAccess('CUSTOMERS') ? <Navigate to="/app/support/active" replace /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="offers" element={canAccess(['MARKETING_AUTOMATION', 'OFFERS']) ? <Navigate to="/app/campaigns/offers" replace /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="campaigns" element={canAccess(['MARKETING_AUTOMATION', 'OFFERS']) ? <Navigate to="/app/campaigns/dashboard" replace /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="campaigns/dashboard" element={canAccess(['MARKETING_AUTOMATION', 'OFFERS']) ? <CampaignStudioModulePage screen="dashboard" /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="campaigns/list" element={canAccess(['MARKETING_AUTOMATION', 'OFFERS']) ? <CampaignStudioModulePage screen="list" /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="campaigns/create" element={canAccess(['MARKETING_AUTOMATION', 'OFFERS']) ? <CampaignStudioModulePage screen="create" /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="campaigns/offers" element={canAccess(['MARKETING_AUTOMATION', 'OFFERS']) ? <CampaignStudioModulePage screen="offers" /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="campaigns/approval" element={canAccess(['MARKETING_AUTOMATION', 'OFFERS']) ? <CampaignStudioModulePage screen="approval" /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="campaigns/templates" element={canAccess(['MARKETING_AUTOMATION', 'OFFERS']) ? <Navigate to="/app/campaigns/create" replace /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="campaigns/audience" element={canAccess(['MARKETING_AUTOMATION', 'OFFERS']) ? <Navigate to="/app/campaigns/list" replace /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="campaigns/analytics" element={canAccess(['MARKETING_AUTOMATION', 'OFFERS']) ? <Navigate to="/app/campaigns/dashboard" replace /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="campaigns/scheduler" element={canAccess(['MARKETING_AUTOMATION', 'OFFERS']) ? <Navigate to="/app/campaigns/create" replace /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="campaigns/reports" element={canAccess(['MARKETING_AUTOMATION', 'OFFERS']) ? <Navigate to="/app/campaigns/dashboard" replace /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="campaigns/automation" element={canAccess(['MARKETING_AUTOMATION', 'OFFERS']) ? <Navigate to="/app/campaigns/list" replace /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="reports" element={canAccess('REPORTS') ? <Navigate to="/app/reports/dashboard" replace /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="reports/dashboard" element={canAccess('REPORTS') ? <ReportsPage initialTab="dashboard" hideTabs /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="reports/sales" element={canAccess('REPORTS') ? <ReportsPage initialTab="sales" hideTabs /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="reports/payments" element={canAccess('REPORTS') ? <ReportsPage initialTab="payments" hideTabs /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="reports/low-stock" element={canAccess('REPORTS') ? <Navigate to="/app/reports/dashboard" replace /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="reports/website-orders" element={canAccess('REPORTS') ? <Navigate to="/app/reports/dashboard" replace /> : <Navigate to={firstAllowedRoute} replace />} />
                 <Route path="salesperson-sales" element={canAccess('SALESPERSON_SALES') ? <SalespersonSalesPage auth={auth} /> : <Navigate to={firstAllowedRoute} replace />} />
                 <Route path="site-interactions" element={canAccess('SITE_INTERACTIONS') ? <SiteInteractionsPage /> : <Navigate to={firstAllowedRoute} replace />} />
-                <Route path="settings/receipt" element={canAccess('RECEIPT_SETTINGS') ? <ReceiptSettingsPage /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="settings/receipt" element={canAccess('RECEIPT_SETTINGS') ? <Navigate to="/app/settings/receipt/business" replace /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="settings/receipt/business" element={canAccess('RECEIPT_SETTINGS') ? <ReceiptSettingsPage initialTab="brand" hideTabs /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="settings/receipt/theme" element={canAccess('RECEIPT_SETTINGS') ? <ReceiptSettingsPage initialTab="theme" hideTabs /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="settings/receipt/social" element={canAccess('RECEIPT_SETTINGS') ? <ReceiptSettingsPage initialTab="social" hideTabs /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="settings/receipt/meta-catalog" element={canAccess('RECEIPT_SETTINGS') ? <ReceiptSettingsPage initialTab="facebook" hideTabs /> : <Navigate to={firstAllowedRoute} replace />} />
                 <Route path="users" element={canAccess('USER_MANAGEMENT') ? <UsersPage /> : <Navigate to={firstAllowedRoute} replace />} />
                 <Route path="*" element={<Navigate to={firstAllowedRoute} replace />} />
               </Routes>
+              </div>
             </main>
             <footer className="content-footer footer bg-footer-theme">
               <div className="container-xxl d-flex flex-wrap justify-content-between py-2 flex-md-row flex-column">
-                <div className="mb-2 mb-md-0">Sneat admin migration shell connected to existing live APIs.</div>
+                <div className="mb-2 mb-md-0">{branding.shopName || 'KPS Krishnai Pearl Shopee'} admin workspace.</div>
                 <div><span className="text-muted">{branding.shopName || 'KPS Krishnai Pearl Shopee'}</span></div>
               </div>
             </footer>
@@ -333,34 +383,6 @@ function ProtectedApp({ auth, onLogout, branding }) {
         </div>
       </div>
       <button type="button" className="layout-overlay layout-menu-toggle" onClick={() => setIsMobileMenuOpen(false)} aria-label="Close menu" />
-      {settingsOpen ? (
-        <div className="kps-settings-backdrop" role="presentation" onClick={() => setSettingsOpen(false)}>
-          <aside className="kps-settings-panel" role="dialog" aria-modal="true" aria-label="UI settings" onClick={(event) => event.stopPropagation()}>
-            <div className="d-flex justify-content-between align-items-start mb-4">
-              <div>
-                <h5 className="mb-1">UI Settings</h5>
-                <p className="text-muted mb-0">Preview menu and layout options before migration.</p>
-              </div>
-              <button type="button" className="btn btn-icon btn-outline-secondary" onClick={() => setSettingsOpen(false)} aria-label="Close UI settings"><i className="bx bx-x" /></button>
-            </div>
-            {[
-              ['collapsed', 'Collapsed side menu', 'Use compact icon rail for dense admin work.'],
-              ['fixedNavbar', 'Fixed navbar', 'Keep search and settings visible while scrolling.'],
-              ['compact', 'Compact density', 'Reduce spacing for faster data scanning.'],
-              ['rounded', 'Rounded Sneat cards', 'Use softer card corners and inputs.'],
-              ['menuAnimation', 'Menu animations', 'Animate submenu open, hover, and transitions.']
-            ].map(([key, title, description]) => (
-              <label className="kps-setting-row" key={key}>
-                <span>
-                  <strong>{title}</strong>
-                  <small>{description}</small>
-                </span>
-                <input className="form-check-input" type="checkbox" checked={Boolean(uiSettings[key])} onChange={() => toggleSetting(key)} />
-              </label>
-            ))}
-          </aside>
-        </div>
-      ) : null}
     </div>
   );
 }

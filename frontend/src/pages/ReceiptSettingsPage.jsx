@@ -97,11 +97,15 @@ const blankSettings = {
   facebookFeedLastGeneratedAt: ''
 };
 
-export default function ReceiptSettingsPage() {
+export default function ReceiptSettingsPage({
+  initialTab = 'brand',
+  hidePageHeader = false,
+  hideTabs = false
+}) {
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = searchParams.get('tab');
   const [form, setForm] = useState(blankSettings);
-  const [activeTab, setActiveTab] = useState('brand');
+  const [activeTab, setActiveTab] = useState(['brand', 'theme', 'social', 'facebook'].includes(initialTab) ? initialTab : 'brand');
   const [feedPreview, setFeedPreview] = useState(null);
   const [feedLoading, setFeedLoading] = useState(false);
   const [error, setError] = useState('');
@@ -113,14 +117,25 @@ export default function ReceiptSettingsPage() {
   };
 
   useEffect(() => {
+    if (hideTabs) return;
     if (['brand', 'theme', 'social', 'facebook'].includes(requestedTab) && requestedTab !== activeTab) {
       setActiveTab(requestedTab);
     }
-  }, [requestedTab, activeTab]);
+  }, [requestedTab, activeTab, hideTabs]);
+
+  useEffect(() => {
+    if (!hideTabs) return;
+    const nextTab = ['brand', 'theme', 'social', 'facebook'].includes(initialTab) ? initialTab : 'brand';
+    if (nextTab !== activeTab) {
+      setActiveTab(nextTab);
+    }
+  }, [activeTab, hideTabs, initialTab]);
 
   const selectSettingsTab = (tab) => {
     setActiveTab(tab);
-    setSearchParams(tab === 'brand' ? {} : { tab });
+    if (!hideTabs) {
+      setSearchParams(tab === 'brand' ? {} : { tab });
+    }
   };
 
   useEffect(() => {
@@ -191,14 +206,16 @@ export default function ReceiptSettingsPage() {
 
   return (
     <div className="page">
-      <PageHeader
-        eyebrow="Admin"
-        title="Brand configuration"
-        description="Control the store identity, receipt details, customer access branding, logo, hero text, trust badges, and images."
-      />
+      {hidePageHeader ? null : (
+        <PageHeader
+          eyebrow="Admin"
+          title="Brand configuration"
+          description="Control the store identity, receipt details, customer access branding, logo, hero text, trust badges, and images."
+        />
+      )}
 
       <Panel title="Business and receipt details" subtitle="These values are used across the website, customer access screens, printed receipts, and Facebook catalog feed.">
-        <div className="admin-tab-row settings-tabs" role="tablist" aria-label="Brand configuration sections">
+        {hideTabs ? null : <div className="admin-tab-row settings-tabs" role="tablist" aria-label="Brand configuration sections">
           {[
             ['brand', 'Brand Details'],
             ['theme', 'Theme / Logo'],
@@ -214,7 +231,7 @@ export default function ReceiptSettingsPage() {
               {label}
             </button>
           ))}
-        </div>
+        </div>}
         <form className="form-grid" onSubmit={handleSubmit}>
           {activeTab === 'brand' ? (
             <>

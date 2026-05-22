@@ -238,12 +238,17 @@ function buildSuggestionPreviewDataUrl(suggestion) {
   );
 }
 
-export default function CampaignsPage() {
+export default function CampaignsPage({
+  initialTab = 'campaigns',
+  hidePageHeader = false,
+  hideTabs = false
+}) {
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = searchParams.get('tab');
   const auth = getStoredAuthSession() || {};
   const canApprove = auth.role === 'ADMIN' || auth.role === 'OWNER';
-  const [activeTab, setActiveTab] = useState(TABS.some((tab) => tab.value === requestedTab) ? requestedTab : 'campaigns');
+  const defaultTab = TABS.some((tab) => tab.value === initialTab) ? initialTab : 'campaigns';
+  const [activeTab, setActiveTab] = useState(TABS.some((tab) => tab.value === requestedTab) && !hideTabs ? requestedTab : defaultTab);
   const [filters, setFilters] = useState(blankFilters);
   const [campaignsPage, setCampaignsPage] = useState({ items: [], page: 0, totalPages: 0, totalItems: 0, hasNext: false, hasPrevious: false });
   const [scheduledPage, setScheduledPage] = useState({ items: [], page: 0, totalPages: 0, totalItems: 0, hasNext: false, hasPrevious: false });
@@ -266,14 +271,25 @@ export default function CampaignsPage() {
   const createFormNoticeRef = useRef(null);
 
   useEffect(() => {
+    if (hideTabs) return;
     if (requestedTab && TABS.some((tab) => tab.value === requestedTab) && requestedTab !== activeTab) {
       setActiveTab(requestedTab);
     }
-  }, [requestedTab, activeTab]);
+  }, [requestedTab, activeTab, hideTabs]);
+
+  useEffect(() => {
+    if (!hideTabs) return;
+    const nextTab = TABS.some((tab) => tab.value === initialTab) ? initialTab : 'campaigns';
+    if (activeTab !== nextTab) {
+      setActiveTab(nextTab);
+    }
+  }, [activeTab, hideTabs, initialTab]);
 
   const selectTab = (tab) => {
     setActiveTab(tab);
-    setSearchParams(tab === 'campaigns' ? {} : { tab });
+    if (!hideTabs) {
+      setSearchParams(tab === 'campaigns' ? {} : { tab });
+    }
   };
 
   const currentCategory = useMemo(
@@ -957,24 +973,28 @@ export default function CampaignsPage() {
 
   return (
     <div className="page marketing-automation-page">
-      <PageHeader
-        eyebrow="Campaign Studio"
-        title="Offers, AI creatives, approvals, and publishing"
-        description="Create one campaign with or without an offer, generate one shared branded creative for Instagram, Facebook, and WhatsApp, then approve and publish when it is ready."
-      />
+      {hidePageHeader ? null : (
+        <PageHeader
+          eyebrow="Campaign Studio"
+          title="Offers, AI creatives, approvals, and publishing"
+          description="Create one campaign with or without an offer, generate one shared branded creative for Instagram, Facebook, and WhatsApp, then approve and publish when it is ready."
+        />
+      )}
 
-      <div className="marketing-tab-row">
-        {TABS.map((tab) => (
-          <button
-            key={tab.value}
-            type="button"
-            className={`ghost-btn compact-btn ${activeTab === tab.value ? 'marketing-tab-active' : ''}`}
-            onClick={() => selectTab(tab.value)}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      {hideTabs ? null : (
+        <div className="marketing-tab-row">
+          {TABS.map((tab) => (
+            <button
+              key={tab.value}
+              type="button"
+              className={`ghost-btn compact-btn ${activeTab === tab.value ? 'marketing-tab-active' : ''}`}
+              onClick={() => selectTab(tab.value)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {error ? <p className="error-text">{error}</p> : null}
       {success ? <p className="success-text">{success}</p> : null}

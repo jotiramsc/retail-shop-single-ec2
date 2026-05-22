@@ -22,4 +22,5 @@ public interface ProductService {
     List<PublicProductResponse> getPublicCatalog();
     List<PublicProductResponse> getPublicHomepageCatalog();
     PublicProductResponse getPublicProduct(UUID id);
+    PublicProductResponse getPublicProductBySlug(String slug);
 }

@@ -1,26 +1,26 @@
 # CURRENT TASK
 
-## Current Task: Customer Intelligence CRM Workspace
+## Current Task: Admin Panel Cleanup, Navigation Refactor, and Campaign Image Generation Fix
 
-Status: Implemented locally, verified, deployed to EC2, and live-checked.
+Status: Completed locally and build-verified. Not deployed in this pass.
 
 Scope:
-- Customer CRM was redesigned into a spacious green/gold customer intelligence workspace with a sticky search/filter command bar, left customer list, and right customer 360 workspace.
-- Customer dropdown search now returns recent customers for empty focused searches, so Billing/Reports customer dropdowns are not blank before typing.
-- Customer login history display now uses the backend `loginTime` field and activity capture accepts both `category/page` and older `selectedCategory/sourcePage` payloads.
-- Product search, product click, product view, add-to-cart, wishlist, order placed, and CRM support-chat events now feed customer activity intelligence with richer payloads.
-- Customer details now expose gender, customer since, last active, preferred brands, shopping interests, search history, engagement score, sentiment, purchase prediction, churn risk, recommended products, and high-value badge.
-- Support chat now seeds the conversation with the Krishnai greeting and includes a conversational onboarding flow for DOB, anniversary, language, favorite categories, budget, and shopping interests.
-- Customer preferences remain editable, but the first profile collection experience is conversational rather than a large static form.
+- Admin sidebar was simplified so duplicate/dead menu entries are no longer shown.
+- Billing now exposes only the main Billing workflow; old Checkout and Latest Invoices admin submenu links redirect back to Billing.
+- Inventory now exposes Products and Categories only; old Collections and Brands admin routes redirect to Products.
+- Customer CRM now keeps Dashboard, Customer Info, Search Activity, Login History, Support Chat, and AI Insights. Customer List redirects directly to Customer Info.
+- WhatsApp admin/debug menus and frontend page were removed from the admin shell. Old `/app/whatsapp/*` links redirect to Support Active Conversations.
+- Campaign Studio now keeps Campaign Dashboard, Campaign List, Create Campaign, Offers, and Approval Queue. Removed campaign template/audience/analytics/scheduler/report/automation menu entries redirect to active campaign screens.
+- Reports now keeps Dashboard, Sales reports, and Razorpay diagnostics. Duplicate low-stock/website-order report routes redirect to Dashboard.
+- Salesperson Sales, Site Interaction, and Users were flattened to remove duplicate submenu entries that opened the same screen.
+- UI settings/options drawer and related frontend preference storage were removed.
+- Sidebar behavior now keeps only one submenu expanded; navigating to a route collapses unrelated submenus automatically.
+- Sneat-style transitions were tightened for sidebar collapse, submenu open/close, route entry, card hover, image hover, dropdowns, and modal surfaces.
+- Campaign image generation now uses the same stable approach as category icon generation: OpenAI image bytes are uploaded directly to `marketing-campaigns` with the returned content type, avoiding the extra Java overlay/composition step that could fail or delay uploads.
+- Campaign OpenAI image generation now has a bounded timeout matching the category icon generation behavior.
 
 Verification:
-- Backend `./mvnw test` passed: 77 tests.
 - Frontend `npm run build` passed.
-- `git diff --check` passed.
-- Local Playwright desktop check passed for `/app/customers` with a QA staff session; no obvious text/control overlap was detected in the main viewport.
-
-Deployment:
-- EC2 release `local-20260521215711` deployed successfully.
-- The first candidate exposed a missing additive DB column (`customer_activity_history.clicked_product`) while production stayed on the previous healthy release.
-- Applied the additive CRM intelligence columns on EC2, reran the clean deploy, and promoted the release.
-- Live checks passed: `/actuator/health` returned `UP`; `/app/customers` returned HTTP 200.
+- Backend `./mvnw -DskipTests package` passed.
+- Local Vite login route loaded without browser console errors.
+- Full authenticated admin browser smoke was not completed because the in-app browser's read-only evaluation surface could not seed session storage; production build verification covers compile/runtime bundle integrity.

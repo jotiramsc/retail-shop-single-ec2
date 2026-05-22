@@ -21,6 +21,7 @@ import com.retailshop.entity.OmnichannelLead;
 import com.retailshop.entity.Product;
 import com.retailshop.entity.ProductCategoryOption;
 import com.retailshop.entity.ReceiptSettings;
+import com.retailshop.entity.WhatsAppBotTrace;
 import com.retailshop.enums.DiscountType;
 import com.retailshop.enums.OfferType;
 import com.retailshop.enums.OrderStatus;
@@ -33,6 +34,7 @@ import com.retailshop.repository.OmnichannelLeadRepository;
 import com.retailshop.repository.ProductCategoryOptionRepository;
 import com.retailshop.repository.ProductRepository;
 import com.retailshop.repository.ReceiptSettingsRepository;
+import com.retailshop.repository.WhatsAppBotTraceRepository;
 import com.retailshop.service.OmnichannelCommerceService;
 import com.retailshop.service.MarketingChannelResult;
 import com.retailshop.service.WhatsAppMessageService;
@@ -114,6 +116,9 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
     private final BotOrchestratorService botOrchestratorService;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
+
+    @Autowired(required = false)
+    private WhatsAppBotTraceRepository botTraceRepository;
 
     public WhatsAppSalesBotServiceImpl(MarketingProperties marketingProperties,
                                        OmnichannelCommerceService omnichannelCommerceService,
@@ -350,7 +355,7 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
     }
 
     private BotSession emptySession() {
-        return new BotSession(null, null, null, null, null, List.of(), List.of(), false, Instant.now());
+        return new BotSession(null, null, null, null, null, null, null, null, List.of(), List.of(), false, Instant.now());
     }
 
     private Optional<BotSession> readPersistedSession(UUID leadId) {
@@ -397,6 +402,9 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
                     decimalFromText(root.path("lastMinPrice").asText(null)),
                     trimToNull(root.path("lastIntent").asText(null)),
                     trimToNull(root.path("lastProductId").asText(null)),
+                    trimToNull(root.path("lastSearchText").asText(null)),
+                    trimToNull(root.path("lastOccasion").asText(null)),
+                    trimToNull(root.path("conversationStage").asText(null)),
                     history.stream().limit(SHOWN_PRODUCT_HISTORY_CAP).toList(),
                     visible.stream().limit(PRODUCT_IMAGE_SEND_LIMIT).toList(),
                     root.path("welcomeSent").asBoolean(false),
@@ -423,6 +431,9 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
             payload.put("lastMinPrice", session.lastMinPrice());
             payload.put("lastIntent", session.lastIntent());
             payload.put("lastProductId", session.lastProductId());
+            payload.put("lastSearchText", session.lastSearchText());
+            payload.put("lastOccasion", session.lastOccasion());
+            payload.put("conversationStage", session.conversationStage());
             payload.put("shownProductHistory", session.shownProductHistory() == null ? List.of() : session.shownProductHistory());
             payload.put("visibleProductIds", session.visibleProductIds() == null ? List.of() : session.visibleProductIds());
             payload.put("welcomeSent", session.welcomeSent());
@@ -486,6 +497,9 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
             minPrice = positiveAmountOrNull(previous.lastMinPrice());
         }
         String intent = understanding.intent() == null ? previous.lastIntent() : understanding.intent().name();
+        String searchText = firstNonBlank(understanding.searchText(), previous.lastSearchText());
+        String occasion = firstNonBlank(understanding.occasion(), previous.lastOccasion());
+        String conversationStage = conversationStageFor(understanding.intent(), reply, moreRequested);
         String recentProduct = reply == null || reply.products() == null || reply.products().isEmpty()
                 ? previous.lastProductId()
                 : reply.products().get(0).getProductId() == null ? previous.lastProductId() : reply.products().get(0).getProductId().toString();
@@ -496,9 +510,33 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
         List<UUID> history = mergeShownProductHistory(previous.shownProductHistory(), reply, keepShownHistory);
         List<UUID> visibleProductIds = visibleProductIds(reply, previous);
         boolean welcomeSent = previous.welcomeSent() || (understanding.intent() == BotIntent.GREETING);
-        BotSession next = new BotSession(category, maxPrice, minPrice, intent, recentProduct, history, visibleProductIds, welcomeSent, Instant.now());
+        BotSession next = new BotSession(category, maxPrice, minPrice, intent, recentProduct, searchText, occasion, conversationStage, history, visibleProductIds, welcomeSent, Instant.now());
         BOT_SESSIONS.put(key, next);
         persistSession(leadId, next);
+    }
+
+    private String conversationStageFor(BotIntent intent, BotReply reply, boolean moreRequested) {
+        if (moreRequested) {
+            return "SHOW_MORE_PRODUCTS";
+        }
+        if (reply != null && reply.products() != null && !reply.products().isEmpty()) {
+            return "PRODUCTS_SHOWN";
+        }
+        if (intent == null) {
+            return "UNKNOWN";
+        }
+        return switch (intent) {
+            case GREETING -> "WELCOME_MENU";
+            case CATEGORY_BROWSE -> "CATEGORY_DISCOVERY";
+            case PRODUCT_SEARCH -> "PRODUCT_SEARCH";
+            case ORDER_SUPPORT -> "ORDER_SUPPORT";
+            case PAYMENT_SUPPORT -> "PAYMENT_SUPPORT";
+            case OFFER_INQUIRY -> "OFFER_INQUIRY";
+            case CART_SUPPORT -> "CART_SUPPORT";
+            case HUMAN_HANDOFF -> "AGENT_HANDOFF";
+            case THANKS -> "CLOSING";
+            case UNKNOWN -> "FALLBACK";
+        };
     }
 
     private List<UUID> visibleProductIds(BotReply reply, BotSession previous) {
@@ -1484,6 +1522,11 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
                             "any offers" -> OFFER_INQUIRY
                             "payment failed" -> PAYMENT_SUPPORT
                             "bridal set" -> PRODUCT_SEARCH, occasion wedding
+                            "mala dakhwa" -> PRODUCT_SEARCH, category necklace
+                            "हार दाखवा" -> PRODUCT_SEARCH, category necklace
+                            "mangalsutra pahije" -> PRODUCT_SEARCH, category mangalsutra
+                            "gift for wife" -> PRODUCT_SEARCH, occasion gift
+                            "green bangles" -> PRODUCT_SEARCH, category bangles, searchText green bangles
                             "order status" -> ORDER_SUPPORT
                             """),
                     Map.of("role", "user", "content", text)
@@ -1721,13 +1764,14 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
         }
         if (hasProductImage(reply.products())) {
             boolean includeProductActions = !"Product Actions".equalsIgnoreCase(defaultString(reply.listHeader(), ""));
+            SendResult textResult = sendWhatsAppText(to, reply.text());
             SendResult mediaResult = sendProductImagesIfAvailable(to, reply.products(), includeProductActions);
             if (hasInteractiveReply(reply)) {
                 pauseBeforeProductActions();
                 SendResult interactiveResult = sendInteractiveReply(to, productActionPromptReply(reply));
-                return combineSequentialResults(mediaResult, interactiveResult);
+                return combineSequentialResults(combineSequentialResults(textResult, mediaResult), interactiveResult);
             }
-            return mediaResult == null ? sendWhatsAppText(to, reply.text()) : mediaResult;
+            return combineSequentialResults(textResult, mediaResult);
         }
         SendResult mediaResult = null;
         if (hasText(reply.mediaUrl())) {
@@ -2282,21 +2326,88 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
                              BotUnderstanding understanding,
                              BotReply reply,
                              SendResult sendResult) {
-        if (!log.isInfoEnabled()) {
+        if (log.isInfoEnabled()) {
+            log.info("whatsapp_bot_trace stage={} correlationId={} leadId={} sessionId={} messageId={} intent={} category={} searchText={} minPrice={} maxPrice={} productCount={} sent={} providerMessageId={} error={}",
+                    stage,
+                    correlationId,
+                    lead == null ? null : lead.getLeadId(),
+                    sessionKey(message == null ? null : message.from()),
+                    message == null ? null : message.messageId(),
+                    understanding == null || understanding.intent() == null ? null : understanding.intent().name(),
+                    understanding == null ? null : understanding.category(),
+                    understanding == null ? null : understanding.searchText(),
+                    understanding == null ? null : understanding.minPrice(),
+                    understanding == null ? null : understanding.maxPrice(),
+                    reply == null ? 0 : reply.productCount(),
+                    sendResult != null && sendResult.success(),
+                    sendResult == null ? null : sendResult.messageId(),
+                    sendResult == null ? null : sendResult.errorMessage());
+        }
+        persistBotTrace(stage, correlationId, message, lead, understanding, reply, sendResult);
+    }
+
+    private void persistBotTrace(String stage,
+                                 String correlationId,
+                                 InboundMessage message,
+                                 OmnichannelLeadResponse lead,
+                                 BotUnderstanding understanding,
+                                 BotReply reply,
+                                 SendResult sendResult) {
+        if (botTraceRepository == null) {
             return;
         }
-        log.info("whatsapp_bot_trace stage={} correlationId={} leadId={} sessionId={} messageId={} intent={} category={} productCount={} sent={} providerMessageId={} error={}",
-                stage,
-                correlationId,
-                lead == null ? null : lead.getLeadId(),
-                sessionKey(message == null ? null : message.from()),
-                message == null ? null : message.messageId(),
-                understanding == null || understanding.intent() == null ? null : understanding.intent().name(),
-                understanding == null ? null : understanding.category(),
-                reply == null ? 0 : reply.productCount(),
-                sendResult != null && sendResult.success(),
-                sendResult == null ? null : sendResult.messageId(),
-                sendResult == null ? null : sendResult.errorMessage());
+        try {
+            WhatsAppBotTrace trace = new WhatsAppBotTrace();
+            trace.setStage(stage);
+            trace.setCorrelationId(correlationId);
+            trace.setLeadId(lead == null ? null : lead.getLeadId());
+            trace.setSessionId(sessionKey(message == null ? null : message.from()));
+            trace.setMessageId(message == null ? null : message.messageId());
+            trace.setIncomingMessage(truncateText(message == null ? null : message.text(), 4000));
+            trace.setIntent(understanding == null || understanding.intent() == null ? null : understanding.intent().name());
+            trace.setCategory(understanding == null ? null : understanding.category());
+            trace.setSearchText(understanding == null ? null : truncateText(understanding.searchText(), 1000));
+            trace.setMinPrice(understanding == null || understanding.minPrice() == null ? null : understanding.minPrice().stripTrailingZeros().toPlainString());
+            trace.setMaxPrice(understanding == null || understanding.maxPrice() == null ? null : understanding.maxPrice().stripTrailingZeros().toPlainString());
+            BotSession session = sessionFor(message == null ? null : message.from(), lead == null ? null : lead.getLeadId());
+            trace.setConversationStage(session == null ? null : session.conversationStage());
+            trace.setMatchedProducts(matchedProductsJson(reply));
+            trace.setAiResponse(truncateText(reply == null ? null : reply.text(), 4000));
+            trace.setImageSendStarted(Boolean.valueOf(hasProductImage(reply == null ? null : reply.products()) || hasText(reply == null ? null : reply.mediaUrl())));
+            trace.setImageSendResult(sendResult == null ? null : truncateText(sendResult.messageId(), 1000));
+            trace.setSent(sendResult != null && sendResult.success());
+            trace.setProviderMessageId(sendResult == null ? null : truncateText(sendResult.messageId(), 1000));
+            trace.setFailureReason(sendResult == null ? null : truncateText(sendResult.errorMessage(), 4000));
+            botTraceRepository.save(trace);
+        } catch (Exception exception) {
+            log.debug("Unable to persist WhatsApp bot trace", exception);
+        }
+    }
+
+    private String matchedProductsJson(BotReply reply) {
+        if (reply == null || reply.products() == null || reply.products().isEmpty()) {
+            return null;
+        }
+        try {
+            return objectMapper.writeValueAsString(reply.products().stream()
+                    .limit(8)
+                    .map(product -> Map.of(
+                            "id", String.valueOf(product.getProductId()),
+                            "name", safe(product.getName()),
+                            "category", safe(product.getCategory()),
+                            "price", product.getPrice() == null ? "" : product.getPrice().stripTrailingZeros().toPlainString()
+                    ))
+                    .toList());
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private String truncateText(String value, int maxLength) {
+        if (value == null || value.length() <= maxLength) {
+            return value;
+        }
+        return value.substring(0, maxLength);
     }
 
     private boolean isMoreRequest(String normalizedText) {
@@ -3282,6 +3393,9 @@ public class WhatsAppSalesBotServiceImpl implements WhatsAppSalesBotService {
                               BigDecimal lastMinPrice,
                               String lastIntent,
                               String lastProductId,
+                              String lastSearchText,
+                              String lastOccasion,
+                              String conversationStage,
                               List<UUID> shownProductHistory,
                               List<UUID> visibleProductIds,
                               boolean welcomeSent,

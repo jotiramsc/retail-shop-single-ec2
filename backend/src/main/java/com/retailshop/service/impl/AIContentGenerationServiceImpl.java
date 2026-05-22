@@ -54,6 +54,8 @@ import java.util.UUID;
 @Service
 public class AIContentGenerationServiceImpl implements AIContentGenerationService {
 
+    private static final Duration CAMPAIGN_IMAGE_OPENAI_TIMEOUT = Duration.ofSeconds(12);
+
     private final MarketingProperties marketingProperties;
     private final ObjectMapper objectMapper;
     private final ImageUploadService imageUploadService;
@@ -242,8 +244,11 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
                 return fallbackPreview;
             }
             if (imagePayload.imageBytes() != null && imagePayload.imageBytes().length > 0) {
-                byte[] finalImageBytes = composeCampaignCreativeImage(campaign, shopName, productName, platform, imagePayload.imageBytes());
-                ImageUploadResponse uploadResponse = imageUploadService.uploadImageBytes(finalImageBytes, "image/png", "marketing-campaigns");
+                ImageUploadResponse uploadResponse = imageUploadService.uploadImageBytes(
+                        imagePayload.imageBytes(),
+                        defaultString(imagePayload.contentType(), "image/png"),
+                        "marketing-campaigns"
+                );
                 if (uploadResponse != null && !isBlank(uploadResponse.getCloudfrontUrl())) {
                     return uploadResponse.getCloudfrontUrl().trim();
                 }
@@ -747,6 +752,7 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
         HttpRequest request = HttpRequest.newBuilder(URI.create("https://api.openai.com/v1/images/generations"))
                 .header("authorization", "Bearer " + marketingProperties.getAi().getApiKey().trim())
                 .header("content-type", "application/json")
+                .timeout(CAMPAIGN_IMAGE_OPENAI_TIMEOUT)
                 .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(payload)))
                 .build();
         HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());

@@ -146,7 +146,11 @@ function InsightCard({ label, value, note, tone = '' }) {
   );
 }
 
-export default function CustomersPage() {
+export default function CustomersPage({
+  initialTab = 'Overview',
+  hidePageHeader = false,
+  hideInternalTabs = false
+}) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const requestedTab = searchParams.get('tab');
@@ -156,7 +160,7 @@ export default function CustomersPage() {
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [customerDetails, setCustomerDetails] = useState(null);
   const [engagementForm, setEngagementForm] = useState(blankEngagement);
-  const [activeTab, setActiveTab] = useState('Overview');
+  const [activeTab, setActiveTab] = useState(detailTabs.includes(initialTab) ? initialTab : 'Overview');
   const [loadingCustomers, setLoadingCustomers] = useState(false);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [savingDetails, setSavingDetails] = useState(false);
@@ -169,6 +173,7 @@ export default function CustomersPage() {
   const [onboardingValue, setOnboardingValue] = useState('');
 
   useEffect(() => {
+    if (hideInternalTabs) return;
     const tabMap = {
       overview: 'Overview',
       timeline: 'Timeline',
@@ -184,7 +189,15 @@ export default function CustomersPage() {
     if (nextTab && nextTab !== activeTab) {
       setActiveTab(nextTab);
     }
-  }, [requestedTab, activeTab]);
+  }, [requestedTab, activeTab, hideInternalTabs]);
+
+  useEffect(() => {
+    if (!hideInternalTabs) return;
+    const nextTab = detailTabs.includes(initialTab) ? initialTab : 'Overview';
+    if (nextTab !== activeTab) {
+      setActiveTab(nextTab);
+    }
+  }, [initialTab, activeTab, hideInternalTabs]);
 
   const loadCustomers = async (page = 0, nextSegment = segment) => {
     setLoadingCustomers(true);
@@ -569,11 +582,13 @@ export default function CustomersPage() {
 
   return (
     <div className="page customer-intelligence-page">
-      <PageHeader
-        eyebrow="Customer Intelligence"
-        title="Customer CRM"
-        description="A premium customer workspace for behavior, lifetime value, onboarding, support, and AI-assisted selling."
-      />
+      {hidePageHeader ? null : (
+        <PageHeader
+          eyebrow="Customer Intelligence"
+          title="Customer CRM"
+          description="A premium customer workspace for behavior, lifetime value, onboarding, support, and AI-assisted selling."
+        />
+      )}
 
       <section className="crm-command-bar">
         <div>
@@ -652,11 +667,18 @@ export default function CustomersPage() {
                   {(customerDetails.segments || []).slice(0, 3).map((item) => <span key={item}>{item}</span>)}
                 </div>
               </section>
-              <div className="crm-tabs" role="tablist">
-                {detailTabs.map((tab) => (
-                  <button key={tab} type="button" className={activeTab === tab ? 'is-active' : ''} onClick={() => setActiveTab(tab)}>{tab}</button>
-                ))}
-              </div>
+              {hideInternalTabs ? (
+                <div className="sneat-context-strip">
+                  <span className="crm-kicker">Current routed view</span>
+                  <strong>{activeTab}</strong>
+                </div>
+              ) : (
+                <div className="crm-tabs" role="tablist">
+                  {detailTabs.map((tab) => (
+                    <button key={tab} type="button" className={activeTab === tab ? 'is-active' : ''} onClick={() => setActiveTab(tab)}>{tab}</button>
+                  ))}
+                </div>
+              )}
               {renderTabContent()}
             </>
           ) : (

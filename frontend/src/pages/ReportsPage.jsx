@@ -47,10 +47,14 @@ const prettyPayload = (payload) => {
   }
 };
 
-export default function ReportsPage() {
+export default function ReportsPage({
+  initialTab = 'dashboard',
+  hidePageHeader = false,
+  hideTabs = false
+}) {
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = searchParams.get('tab');
-  const [activeReportTab, setActiveReportTab] = useState('dashboard');
+  const [activeReportTab, setActiveReportTab] = useState(['dashboard', 'sales', 'payments'].includes(initialTab) ? initialTab : 'dashboard');
   const [daily, setDaily] = useState(null);
   const [lowStockPage, setLowStockPage] = useState({ items: [], page: 0, totalPages: 0, totalItems: 0, hasNext: false, hasPrevious: false });
   const [orderFeed, setOrderFeed] = useState({ orders: [] });
@@ -84,14 +88,25 @@ export default function ReportsPage() {
   });
 
   useEffect(() => {
+    if (hideTabs) return;
     if (['dashboard', 'sales', 'payments'].includes(requestedTab) && requestedTab !== activeReportTab) {
       setActiveReportTab(requestedTab);
     }
-  }, [requestedTab, activeReportTab]);
+  }, [requestedTab, activeReportTab, hideTabs]);
+
+  useEffect(() => {
+    if (!hideTabs) return;
+    const nextTab = ['dashboard', 'sales', 'payments'].includes(initialTab) ? initialTab : 'dashboard';
+    if (nextTab !== activeReportTab) {
+      setActiveReportTab(nextTab);
+    }
+  }, [activeReportTab, hideTabs, initialTab]);
 
   const selectReportTab = (tab) => {
     setActiveReportTab(tab);
-    setSearchParams(tab === 'dashboard' ? {} : { tab });
+    if (!hideTabs) {
+      setSearchParams(tab === 'dashboard' ? {} : { tab });
+    }
   };
   const [paymentPage, setPaymentPage] = useState({ items: [], page: 0, totalPages: 0, totalItems: 0, hasNext: false, hasPrevious: false });
   const [paymentError, setPaymentError] = useState('');
@@ -384,13 +399,15 @@ export default function ReportsPage() {
 
   return (
     <div className="page">
-      <PageHeader
-        eyebrow="Reports"
-        title="Sales and replenishment dashboard"
-        description="Track today’s sales performance and quickly see which products need restocking attention."
-      />
+      {hidePageHeader ? null : (
+        <PageHeader
+          eyebrow="Reports"
+          title="Sales and replenishment dashboard"
+          description="Track today’s sales performance and quickly see which products need restocking attention."
+        />
+      )}
 
-      <div className="report-tabs" role="tablist" aria-label="Report sections">
+      {hideTabs ? null : <div className="report-tabs" role="tablist" aria-label="Report sections">
         <button
           type="button"
           role="tab"
@@ -418,7 +435,7 @@ export default function ReportsPage() {
         >
           Payments
         </button>
-      </div>
+      </div>}
 
       {activeReportTab === 'sales' ? (
         <Panel

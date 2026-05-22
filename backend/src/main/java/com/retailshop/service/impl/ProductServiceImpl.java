@@ -242,6 +242,19 @@ public class ProductServiceImpl implements ProductService {
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public PublicProductResponse getPublicProductBySlug(String slug) {
+        String normalized = slugify(slug);
+        return activeProducts()
+                .stream()
+                .filter(this::isVisibleOnWebsite)
+                .filter(product -> slugify(product.getName()).equals(normalized))
+                .findFirst()
+                .map(this::mapToPublicResponse)
+                .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
+    }
+
     private void mapRequest(Product product, ProductRequest request) {
         productCategoryOptionService.validateCategoryCode(request.getCategory());
         product.setName(request.getName());
@@ -316,6 +329,7 @@ public class ProductServiceImpl implements ProductService {
         DealDisplay deal = dealDisplay(product);
         return PublicProductResponse.builder()
                 .id(product.getId())
+                .slug(slugify(product.getName()))
                 .name(product.getName())
                 .category(product.getCategory())
                 .sku(product.getSku())
@@ -435,6 +449,15 @@ public class ProductServiceImpl implements ProductService {
         return imageDataUrl.startsWith("data:image/") ? null : imageDataUrl;
     }
 
+    private String slugify(String value) {
+        String normalized = value == null ? "" : java.text.Normalizer.normalize(value, java.text.Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "")
+                .toLowerCase(java.util.Locale.ROOT)
+                .replaceAll("[^a-z0-9]+", "-")
+                .replaceAll("(^-|-$)", "");
+        return normalized.isBlank() ? "product" : normalized;
+    }
+
     private List<String> normalizedProductImages(List<String> productImages, String primaryImage) {
         java.util.LinkedHashSet<String> images = new java.util.LinkedHashSet<>();
         if (primaryImage != null && !primaryImage.isBlank()) {
@@ -487,7 +510,7 @@ public class ProductServiceImpl implements ProductService {
     }
 
     private void queueAiDescriptionIfRequested(Product product, ProductRequest request) {
-        if (Boolean.TRUE.equals(request.getGenerateAiDescription())) {
+        if (Boolean.TRUE.equals(request.getGenerateAiDescription()) || Boolean.TRUE.equals(product.getShowOnWebsite())) {
             productAiDescriptionService.queueDescriptionGeneration(product.getId());
         }
     }
