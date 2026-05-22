@@ -111,6 +111,7 @@ public class StaffUserServiceImpl implements StaffUserService {
             return new LinkedHashSet<>(Arrays.asList(AppPermission.values()));
         }
         LinkedHashSet<AppPermission> permissions = new LinkedHashSet<>(user.getPermissions());
+        addParentPermissions(permissions);
         if (permissions.contains(AppPermission.CAMPAIGNS)) {
             permissions.add(AppPermission.MARKETING_AUTOMATION);
         }
@@ -118,6 +119,26 @@ public class StaffUserServiceImpl implements StaffUserService {
             permissions.add(AppPermission.CAMPAIGNS);
         }
         return permissions;
+    }
+
+    private void addParentPermissions(Set<AppPermission> permissions) {
+        addParentIfAnyChild(permissions, AppPermission.BILLING, AppPermission.BILLING_CHECKOUT, AppPermission.BILLING_INVOICES, AppPermission.BILLING_ORDERS);
+        addParentIfAnyChild(permissions, AppPermission.PRODUCTS, AppPermission.PRODUCTS_LIST, AppPermission.PRODUCTS_CATEGORIES);
+        addParentIfAnyChild(permissions, AppPermission.CUSTOMERS, AppPermission.CUSTOMERS_DASHBOARD, AppPermission.CUSTOMERS_OVERVIEW,
+                AppPermission.CUSTOMERS_SEARCH_ACTIVITY, AppPermission.CUSTOMERS_LOGIN_HISTORY, AppPermission.CUSTOMERS_SUPPORT_CHAT,
+                AppPermission.CUSTOMERS_AI_INSIGHTS);
+        addParentIfAnyChild(permissions, AppPermission.MARKETING_AUTOMATION, AppPermission.CAMPAIGNS_DASHBOARD, AppPermission.CAMPAIGNS_LIST,
+                AppPermission.CAMPAIGNS_CREATE, AppPermission.CAMPAIGNS_TEMPLATES, AppPermission.CAMPAIGNS_AUDIENCE,
+                AppPermission.CAMPAIGNS_OFFERS, AppPermission.CAMPAIGNS_APPROVAL);
+        addParentIfAnyChild(permissions, AppPermission.REPORTS, AppPermission.REPORTS_DASHBOARD, AppPermission.REPORTS_SALES, AppPermission.REPORTS_PAYMENTS);
+        addParentIfAnyChild(permissions, AppPermission.RECEIPT_SETTINGS, AppPermission.RECEIPT_SETTINGS_BUSINESS,
+                AppPermission.RECEIPT_SETTINGS_THEME, AppPermission.RECEIPT_SETTINGS_SOCIAL, AppPermission.RECEIPT_SETTINGS_META_CATALOG);
+    }
+
+    private void addParentIfAnyChild(Set<AppPermission> permissions, AppPermission parent, AppPermission... children) {
+        if (Arrays.stream(children).anyMatch(permissions::contains)) {
+            permissions.add(parent);
+        }
     }
 
     private void validateRequest(StaffUserRequest request, boolean creating) {
@@ -149,7 +170,7 @@ public class StaffUserServiceImpl implements StaffUserService {
                 .role(user.getRole())
                 .enabled(user.getEnabled())
                 .salesPerson(user.getSalesPerson())
-                .permissions(getEffectivePermissions(user))
+                .permissions(new LinkedHashSet<>(user.getPermissions()))
                 .createdAt(user.getCreatedAt())
                 .build();
     }

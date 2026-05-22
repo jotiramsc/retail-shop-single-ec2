@@ -3,8 +3,8 @@
   --kps-green-2: #8ee7c4;
   --kps-green-dark: #123c32;
   --kps-green-mid: #1f8f6b;
-  --kps-gold: #d6b46c;
-  --kps-cream: #edf8f2;
+  --kps-gold: #2fbf8f;
+  --kps-cream: #f2fbf6;
   --kps-ink: #384551;
   --kps-muted: #6d7d75;
   --kps-card-border: rgba(188, 219, 205, 0.78);
@@ -16,7 +16,7 @@
 body {
   font-family: "Public Sans", "Manrope", system-ui, sans-serif;
   background:
-    linear-gradient(115deg, rgba(240, 251, 245, 0.9), rgba(233, 247, 240, 0.9)),
+    linear-gradient(115deg, rgba(244, 252, 248, 0.94), rgba(236, 249, 243, 0.94)),
     url("/assets/glowjewels/maharashtrian_jewelry_flatlay.png") center top / cover fixed;
   color: var(--kps-ink);
   scroll-behavior: smooth;
@@ -37,12 +37,13 @@ body {
 
 .kps-sneat-menu.bg-menu-theme {
   background:
-    linear-gradient(180deg, rgba(14, 72, 58, 0.9), rgba(10, 50, 42, 0.92)),
-    url("/assets/glowjewels/maharashtrian_jewelry_flatlay.png") center/cover !important;
-  color: rgba(255, 255, 255, 0.88);
-  box-shadow: 0 0.5rem 1.5rem rgba(18, 60, 50, 0.22);
+    linear-gradient(180deg, rgba(10, 74, 61, 0.94), rgba(13, 104, 85, 0.88)),
+    url("/assets/glowjewels/maharashtrian_jewelry_flatlay.png") center / cover !important;
+  color: rgba(240, 253, 250, 0.92);
+  border-right: 1px solid rgba(94, 234, 212, 0.22);
+  box-shadow: 0.75rem 0 2.4rem rgba(15, 118, 110, 0.2);
   transition: width 0.34s cubic-bezier(0.2, 0, 0, 1), transform 0.34s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.24s ease;
-  backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px) saturate(1.12);
   will-change: width, transform;
 }
 
@@ -58,16 +59,36 @@ body {
   border-radius: 14px;
   background: #050505;
   padding: 4px;
+  box-shadow: 0 0.6rem 1.35rem rgba(4, 47, 46, 0.28);
+}
+
+.kps-sneat-menu .app-brand.demo .layout-menu-toggle {
+  display: grid !important;
+  place-items: center;
+  width: 2.15rem;
+  height: 2.15rem;
+  min-height: 2.15rem;
+  padding: 0;
+  color: #ecfeff !important;
+  border-radius: 50%;
+  background: rgba(20, 184, 166, 0.24) !important;
+  border: 1px solid rgba(204, 251, 241, 0.22);
+  box-shadow: 0 0.75rem 1.5rem rgba(4, 47, 46, 0.24);
+}
+
+.kps-sneat-menu .app-brand.demo .layout-menu-toggle:hover {
+  color: #064e3b !important;
+  background: #ccfbf1 !important;
 }
 
 .kps-sneat-menu .menu-link,
 .kps-sneat-menu .menu-header,
 .kps-sneat-menu .app-brand-text {
-  color: rgba(255, 255, 255, 0.86) !important;
+  color: rgba(240, 253, 250, 0.92) !important;
 }
 
 .kps-sneat-menu .menu-icon {
-  color: #b9e9d6 !important;
+  color: rgba(167, 243, 208, 0.92) !important;
 }
 
 .kps-sneat-menu .menu-item.active > .menu-link,
@@ -77,15 +98,15 @@ body {
 .kps-sneat-menu.bg-menu-theme .menu-inner > .menu-item.open > .menu-link,
 .kps-sneat-menu.bg-menu-theme .menu-sub > .menu-item.active > .menu-link,
 .kps-sneat-menu.bg-menu-theme .menu-sub > .menu-item > .menu-link:hover {
-  background: rgba(196, 244, 222, 0.18) !important;
+  background: rgba(204, 251, 241, 0.16) !important;
   color: #ffffff !important;
-  box-shadow: 0 0.25rem 0.75rem rgba(10, 42, 34, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(204, 251, 241, 0.14), 0 0.65rem 1.3rem rgba(4, 47, 46, 0.16);
 }
 
 .kps-sneat-menu .menu-item.active > .menu-link .menu-icon,
 .kps-sneat-menu .menu-item.open > .menu-link .menu-icon,
 .kps-sneat-menu .menu-link:hover .menu-icon {
-  color: #ffffff !important;
+  color: #ccfbf1 !important;
 }
 
 .kps-sneat-menu .menu-link {
@@ -93,8 +114,11 @@ body {
   width: 100%;
   min-height: 2.75rem;
   text-align: left;
-  border-radius: 0.45rem;
+  border-radius: 0.55rem;
   background-color: transparent !important;
+  font-size: 0.95rem;
+  font-weight: 500;
+  letter-spacing: 0;
   transition: background-color 0.24s cubic-bezier(0.2, 0, 0, 1), color 0.24s ease, box-shadow 0.24s ease, transform 0.24s cubic-bezier(0.2, 0, 0, 1);
 }
 
@@ -102,24 +126,54 @@ body {
   transform: translateX(2px);
 }
 
-.kps-sneat-menu .menu-toggle::after {
-  content: "\ea50";
-  display: inline-block;
-  margin-left: auto;
-  font-family: boxicons, serif;
-  font-size: 1rem;
-  transform: rotate(0deg);
-  transition: transform 0.3s cubic-bezier(0.2, 0, 0, 1);
+.kps-menu-parent-row {
+  display: flex !important;
+  gap: 0.45rem;
+  align-items: center;
 }
 
-.kps-sneat-menu .menu-item.open > .menu-toggle::after {
+.kps-menu-parent-target {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  color: inherit;
+  text-decoration: none;
+}
+
+.kps-submenu-toggle {
+  display: inline-grid;
+  flex: 0 0 1.9rem;
+  width: 1.9rem;
+  height: 1.9rem;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  color: inherit;
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.kps-submenu-toggle:hover {
+  background: rgba(45, 212, 191, 0.2);
+}
+
+.kps-sneat-menu .menu-item.open .kps-submenu-toggle i {
   transform: rotate(90deg);
 }
 
 .kps-sneat-menu .menu-sub .menu-link {
   font-size: 0.9rem;
-  color: rgba(255, 255, 255, 0.72) !important;
+  color: rgba(209, 250, 229, 0.78) !important;
   background: transparent !important;
+}
+
+.kps-sneat-menu .menu-header {
+  margin-top: 0.75rem;
+  color: rgba(204, 251, 241, 0.66) !important;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
 }
 
 .kps-sneat-menu .menu-sub {
@@ -142,7 +196,7 @@ body {
 .kps-sneat-menu .menu-sub .menu-link:hover,
 .kps-sneat-menu .menu-sub .menu-item.active > .menu-link {
   color: #ffffff !important;
-  background: rgba(196, 244, 222, 0.16) !important;
+  background: rgba(45, 212, 191, 0.14) !important;
 }
 
 @keyframes sneatSubMenu {
@@ -324,7 +378,8 @@ body {
 }
 
 .kps-menu-collapsed .layout-menu {
-  width: 5.25rem;
+  width: 5.75rem;
+  overflow: visible;
 }
 
 .kps-menu-collapsed .layout-page {
@@ -335,15 +390,111 @@ body {
 .kps-menu-collapsed .menu-header,
 .kps-menu-collapsed .menu-link div,
 .kps-menu-collapsed .menu-sub,
+.kps-menu-collapsed .menu-header-text,
 .kps-menu-collapsed .badge {
   visibility: hidden !important;
   opacity: 0 !important;
   pointer-events: none !important;
 }
 
+.kps-menu-collapsed .menu-link > div,
+.kps-menu-collapsed .menu-link > span:not(.menu-icon),
+.kps-menu-collapsed .app-brand-text,
+.kps-menu-collapsed .badge {
+  display: none !important;
+}
+
 .kps-menu-collapsed .menu-link {
+  width: 3.4rem;
+  min-height: 3.15rem;
+  display: flex !important;
+  align-items: center;
   justify-content: center;
-  padding-inline: 0;
+  padding: 0 !important;
+  margin-inline: auto;
+  border-radius: 0.9rem;
+  overflow: hidden;
+}
+
+.kps-menu-collapsed .kps-menu-parent-row {
+  gap: 0;
+}
+
+.kps-menu-collapsed .kps-menu-parent-target {
+  flex: 0 0 auto;
+}
+
+.kps-menu-collapsed .kps-submenu-toggle {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 0.9rem;
+  background: transparent;
+}
+
+.kps-menu-collapsed .kps-submenu-toggle i {
+  opacity: 0;
+}
+
+.kps-menu-collapsed .menu-inner {
+  overflow: visible !important;
+}
+
+.kps-menu-collapsed .menu-header {
+  display: none !important;
+}
+
+.kps-menu-collapsed .menu-item {
+  margin-inline: 0;
+  display: flex;
+  justify-content: center;
+  position: relative;
+}
+
+.kps-menu-collapsed .menu-sub {
+  position: absolute;
+  top: 0;
+  left: calc(100% + 0.65rem);
+  z-index: 60;
+  display: grid !important;
+  width: 14rem;
+  max-height: none !important;
+  padding: 0.6rem;
+  overflow: visible;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  border: 1px solid rgba(94, 234, 212, 0.22);
+  border-radius: 0.9rem;
+  background:
+    linear-gradient(180deg, rgba(10, 74, 61, 0.96), rgba(13, 104, 85, 0.92)),
+    url("/assets/glowjewels/maharashtrian_jewelry_flatlay.png") center / cover;
+  box-shadow: 0 1rem 2rem rgba(15, 118, 110, 0.24);
+  transform: translateX(-0.45rem);
+  transition: opacity 0.22s ease, transform 0.22s ease, visibility 0.22s ease;
+}
+
+.kps-menu-collapsed .menu-item.open > .menu-sub {
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  transform: translateX(0);
+}
+
+.kps-menu-collapsed .menu-sub .menu-link {
+  width: 100%;
+  min-height: 2.5rem;
+  justify-content: flex-start;
+  padding: 0.6rem 0.75rem !important;
+  margin: 0;
+  color: rgba(240, 253, 250, 0.92) !important;
+}
+
+.kps-menu-collapsed .menu-sub .menu-link > div {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
 }
 
 .kps-menu-collapsed .menu-toggle::after {
@@ -352,10 +503,94 @@ body {
 
 .kps-menu-collapsed .app-brand.demo {
   padding-inline: 0.95rem;
+  justify-content: center;
+  position: relative;
+}
+
+.kps-menu-collapsed .app-brand-link {
+  justify-content: center;
+  width: 100%;
+}
+
+.kps-menu-collapsed .app-brand.demo .layout-menu-toggle {
+  position: absolute;
+  right: -1.15rem;
+  top: 1.4rem;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  width: 2.55rem;
+  height: 2.55rem;
+  min-height: 2.55rem;
+  padding: 0;
+  color: #ffffff !important;
+  border: 3px solid rgba(255, 255, 255, 0.96);
+  border-radius: 50%;
+  background: #2fbf8f !important;
+  box-shadow: 0 0.45rem 1.2rem rgba(15, 118, 110, 0.32);
+}
+
+.kps-menu-collapsed .app-brand.demo .layout-menu-toggle i {
+  display: grid;
+  place-items: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  line-height: 1;
 }
 
 .kps-menu-collapsed .menu-icon {
+  position: static !important;
+  inset: auto !important;
+  display: inline-grid !important;
+  place-items: center;
+  width: 1.4rem;
+  min-width: 1.4rem;
+  font-size: 1.25rem;
+  line-height: 1;
+  transform: none !important;
+  margin-left: 0 !important;
   margin-right: 0 !important;
+}
+
+.kps-menu-collapsed .menu-link > .menu-icon {
+  margin-inline: 0 !important;
+}
+
+.kps-menu-collapsed .menu-item > .menu-toggle::before {
+  position: absolute;
+  right: 0.35rem;
+  bottom: 0.35rem;
+  width: 0.48rem;
+  height: 0.48rem;
+  content: "";
+  border-radius: 50%;
+  background: #ccfbf1;
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.22);
+}
+
+.kps-menu-reopen {
+  position: absolute;
+  top: 1.18rem;
+  right: -1rem;
+  z-index: 35;
+  display: grid;
+  place-items: center;
+  width: 2.2rem;
+  height: 2.2rem;
+  color: #fff;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  background: #2fbf8f;
+  box-shadow: 0 0.35rem 1rem rgba(47, 191, 143, 0.24);
+}
+
+.kps-menu-collapsed .kps-menu-reopen {
+  display: none;
+}
+
+.kps-menu-reopen:hover {
+  background: #249f76;
+  transform: translateX(2px);
 }
 
 .kps-menu-animated .menu-link,
@@ -378,6 +613,54 @@ body {
 .kps-avatar-button {
   border: 0;
   background: transparent;
+}
+
+.kps-avatar-button {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 3.6rem;
+  padding: 0.35rem 0.85rem;
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.32);
+  box-shadow: 0 0.7rem 1.5rem rgba(18, 60, 50, 0.14);
+}
+
+.kps-avatar-initial {
+  display: inline-grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  place-items: center;
+  border-radius: 50%;
+  background: #e8fadf;
+  color: #71dd37;
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+.kps-user-chip {
+  display: grid;
+  gap: 0.05rem;
+  min-width: 7rem;
+  color: #384551;
+  text-align: left;
+}
+
+.kps-user-chip strong {
+  overflow: hidden;
+  max-width: 10rem;
+  font-size: 0.92rem;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kps-user-chip small {
+  color: #697a8d;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .kps-skeleton {
@@ -1044,11 +1327,31 @@ body {
 .kps-sneat-menu .app-brand-text {
   max-width: 10.25rem;
   overflow: hidden;
-  color: rgba(255, 255, 255, 0.9) !important;
+  color: rgba(240, 253, 250, 0.94) !important;
   font-size: 1.12rem;
   line-height: 1.15;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.kps-sneat-app .layout-overlay {
+  display: none !important;
+}
+
+.kps-sneat-app.layout-menu-expanded .layout-overlay {
+  display: block !important;
+  background: rgba(67, 89, 113, 0.48);
+  backdrop-filter: blur(2px);
+}
+
+@media (min-width: 1200px) {
+  .kps-sneat-app.layout-menu-expanded .layout-overlay {
+    display: none !important;
+  }
+
+  .kps-sneat-app .layout-menu {
+    transform: translate3d(0, 0, 0) !important;
+  }
 }
 
 .kps-sneat-content .support-shell {
@@ -1118,7 +1421,182 @@ body {
   box-shadow: 0 0.25rem 0.875rem rgba(47, 191, 143, 0.24) !important;
 }
 
+.kps-sneat-content,
+.kps-sneat-content .page,
+.kps-sneat-content .reports-page,
+.kps-sneat-content .campaigns-page,
+.kps-sneat-content .products-page,
+.kps-sneat-content .billing-page,
+.kps-sneat-content .users-page {
+  --bg: #f2fbf6;
+  --surface: rgba(255, 255, 255, 0.96);
+  --surface-strong: #ffffff;
+  --surface-deep: rgba(18, 60, 50, 0.92);
+  --text: #384551;
+  --muted: #697a8d;
+  --border: #d9dee3;
+  --accent: #2fbf8f;
+  --accent-soft: rgba(47, 191, 143, 0.14);
+  --accent-deep: #249f76;
+  --emerald: #123c32;
+  --emerald-soft: #1f8f6b;
+  --champagne: #edf8f2;
+  --shadow: 0 0.125rem 0.375rem rgba(67, 89, 113, 0.12);
+  --shadow-soft: 0 0.25rem 0.875rem rgba(67, 89, 113, 0.12);
+  --support-gold: #2fbf8f;
+  --crm-gold: #2fbf8f;
+  --crm-gold-soft: rgba(47, 191, 143, 0.14);
+  color: #384551;
+}
+
+.kps-sneat-content .page,
+.kps-sneat-content .two-column,
+.kps-sneat-content .form-grid,
+.kps-sneat-content .admin-grid,
+.kps-sneat-content .content-grid {
+  gap: 1.5rem;
+}
+
+.kps-sneat-content .page-description,
+.kps-sneat-content .panel p,
+.kps-sneat-content .muted,
+.kps-sneat-content .text-muted {
+  color: #697a8d !important;
+}
+
+.kps-sneat-content .panel,
+.kps-sneat-content .metric-card,
+.kps-sneat-content .data-table-wrapper,
+.kps-sneat-content .table-card,
+.kps-sneat-content .form-card,
+.kps-sneat-content .chart-card,
+.kps-sneat-content .summary-card,
+.kps-sneat-content .quick-card,
+.kps-sneat-content .report-card,
+.kps-sneat-content .campaign-card,
+.kps-sneat-content .product-card,
+.kps-sneat-content .permission-card,
+.kps-sneat-content .settings-card {
+  border: 1px solid rgba(217, 222, 227, 0.82) !important;
+  border-radius: 0.75rem !important;
+  background: rgba(255, 255, 255, 0.98) !important;
+  box-shadow: 0 0.125rem 0.375rem rgba(67, 89, 113, 0.12) !important;
+}
+
+.kps-sneat-content .metric-card::before,
+.kps-sneat-content .panel::before,
+.kps-sneat-content .card::before {
+  background: rgba(47, 191, 143, 0.12) !important;
+}
+
+.kps-sneat-content .primary-btn,
+.kps-sneat-content .btn-primary,
+.kps-sneat-content .compact-btn.primary,
+.kps-sneat-content .glow-template-btn-primary,
+.kps-sneat-content .finespark-btn.primary,
+.kps-sneat-content .report-tab-btn.is-active,
+.kps-sneat-content .crm-tabs button.is-active,
+.kps-sneat-content .support-tabs button.is-active,
+.kps-sneat-content .nav-pills .nav-link.active {
+  border-color: #2fbf8f !important;
+  background: #2fbf8f !important;
+  color: #fff !important;
+  box-shadow: 0 0.25rem 0.65rem rgba(47, 191, 143, 0.26) !important;
+}
+
+.kps-sneat-content .ghost-btn,
+.kps-sneat-content .btn-outline-primary,
+.kps-sneat-content .btn-outline-secondary,
+.kps-sneat-content .report-tab-btn,
+.kps-sneat-content .crm-tabs button,
+.kps-sneat-content .support-tabs button,
+.kps-sneat-content .glow-template-btn-secondary,
+.kps-sneat-content .finespark-btn.secondary {
+  border-color: #d9dee3 !important;
+  background: #fff !important;
+  color: #2fbf8f !important;
+  box-shadow: none !important;
+}
+
+.kps-sneat-content .ghost-btn:hover,
+.kps-sneat-content .btn-outline-primary:hover,
+.kps-sneat-content .btn-outline-secondary:hover,
+.kps-sneat-content .report-tab-btn:hover,
+.kps-sneat-content .crm-tabs button:hover,
+.kps-sneat-content .support-tabs button:hover {
+  border-color: rgba(47, 191, 143, 0.45) !important;
+  background: rgba(47, 191, 143, 0.08) !important;
+  color: #249f76 !important;
+}
+
+.kps-sneat-content input,
+.kps-sneat-content select,
+.kps-sneat-content textarea {
+  border-radius: 0.5rem !important;
+  border-color: #d9dee3 !important;
+  background: #fff !important;
+  color: #384551 !important;
+  box-shadow: none !important;
+}
+
+.kps-sneat-content input:focus,
+.kps-sneat-content select:focus,
+.kps-sneat-content textarea:focus {
+  border-color: #2fbf8f !important;
+  outline: 0 !important;
+  box-shadow: 0 0 0 0.18rem rgba(47, 191, 143, 0.14) !important;
+}
+
+.kps-sneat-content .trust-chip,
+.kps-sneat-content .small-chip,
+.kps-sneat-content .is-gold,
+.kps-sneat-content .badge.bg-label-primary,
+.kps-sneat-content .badge.bg-label-success {
+  background: rgba(47, 191, 143, 0.12) !important;
+  color: #249f76 !important;
+}
+
+.kps-sneat-content .metric-card.tone-warning,
+.kps-sneat-content .metric-card.tone-gold,
+.kps-sneat-content .tone-warning,
+.kps-sneat-content .tone-gold {
+  border-color: rgba(47, 191, 143, 0.22) !important;
+  background: rgba(47, 191, 143, 0.08) !important;
+  color: #249f76 !important;
+}
+
+.kps-sneat-content .error-text,
+.kps-sneat-content .alert-danger {
+  border-color: rgba(255, 62, 29, 0.18) !important;
+  background: rgba(255, 62, 29, 0.10) !important;
+  color: #d93025 !important;
+}
+
+.kps-sneat-content .success-text,
+.kps-sneat-content .alert-success {
+  border-color: rgba(47, 191, 143, 0.22) !important;
+  background: rgba(47, 191, 143, 0.10) !important;
+  color: #1f8f6b !important;
+}
+
+.kps-sneat-content .page-header,
+.kps-sneat-content .crm-hero-card,
+.kps-sneat-content .support-hero,
+.kps-sneat-content .customer-account-hero,
+.kps-sneat-content .sneat-page-title,
+.kps-sneat-content .sneat-hero.kps-jewelry-hero {
+  background:
+    linear-gradient(135deg, rgba(18, 60, 50, 0.92), rgba(47, 191, 143, 0.42)),
+    url("/assets/glowjewels/maharashtrian_jewelry_flatlay.png") center/cover !important;
+}
+
 @media (max-width: 991.98px) {
+  .sneat-customer-layout,
+  .sneat-user-view-grid,
+  .sneat-filter-grid {
+    grid-template-columns: 1fr;
+  }
+
   .sneat-stat-grid,
   .sneat-grid-3,
   .sneat-dashboard-grid,
@@ -1168,5 +1646,691 @@ body {
     height: 5.5rem;
     border-radius: 1.25rem;
     font-size: 2.5rem;
+  }
+}
+
+.sneat-page-title {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1.25rem;
+  min-height: 10.75rem;
+  padding: 1.75rem 2rem;
+  overflow: hidden;
+  color: #f7fff9;
+  border: 1px solid rgba(197, 230, 216, 0.62);
+  border-radius: 0.75rem;
+  background:
+    linear-gradient(135deg, rgba(18, 60, 50, 0.92), rgba(47, 191, 143, 0.38)),
+    url("/assets/glowjewels/maharashtrian_jewelry_flatlay.png") center/cover;
+  box-shadow: 0 0.65rem 1.6rem rgba(18, 60, 50, 0.14);
+}
+
+.sneat-page-title h1 {
+  margin: 0;
+  color: inherit;
+  font-size: clamp(2.05rem, 4vw, 3.25rem);
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.sneat-page-title p {
+  max-width: 54rem;
+  margin: 0.5rem 0 0;
+  color: rgba(247, 255, 249, 0.84);
+  font-size: 1rem;
+}
+
+.sneat-page-title .sneat-eyebrow {
+  color: #dffbeb;
+}
+
+.sneat-page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.sneat-card,
+.sneat-empty-card {
+  border: 1px solid rgba(217, 222, 227, 0.82);
+  border-radius: 0.75rem;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 0.125rem 0.375rem rgba(67, 89, 113, 0.12);
+}
+
+.sneat-card {
+  padding: 1.5rem;
+}
+
+.sneat-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.sneat-card-head small,
+.sneat-detail-field span {
+  display: block;
+  color: #8592a3;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.sneat-card-head h3 {
+  margin: 0.18rem 0 0;
+  color: #384551;
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.sneat-filter-card {
+  padding: 1.25rem;
+}
+
+.sneat-filter-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(14rem, 0.6fr);
+  gap: 1rem;
+}
+
+.order-filter-grid {
+  grid-template-columns: minmax(16rem, 1.2fr) minmax(10rem, 0.7fr) minmax(10rem, 0.7fr) auto;
+}
+
+.sneat-filter-grid label {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+}
+
+.sneat-filter-grid label > span {
+  color: #697a8d;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.sneat-filter-grid input,
+.sneat-filter-grid select {
+  width: 100%;
+  min-height: 3.35rem;
+  padding: 0.75rem 1rem;
+  color: #384551;
+  border: 1px solid #d9dee3;
+  border-radius: 0.5rem;
+  background: #fff;
+  outline: 0;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.sneat-filter-grid input:focus,
+.sneat-filter-grid select:focus {
+  border-color: #2fbf8f;
+  box-shadow: 0 0 0 0.18rem rgba(47, 191, 143, 0.14);
+}
+
+.sneat-customer-layout {
+  display: grid;
+  grid-template-columns: minmax(18rem, 27rem) minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.sneat-user-list-card {
+  position: sticky;
+  top: 6rem;
+  padding: 1.25rem;
+}
+
+.sneat-user-list {
+  display: grid;
+  gap: 0.85rem;
+  max-height: min(66vh, 48rem);
+  overflow: auto;
+  padding-right: 0.2rem;
+  scrollbar-color: rgba(47, 191, 143, 0.45) #f5f5f9;
+}
+
+.sneat-user-row,
+.sneat-list-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  gap: 0.9rem;
+  align-items: center;
+  width: 100%;
+  padding: 1rem;
+  color: #384551;
+  text-align: left;
+  border: 1px solid #d9dee3;
+  border-radius: 0.75rem;
+  background: #fff;
+  transition: transform 0.22s cubic-bezier(0.2, 0, 0, 1), border-color 0.22s ease, box-shadow 0.22s ease, background 0.22s ease;
+}
+
+.sneat-user-row:hover,
+.sneat-user-row.is-active,
+.sneat-list-row:hover {
+  border-color: rgba(47, 191, 143, 0.45);
+  background: rgba(47, 191, 143, 0.07);
+  box-shadow: 0 0.45rem 1.15rem rgba(67, 89, 113, 0.12);
+  transform: translateY(-2px);
+}
+
+.sneat-user-main {
+  min-width: 0;
+}
+
+.sneat-user-main strong,
+.sneat-list-row strong {
+  display: block;
+  overflow: hidden;
+  color: #384551;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sneat-user-main small,
+.sneat-list-row small {
+  display: block;
+  margin-top: 0.2rem;
+  overflow: hidden;
+  color: #8592a3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sneat-avatar {
+  display: inline-grid;
+  place-items: center;
+  width: 2.6rem;
+  height: 2.6rem;
+  flex: 0 0 auto;
+  color: #2fbf8f;
+  border-radius: 50%;
+  background: rgba(47, 191, 143, 0.14);
+  font-weight: 700;
+}
+
+.sneat-avatar.xl {
+  width: 6rem;
+  height: 6rem;
+  margin-inline: auto;
+  font-size: 2rem;
+  border-radius: 1rem;
+}
+
+.sneat-account-panel {
+  min-width: 0;
+}
+
+.sneat-user-view-grid {
+  display: grid;
+  grid-template-columns: minmax(15rem, 20rem) minmax(0, 1fr);
+  gap: 1.5rem;
+}
+
+.sneat-user-profile-card {
+  position: sticky;
+  top: 6rem;
+  align-self: start;
+  padding: 1.5rem;
+  text-align: center;
+  border: 1px solid rgba(217, 222, 227, 0.82);
+  border-radius: 0.75rem;
+  background: #fff;
+  box-shadow: 0 0.125rem 0.375rem rgba(67, 89, 113, 0.12);
+}
+
+.sneat-user-profile-card h3 {
+  margin: 1rem 0 0.2rem;
+  color: #384551;
+  font-weight: 700;
+}
+
+.sneat-user-profile-card p {
+  margin-bottom: 0.75rem;
+  color: #8592a3;
+}
+
+.sneat-profile-progress {
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 1.25rem;
+  text-align: left;
+}
+
+.sneat-profile-progress > div {
+  overflow: hidden;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: #eef2f1;
+}
+
+.sneat-profile-progress > div span,
+.sneat-progress-row > div span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #2fbf8f;
+}
+
+.sneat-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.sneat-detail-field {
+  min-height: 5rem;
+  padding: 1rem;
+  border: 1px solid #e7e9ed;
+  border-radius: 0.65rem;
+  background: #fafafa;
+}
+
+.sneat-detail-field strong {
+  display: block;
+  margin-top: 0.45rem;
+  color: #384551;
+  font-size: 1rem;
+  overflow-wrap: anywhere;
+}
+
+.sneat-empty-card {
+  display: grid;
+  place-items: center;
+  min-height: 16rem;
+  padding: 2rem;
+  color: #697a8d;
+  text-align: center;
+}
+
+.sneat-empty-card i {
+  color: #2fbf8f;
+  font-size: 2.35rem;
+}
+
+.sneat-empty-card h3 {
+  margin: 0.65rem 0 0.2rem;
+  color: #384551;
+}
+
+.sneat-pagination-row,
+.sneat-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.sneat-pagination-row {
+  justify-content: space-between;
+  margin-top: 1rem;
+  color: #697a8d;
+}
+
+.sneat-chip-row span {
+  padding: 0.45rem 0.75rem;
+  color: #2fbf8f;
+  border-radius: 999px;
+  background: rgba(47, 191, 143, 0.12);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.sneat-loading-block {
+  height: 22rem;
+  border-radius: 0.75rem;
+}
+
+.kps-sneat-content .table {
+  color: #384551;
+}
+
+.kps-sneat-content .table > :not(caption) > * > * {
+  padding: 0.95rem 1rem;
+  border-bottom-color: #e7e9ed;
+}
+
+.kps-sneat-content .table-hover tbody tr {
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.kps-sneat-content .table-hover tbody tr:hover {
+  background-color: rgba(47, 191, 143, 0.06);
+}
+
+.admin-orders-page .data-table-wrapper,
+.admin-orders-page .data-table {
+  margin-top: 1.25rem;
+}
+
+.admin-orders-page table tbody tr,
+.kps-sneat-content .data-table tbody tr {
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.admin-orders-page table tbody tr:hover,
+.kps-sneat-content .data-table tbody tr:hover {
+  background: rgba(47, 191, 143, 0.06) !important;
+}
+
+.settings-tabs,
+.admin-tab-row,
+.campaign-tab-row {
+  border: 1px solid #d9dee3 !important;
+  border-radius: 0.75rem !important;
+  background: #f5f5f9 !important;
+  padding: 0.35rem !important;
+}
+
+.settings-tabs button,
+.admin-tab-row button,
+.campaign-tab-row button {
+  border-radius: 0.5rem !important;
+  color: #697a8d !important;
+}
+
+.settings-tabs button.is-active,
+.admin-tab-row button.is-active,
+.campaign-tab-row button.is-active {
+  background: #2fbf8f !important;
+  color: #fff !important;
+  box-shadow: 0 0.25rem 0.65rem rgba(47, 191, 143, 0.22) !important;
+}
+
+.template-card,
+.marketing-suggestion-card,
+.campaign-template-card,
+.course-card {
+  overflow: hidden;
+  border-color: rgba(217, 222, 227, 0.82) !important;
+  background: #fff !important;
+  transition: transform 0.22s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.22s ease, border-color 0.22s ease;
+}
+
+.template-card:hover,
+.marketing-suggestion-card:hover,
+.campaign-template-card:hover,
+.course-card:hover {
+  border-color: rgba(47, 191, 143, 0.38) !important;
+  box-shadow: 0 0.65rem 1.5rem rgba(67, 89, 113, 0.14) !important;
+  transform: translateY(-2px);
+}
+
+.settings-field,
+.image-picker,
+.receipt-preview,
+.catalog-feed-card {
+  border-color: #d9dee3 !important;
+  background: #fff !important;
+}
+
+.billing-summary-grid .metric-card,
+.discount-preview,
+.invoice-summary,
+.customer-card,
+.billing-alert,
+.billing-cart-panel,
+.invoice-search-panel {
+  border-color: #d9dee3 !important;
+  background: #fff !important;
+}
+
+.billing-alert,
+.stock-alert-text,
+.inline-alert,
+.product-alert-badge {
+  color: #ff6b35 !important;
+}
+
+.sneat-detail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.sneat-order-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.sneat-order-title-row h1 {
+  margin: 0;
+  color: #384551;
+  font-size: clamp(1.8rem, 3vw, 2.6rem);
+  font-weight: 700;
+}
+
+.sneat-order-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(20rem, 0.75fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.sneat-order-side-stack {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.sneat-product-cell,
+.sneat-side-customer,
+.sneat-timeline-row {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.sneat-product-thumb {
+  display: inline-grid;
+  place-items: center;
+  width: 2.8rem;
+  height: 2.8rem;
+  color: #2fbf8f;
+  border-radius: 0.65rem;
+  background: rgba(47, 191, 143, 0.12);
+}
+
+.sneat-product-cell strong,
+.sneat-side-customer strong {
+  display: block;
+  color: #384551;
+}
+
+.sneat-product-cell small,
+.sneat-side-customer span,
+.sneat-timeline-row span {
+  display: block;
+  color: #8592a3;
+}
+
+.sneat-order-total-box {
+  display: grid;
+  justify-content: end;
+  gap: 0.65rem;
+  padding: 1.25rem;
+}
+
+.sneat-order-total-box span {
+  display: flex;
+  justify-content: space-between;
+  gap: 3rem;
+  color: #697a8d;
+  font-weight: 600;
+}
+
+.sneat-order-total-box .is-total {
+  color: #384551;
+  font-size: 1.1rem;
+}
+
+.sneat-detail-list {
+  display: grid;
+  gap: 0.8rem;
+  margin-top: 1.25rem;
+}
+
+.sneat-detail-list span {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-top: 0.8rem;
+  color: #697a8d;
+  border-top: 1px solid #e7e9ed;
+}
+
+.sneat-detail-list b {
+  color: #384551;
+}
+
+.sneat-order-timeline {
+  display: grid;
+  gap: 1rem;
+}
+
+.sneat-timeline-row i {
+  display: inline-grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  color: #fff;
+  border-radius: 50%;
+  background: #2fbf8f;
+}
+
+.sneat-table-link {
+  color: #2fbf8f;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.salesperson-filter-grid {
+  grid-template-columns: minmax(11rem, 0.6fr) minmax(11rem, 0.6fr) minmax(16rem, 1fr);
+}
+
+.sneat-lockup-field {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.8rem 1rem;
+  border: 1px solid #d9dee3;
+  border-radius: 0.5rem;
+  background: #fff;
+}
+
+.sneat-lockup-field span {
+  color: #697a8d;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.sneat-lockup-field strong {
+  color: #384551;
+}
+
+.sneat-toolbar-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.salesperson-sales-page .salesperson-sales-snapshot {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.salesperson-sales-page .salesperson-sales-snapshot > div {
+  padding: 1rem;
+  border: 1px solid #e7e9ed;
+  border-radius: 0.75rem;
+  background: #fafafa;
+}
+
+.settings-admin-page .settings-modern-card {
+  padding: 1.5rem;
+}
+
+.settings-modern-form {
+  margin-top: 1.25rem;
+}
+
+.settings-admin-page .settings-preview-card,
+.settings-admin-page .settings-billing-box,
+.settings-admin-page .facebook-catalog-panel {
+  border: 1px solid #d9dee3 !important;
+  border-radius: 0.75rem !important;
+  background: #fff !important;
+  box-shadow: 0 0.125rem 0.375rem rgba(67, 89, 113, 0.08) !important;
+}
+
+.settings-admin-page .settings-preview-hero {
+  background:
+    linear-gradient(135deg, rgba(18, 60, 50, 0.92), rgba(47, 191, 143, 0.4)),
+    url("/assets/glowjewels/maharashtrian_jewelry_flatlay.png") center/cover !important;
+}
+
+.settings-admin-page .primary-btn {
+  border-radius: 0.5rem;
+  background: #2fbf8f;
+}
+
+.discount-mode-toggle {
+  background: #f5f5f9 !important;
+  border: 1px solid #d9dee3 !important;
+  border-radius: 0.75rem !important;
+  padding: 0.35rem !important;
+}
+
+.discount-mode-toggle button.is-active,
+.discount-mode-toggle button.toggle-active,
+.discount-mode-toggle button[aria-pressed="true"] {
+  background: #2fbf8f !important;
+  color: #fff !important;
+  box-shadow: 0 0.25rem 0.65rem rgba(47, 191, 143, 0.22) !important;
+}
+
+@media (max-width: 991.98px) {
+  .sneat-page-title {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .sneat-order-detail-grid,
+  .salesperson-filter-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .sneat-user-list-card,
+  .sneat-user-profile-card {
+    position: static;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .kps-user-chip {
+    display: none;
+  }
+
+  .sneat-page-title {
+    padding: 1.35rem;
+  }
+
+  .sneat-detail-grid,
+  .sneat-user-row,
+  .sneat-list-row {
+    grid-template-columns: 1fr;
   }
 }

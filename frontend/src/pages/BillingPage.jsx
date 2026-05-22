@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import DataTable from '../components/DataTable';
 import MetricCard from '../components/MetricCard';
 import Panel from '../components/Panel';
@@ -21,6 +22,7 @@ const today = new Date().toISOString().slice(0, 10);
 
 export default function BillingPage() {
   const latestInvoiceRef = useRef(null);
+  const [searchParams, setSearchParams] = useSearchParams();
   const authSession = getStoredAuthSession();
   const [products, setProducts] = useState([]);
   const [offers, setOffers] = useState([]);
@@ -192,6 +194,32 @@ export default function BillingPage() {
 
     latestInvoiceRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [invoice]);
+
+  useEffect(() => {
+    const invoiceId = searchParams.get('editInvoiceId');
+    if (!invoiceId || !products.length || editingInvoiceId === invoiceId) {
+      return;
+    }
+
+    let cancelled = false;
+    setError('');
+    retailService.getInvoice(invoiceId)
+      .then((selectedInvoice) => {
+        if (cancelled) return;
+        loadInvoiceForEdit(selectedInvoice);
+        setSuccess(`Invoice ${selectedInvoice.invoiceNumber} is loaded for editing.`);
+        setSearchParams({}, { replace: true });
+      })
+      .catch((requestError) => {
+        if (!cancelled) {
+          setError(getApiErrorMessage(requestError, 'Unable to load invoice for editing.'));
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [searchParams, products, editingInvoiceId, setSearchParams]);
 
   const getOriginalInvoiceQuantity = (productId) => Number(editingInvoiceOriginalQuantities[productId] || 0);
 

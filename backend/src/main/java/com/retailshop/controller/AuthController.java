@@ -8,6 +8,8 @@ import com.retailshop.dto.CustomerOtpVerifyRequest;
 import com.retailshop.dto.LoginRequest;
 import com.retailshop.dto.LoginResponse;
 import com.retailshop.entity.StaffUser;
+import com.retailshop.enums.AppPermission;
+import com.retailshop.enums.StaffRole;
 import com.retailshop.security.StaffJwtService;
 import com.retailshop.service.CustomerAuthService;
 import com.retailshop.service.CustomerService;
@@ -45,7 +47,9 @@ public class AuthController {
                 .username(user.getUsername())
                 .role(user.getRole().name())
                 .displayName(user.getDisplayName())
-                .permissions(staffUserService.getEffectivePermissions(user).stream().map(Enum::name).toList())
+                .permissions((user.getRole() == StaffRole.ADMIN || user.getRole() == StaffRole.OWNER
+                        ? java.util.Arrays.stream(AppPermission.values())
+                        : user.getPermissions().stream()).map(Enum::name).toList())
                 .token("Bearer " + token.token())
                 .expiresAt(token.expiresAt())
                 .build();

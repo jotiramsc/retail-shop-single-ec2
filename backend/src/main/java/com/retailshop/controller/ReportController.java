@@ -21,7 +21,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/reports")
 @RequiredArgsConstructor
-@PreAuthorize("hasAuthority('PERM_REPORTS')")
+@PreAuthorize("hasAnyAuthority('PERM_REPORTS', 'PERM_BILLING')")
 public class ReportController {
 
     private final ReportService reportService;

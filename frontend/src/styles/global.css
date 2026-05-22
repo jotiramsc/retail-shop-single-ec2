@@ -2059,6 +2059,39 @@ code {
   gap: 0.75rem;
 }
 
+.permission-group-grid {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0.9rem;
+}
+
+.permission-group-card {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.85rem;
+  border: 1px solid rgba(127, 90, 31, 0.14);
+  border-radius: 14px;
+  background: rgba(255, 251, 245, 0.72);
+}
+
+.permission-group-head {
+  font-weight: 800;
+}
+
+.permission-group-head em {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-style: normal;
+}
+
+.permission-submenu-grid {
+  display: grid;
+  gap: 0.45rem;
+  padding-left: 0.35rem;
+}
+
 .permission-chip-row {
   display: flex;
   flex-wrap: wrap;
@@ -7803,6 +7836,44 @@ th {
 .order-status-select:disabled {
   cursor: wait;
   opacity: 0.65;
+}
+
+.admin-order-source-tabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 1rem 0 0.35rem;
+  padding: 0.3rem;
+  border: 1px solid rgba(157, 93, 32, 0.16);
+  border-radius: 999px;
+  background: rgba(255, 251, 245, 0.82);
+}
+
+.admin-order-source-tabs button {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.55rem 0.9rem;
+  background: transparent;
+  color: #6f4b2c;
+  font-weight: 800;
+}
+
+.admin-order-source-tabs button.is-active {
+  background: #8f4f1f;
+  color: #fff;
+}
+
+.sneat-status-control {
+  display: grid;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+}
+
+.sneat-status-control span {
+  color: #697a8d;
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-transform: uppercase;
 }
 
 .customer-address-card {

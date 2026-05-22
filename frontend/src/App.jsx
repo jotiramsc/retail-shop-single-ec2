@@ -1,6 +1,7 @@
-import { Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { Link, NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import BillingPage from './pages/BillingPage';
+import AdminOrdersPage from './pages/AdminOrdersPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import ProductsPage from './pages/ProductsPage';
 import CustomerCrmModulePage from './pages/CustomerCrmModulePage';
@@ -29,26 +30,49 @@ import { defaultBranding, getStoredBranding, normalizeBranding, storeBranding } 
 import { trackMetaEvent } from './utils/metaPixel';
 import { getStoredVisitCount, storeVisitCount, trackCurrentSiteVisit } from './utils/siteInteraction';
 
+function isLocalDevAdminEnabled() {
+  if (!import.meta.env.DEV || typeof window === 'undefined') return false;
+  return ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
+}
+
+function getLocalDevAdminSession() {
+  if (!isLocalDevAdminEnabled()) return null;
+  return {
+    token: 'local-dev-admin',
+    displayName: 'Local Admin',
+    role: 'ADMIN',
+    permissions: Array.from(new Set(navGroups.flatMap((group) => group.items.flatMap((item) => [
+      ...(Array.isArray(item.permission) ? item.permission : [item.permission]),
+      ...(item.children || []).map((child) => child.permission).filter(Boolean)
+    ])))),
+    expiresAt: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString()
+  };
+}
+
 const navGroups = [
   {
     label: 'Store Operations',
     items: [
-      { to: '/app/billing', label: 'Billing', icon: 'bx-receipt', permission: 'BILLING' },
+      { to: '/app/billing', label: 'Billing', icon: 'bx-receipt', permission: 'BILLING', children: [
+        { to: '/app/billing', label: 'Checkout', permission: 'BILLING_CHECKOUT' },
+        { to: '/app/billing/invoices', label: 'Invoices', permission: 'BILLING_INVOICES' },
+        { to: '/app/billing/orders', label: 'Orders', permission: 'BILLING_ORDERS' }
+      ] },
       { to: '/app/inventory/products', label: 'Inventory', icon: 'bx-package', permission: 'PRODUCTS', children: [
-        { to: '/app/inventory/products', label: 'Products' },
-        { to: '/app/inventory/categories', label: 'Categories' }
+        { to: '/app/inventory/products', label: 'Products', permission: 'PRODUCTS_LIST' },
+        { to: '/app/inventory/categories', label: 'Categories', permission: 'PRODUCTS_CATEGORIES' }
       ] },
       { to: '/app/crm/customers/overview', label: 'Customer CRM', icon: 'bx-user-voice', permission: 'CUSTOMERS', children: [
-        { to: '/app/crm/dashboard', label: 'Dashboard' },
-        { to: '/app/crm/customers/overview', label: 'Customer Info' },
-        { to: '/app/crm/customers/search-activity', label: 'Search Activity' },
-        { to: '/app/crm/customers/login-history', label: 'Login History' },
-        { to: '/app/crm/customers/support-chat', label: 'Support Chat' },
-        { to: '/app/crm/customers/ai-insights', label: 'AI Insights' }
+        { to: '/app/crm/dashboard', label: 'Dashboard', permission: 'CUSTOMERS_DASHBOARD' },
+        { to: '/app/crm/customers/overview', label: 'Customer Info', permission: 'CUSTOMERS_OVERVIEW' },
+        { to: '/app/crm/customers/search-activity', label: 'Search Activity', permission: 'CUSTOMERS_SEARCH_ACTIVITY' },
+        { to: '/app/crm/customers/login-history', label: 'Login History', permission: 'CUSTOMERS_LOGIN_HISTORY' },
+        { to: '/app/crm/customers/support-chat', label: 'Support Chat', permission: 'CUSTOMERS_SUPPORT_CHAT' },
+        { to: '/app/crm/customers/ai-insights', label: 'AI Insights', permission: 'CUSTOMERS_AI_INSIGHTS' }
       ] },
       { to: '/app/support/active', label: 'Support', icon: 'bx-support', permission: 'CUSTOMERS', badgeKey: 'supportUnread', children: [
-        { to: '/app/support/active', label: 'Active Conversations' },
-        { to: '/app/support/archived', label: 'Archived Conversations' }
+        { to: '/app/support/active', label: 'Active Conversations', permission: 'CUSTOMERS_SUPPORT_CHAT' },
+        { to: '/app/support/archived', label: 'Archived Conversations', permission: 'CUSTOMERS_SUPPORT_CHAT' }
       ] }
     ]
   },
@@ -56,16 +80,18 @@ const navGroups = [
     label: 'Growth',
     items: [
       { to: '/app/campaigns/dashboard', label: 'Campaign Studio', icon: 'bx-broadcast', permission: ['MARKETING_AUTOMATION', 'OFFERS'], children: [
-        { to: '/app/campaigns/dashboard', label: 'Campaign Dashboard' },
-        { to: '/app/campaigns/list', label: 'Campaign List' },
-        { to: '/app/campaigns/create', label: 'Create Campaign' },
-        { to: '/app/campaigns/offers', label: 'Offers' },
-        { to: '/app/campaigns/approval', label: 'Approval Queue' }
+        { to: '/app/campaigns/dashboard', label: 'Campaign Dashboard', permission: 'CAMPAIGNS_DASHBOARD' },
+        { to: '/app/campaigns/list', label: 'Campaign List', permission: 'CAMPAIGNS_LIST' },
+        { to: '/app/campaigns/create', label: 'Create Campaign', permission: 'CAMPAIGNS_CREATE' },
+        { to: '/app/campaigns/templates', label: 'Templates', permission: 'CAMPAIGNS_TEMPLATES' },
+        { to: '/app/campaigns/audience', label: 'Audience', permission: 'CAMPAIGNS_AUDIENCE' },
+        { to: '/app/campaigns/offers', label: 'Offers', permission: 'CAMPAIGNS_OFFERS' },
+        { to: '/app/campaigns/approval', label: 'Approval Queue', permission: 'CAMPAIGNS_APPROVAL' }
       ] },
       { to: '/app/reports', label: 'Reports', icon: 'bx-line-chart', permission: 'REPORTS', children: [
-        { to: '/app/reports/dashboard', label: 'Dashboard' },
-        { to: '/app/reports/sales', label: 'Sales reports' },
-        { to: '/app/reports/payments', label: 'Razorpay diagnostics' }
+        { to: '/app/reports/dashboard', label: 'Dashboard', permission: 'REPORTS_DASHBOARD' },
+        { to: '/app/reports/sales', label: 'Sales reports', permission: 'REPORTS_SALES' },
+        { to: '/app/reports/payments', label: 'Razorpay diagnostics', permission: 'REPORTS_PAYMENTS' }
       ] },
       { to: '/app/salesperson-sales', label: 'Salesperson Sales', icon: 'bx-medal', permission: 'SALESPERSON_SALES' },
       { to: '/app/site-interactions', label: 'Site Interaction', icon: 'bx-map-alt', permission: 'SITE_INTERACTIONS' }
@@ -75,10 +101,10 @@ const navGroups = [
     label: 'Admin',
     items: [
       { to: '/app/settings/receipt', label: 'Brand Configuration', icon: 'bx-palette', permission: 'RECEIPT_SETTINGS', children: [
-        { to: '/app/settings/receipt/business', label: 'Business details' },
-        { to: '/app/settings/receipt/theme', label: 'Theme and media' },
-        { to: '/app/settings/receipt/social', label: 'Social links' },
-        { to: '/app/settings/receipt/meta-catalog', label: 'Meta catalog' }
+        { to: '/app/settings/receipt/business', label: 'Business details', permission: 'RECEIPT_SETTINGS_BUSINESS' },
+        { to: '/app/settings/receipt/theme', label: 'Theme and media', permission: 'RECEIPT_SETTINGS_THEME' },
+        { to: '/app/settings/receipt/social', label: 'Social links', permission: 'RECEIPT_SETTINGS_SOCIAL' },
+        { to: '/app/settings/receipt/meta-catalog', label: 'Meta catalog', permission: 'RECEIPT_SETTINGS_META_CATALOG' }
       ] },
       { to: '/app/users', label: 'Users', icon: 'bx-lock-open-alt', permission: 'USER_MANAGEMENT', children: [
         { to: '/app/users', label: 'Team Accounts' }
@@ -109,12 +135,11 @@ function isNavItemActive(location, item) {
 
 function ProtectedApp({ auth, onLogout, branding }) {
   const location = useLocation();
-  const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [supportSummary, setSupportSummary] = useState({ unreadCount: 0 });
   const [supportAlert, setSupportAlert] = useState(null);
   const [isMenuCollapsed, setIsMenuCollapsed] = useState(false);
-  const [openMenus, setOpenMenus] = useState({});
+  const [openMenuKey, setOpenMenuKey] = useState('');
   const [submenuHeights, setSubmenuHeights] = useState({});
   const submenuRefs = useRef({});
   const permissions = Array.isArray(auth.permissions) ? auth.permissions : [];
@@ -124,9 +149,20 @@ function ProtectedApp({ auth, onLogout, branding }) {
     if (Array.isArray(permission)) return permission.some((entry) => permissions.includes(entry));
     return permissions.includes(permission);
   };
+  const canAccessAny = (...entries) => entries.some((entry) => canAccess(entry));
+
+  const visibleChildrenFor = (item) => {
+    if (!item.children?.length) return [];
+    return item.children.filter((child) => !child.permission || canAccess(child.permission) || canAccess(item.permission));
+  };
 
   const visibleGroups = useMemo(() => navGroups
-    .map((group) => ({ ...group, items: group.items.filter((item) => canAccess(item.permission)) }))
+    .map((group) => ({
+      ...group,
+      items: group.items
+        .map((item) => ({ ...item, children: visibleChildrenFor(item) }))
+        .filter((item) => canAccess(item.permission) || item.children.length)
+    }))
     .filter((group) => group.items.length), [auth.role, permissions]);
   const firstAllowedRoute = flattenNav(visibleGroups)[0]?.to || '/login';
 
@@ -138,7 +174,7 @@ function ProtectedApp({ auth, onLogout, branding }) {
     const activeItem = visibleGroups
       .flatMap((group) => group.items)
       .find((item) => item.children?.length && isNavItemActive(location, item));
-    setOpenMenus(activeItem ? { [activeItem.label]: true } : {});
+    setOpenMenuKey(activeItem?.to || '');
   }, [location, visibleGroups]);
 
   useLayoutEffect(() => {
@@ -147,7 +183,7 @@ function ProtectedApp({ auth, onLogout, branding }) {
       if (node) next[key] = node.scrollHeight;
     });
     setSubmenuHeights(next);
-  }, [visibleGroups, openMenus, isMenuCollapsed]);
+  }, [visibleGroups, openMenuKey, isMenuCollapsed]);
 
   useEffect(() => {
     let cancelled = false;
@@ -174,9 +210,8 @@ function ProtectedApp({ auth, onLogout, branding }) {
     };
   }, [location.pathname]);
 
-  const handleParentMenuClick = (item) => {
-    setOpenMenus((current) => (current[item.label] ? {} : { [item.label]: true }));
-    navigate(item.to);
+  const handleParentMenuToggle = (item) => {
+    setOpenMenuKey((current) => (current === item.to ? '' : item.to));
   };
 
   const shellClasses = [
@@ -201,6 +236,11 @@ function ProtectedApp({ auth, onLogout, branding }) {
               <i className={`bx ${isMenuCollapsed ? 'bx-chevron-right' : 'bx-chevron-left'} bx-sm align-middle`} />
             </button>
           </div>
+          {isMenuCollapsed ? (
+            <button type="button" className="kps-menu-reopen" onClick={() => setIsMenuCollapsed(false)} aria-label="Open menu">
+              <i className="bx bx-chevron-right" />
+            </button>
+          ) : null}
 
           <div className="menu-inner-shadow" />
           <ul className="menu-inner py-1">
@@ -212,22 +252,28 @@ function ProtectedApp({ auth, onLogout, branding }) {
                 {group.items.map((item) => {
                   const isParentActive = isNavItemActive(location, item);
                   const hasChildren = Boolean(item.children?.length);
-                  const isOpen = hasChildren && (openMenus[item.label] || isParentActive);
+                  const isOpen = hasChildren && openMenuKey === item.to;
                   return (
                     <li key={item.to} className={`menu-item ${isParentActive ? 'active' : ''} ${isOpen ? 'open' : ''}`}>
                       {hasChildren ? (
-                        <button
-                          type="button"
-                          className="menu-link menu-toggle kps-parent-link"
-                          onClick={() => handleParentMenuClick(item)}
-                          aria-expanded={isOpen}
-                        >
-                          <i className={`menu-icon tf-icons bx ${item.icon}`} />
-                          <div>{item.label}</div>
+                        <div className="menu-link kps-parent-link kps-menu-parent-row">
+                          <NavLink to={item.children[0]?.to || item.to} className="kps-menu-parent-target" aria-label={`Open ${item.label}`}>
+                            <i className={`menu-icon tf-icons bx ${item.icon}`} />
+                            <div>{item.label}</div>
+                          </NavLink>
                           {item.badgeKey === 'supportUnread' && Number(supportSummary.unreadCount || 0) > 0 ? (
                             <span className="badge bg-label-warning rounded-pill ms-auto">{supportSummary.unreadCount}</span>
                           ) : null}
-                        </button>
+                          <button
+                            type="button"
+                            className="kps-submenu-toggle"
+                            onClick={() => handleParentMenuToggle(item)}
+                            aria-expanded={isOpen}
+                            aria-label={`${isOpen ? 'Collapse' : 'Expand'} ${item.label} submenu`}
+                          >
+                            <i className="bx bx-chevron-right" />
+                          </button>
+                        </div>
                       ) : (
                         <NavLink to={item.to} end={item.to === '/app'} className="menu-link kps-parent-link">
                           <i className={`menu-icon tf-icons bx ${item.icon}`} />
@@ -238,10 +284,13 @@ function ProtectedApp({ auth, onLogout, branding }) {
                         <ul
                           className="menu-sub"
                           ref={(node) => {
-                            submenuRefs.current[item.label] = node;
+                            submenuRefs.current[item.to] = node;
                           }}
+                          aria-hidden={!isOpen}
                           style={{
-                            maxHeight: isOpen && !isMenuCollapsed ? `${submenuHeights[item.label] || item.children.length * 42}px` : '0px'
+                            maxHeight: isOpen ? `${submenuHeights[item.to] || item.children.length * 42}px` : '0px',
+                            pointerEvents: isOpen ? 'auto' : 'none',
+                            visibility: isOpen ? 'visible' : 'hidden'
                           }}
                         >
                           {item.children.map((child) => (
@@ -278,9 +327,11 @@ function ProtectedApp({ auth, onLogout, branding }) {
               <ul className="navbar-nav flex-row align-items-center ms-auto">
                 <li className="nav-item dropdown">
                   <button className="nav-link dropdown-toggle hide-arrow kps-avatar-button" type="button" data-bs-toggle="dropdown">
-                    <div className="avatar avatar-online">
-                      <span className="avatar-initial rounded-circle bg-label-primary">{String(auth.displayName || 'K').slice(0, 1).toUpperCase()}</span>
-                    </div>
+                    <span className="kps-avatar-initial">{String(auth.displayName || 'K').slice(0, 1).toUpperCase()}</span>
+                    <span className="kps-user-chip">
+                      <strong>{auth.displayName || auth.username || 'Admin user'}</strong>
+                      <small>{auth.role || 'Team member'}</small>
+                    </span>
                   </button>
                   <ul className="dropdown-menu dropdown-menu-end">
                     <li><span className="dropdown-item"><i className="bx bx-user me-2" />{auth.displayName} ({auth.role})</span></li>
@@ -310,64 +361,67 @@ function ProtectedApp({ auth, onLogout, branding }) {
               <div className="kps-route-transition" key={location.pathname}>
               <Routes>
                 <Route index element={<AdminDashboardPage branding={branding} auth={auth} />} />
-                <Route path="billing" element={canAccess('BILLING') ? <BillingPage /> : <Navigate to={firstAllowedRoute} replace />} />
-                <Route path="billing/checkout" element={canAccess('BILLING') ? <Navigate to="/app/billing" replace /> : <Navigate to={firstAllowedRoute} replace />} />
-                <Route path="billing/invoices" element={canAccess('BILLING') ? <Navigate to="/app/billing" replace /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="billing" element={canAccessAny('BILLING', 'BILLING_CHECKOUT') ? <BillingPage /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="billing/checkout" element={canAccessAny('BILLING', 'BILLING_CHECKOUT') ? <Navigate to="/app/billing" replace /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="billing/invoices" element={canAccessAny('BILLING', 'BILLING_INVOICES') ? <AdminOrdersPage mode="invoices" /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="billing/invoices/:orderId" element={canAccessAny('BILLING', 'BILLING_INVOICES') ? <AdminOrdersPage mode="invoice-details" /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="billing/orders" element={canAccessAny('BILLING', 'BILLING_ORDERS') ? <AdminOrdersPage mode="orders" /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="billing/orders/:orderId" element={canAccessAny('BILLING', 'BILLING_ORDERS') ? <AdminOrdersPage mode="order-details" /> : <Navigate to={firstAllowedRoute} replace />} />
                 <Route path="products" element={canAccess('PRODUCTS') ? <Navigate to="/app/inventory/products" replace /> : <Navigate to={firstAllowedRoute} replace />} />
                 <Route path="inventory" element={<Navigate to="/app/inventory/products" replace />} />
-                <Route path="inventory/products" element={canAccess('PRODUCTS') ? <ProductsPage initialTab="products" hideTabs /> : <Navigate to={firstAllowedRoute} replace />} />
-                <Route path="inventory/categories" element={canAccess('PRODUCTS') ? <ProductsPage initialTab="categories" hideTabs /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="inventory/products" element={canAccessAny('PRODUCTS', 'PRODUCTS_LIST') ? <ProductsPage initialTab="products" hideTabs /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="inventory/categories" element={canAccessAny('PRODUCTS', 'PRODUCTS_CATEGORIES') ? <ProductsPage initialTab="categories" hideTabs /> : <Navigate to={firstAllowedRoute} replace />} />
                 <Route path="inventory/collections" element={canAccess('PRODUCTS') ? <Navigate to="/app/inventory/products" replace /> : <Navigate to={firstAllowedRoute} replace />} />
                 <Route path="inventory/brands" element={canAccess('PRODUCTS') ? <Navigate to="/app/inventory/products" replace /> : <Navigate to={firstAllowedRoute} replace />} />
                 <Route path="customers" element={canAccess('CUSTOMERS') ? <Navigate to="/app/crm/customers/overview" replace /> : <Navigate to={firstAllowedRoute} replace />} />
                 <Route path="crm" element={<Navigate to="/app/crm/customers/overview" replace />} />
-                <Route path="crm/dashboard" element={canAccess('CUSTOMERS') ? <CustomerCrmModulePage screen="dashboard" /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="crm/dashboard" element={canAccessAny('CUSTOMERS', 'CUSTOMERS_DASHBOARD') ? <CustomerCrmModulePage screen="dashboard" /> : <Navigate to={firstAllowedRoute} replace />} />
                 <Route path="crm/customers" element={canAccess('CUSTOMERS') ? <Navigate to="/app/crm/customers/overview" replace /> : <Navigate to={firstAllowedRoute} replace />} />
-                <Route path="crm/customers/overview" element={canAccess('CUSTOMERS') ? <CustomerCrmModulePage screen="customers" detailTab="Overview" /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="crm/customers/overview" element={canAccessAny('CUSTOMERS', 'CUSTOMERS_OVERVIEW') ? <CustomerCrmModulePage screen="customers" detailTab="Overview" /> : <Navigate to={firstAllowedRoute} replace />} />
                 <Route path="crm/customers/timeline" element={canAccess('CUSTOMERS') ? <Navigate to="/app/crm/customers/overview" replace /> : <Navigate to={firstAllowedRoute} replace />} />
                 <Route path="crm/customers/orders" element={canAccess('CUSTOMERS') ? <Navigate to="/app/crm/customers/overview" replace /> : <Navigate to={firstAllowedRoute} replace />} />
                 <Route path="crm/customers/preferences" element={canAccess('CUSTOMERS') ? <Navigate to="/app/crm/customers/overview" replace /> : <Navigate to={firstAllowedRoute} replace />} />
-                <Route path="crm/customers/search-activity" element={canAccess('CUSTOMERS') ? <CustomerCrmModulePage screen="customers" detailTab="Search Activity" /> : <Navigate to={firstAllowedRoute} replace />} />
-                <Route path="crm/customers/login-history" element={canAccess('CUSTOMERS') ? <CustomerCrmModulePage screen="customers" detailTab="Login History" /> : <Navigate to={firstAllowedRoute} replace />} />
-                <Route path="crm/customers/support-chat" element={canAccess('CUSTOMERS') ? <CustomerCrmModulePage screen="customers" detailTab="Support Chat" /> : <Navigate to={firstAllowedRoute} replace />} />
-                <Route path="crm/customers/ai-insights" element={canAccess('CUSTOMERS') ? <CustomerCrmModulePage screen="customers" detailTab="AI Insights" /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="crm/customers/search-activity" element={canAccessAny('CUSTOMERS', 'CUSTOMERS_SEARCH_ACTIVITY') ? <CustomerCrmModulePage screen="customers" detailTab="Search Activity" /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="crm/customers/login-history" element={canAccessAny('CUSTOMERS', 'CUSTOMERS_LOGIN_HISTORY') ? <CustomerCrmModulePage screen="customers" detailTab="Login History" /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="crm/customers/support-chat" element={canAccessAny('CUSTOMERS', 'CUSTOMERS_SUPPORT_CHAT') ? <CustomerCrmModulePage screen="customers" detailTab="Support Chat" /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="crm/customers/ai-insights" element={canAccessAny('CUSTOMERS', 'CUSTOMERS_AI_INSIGHTS') ? <CustomerCrmModulePage screen="customers" detailTab="AI Insights" /> : <Navigate to={firstAllowedRoute} replace />} />
                 <Route path="crm/leads" element={canAccess('CUSTOMERS') ? <Navigate to="/app/crm/customers/overview" replace /> : <Navigate to={firstAllowedRoute} replace />} />
                 <Route path="crm/opportunities" element={canAccess('CUSTOMERS') ? <Navigate to="/app/crm/customers/overview" replace /> : <Navigate to={firstAllowedRoute} replace />} />
                 <Route path="crm/activities" element={canAccess('CUSTOMERS') ? <Navigate to="/app/crm/customers/overview" replace /> : <Navigate to={firstAllowedRoute} replace />} />
                 <Route path="crm/reports" element={canAccess('CUSTOMERS') ? <Navigate to="/app/crm/dashboard" replace /> : <Navigate to={firstAllowedRoute} replace />} />
                 <Route path="crm/settings" element={canAccess('CUSTOMERS') ? <Navigate to="/app/crm/customers/overview" replace /> : <Navigate to={firstAllowedRoute} replace />} />
                 <Route path="support" element={canAccess('CUSTOMERS') ? <Navigate to="/app/support/active" replace /> : <Navigate to={firstAllowedRoute} replace />} />
-                <Route path="support/active" element={canAccess('CUSTOMERS') ? <SupportInboxPage initialTab="ACTIVE" hideTabs /> : <Navigate to={firstAllowedRoute} replace />} />
-                <Route path="support/archived" element={canAccess('CUSTOMERS') ? <SupportInboxPage initialTab="ARCHIVED" hideTabs /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="support/active" element={canAccessAny('CUSTOMERS', 'CUSTOMERS_SUPPORT_CHAT') ? <SupportInboxPage initialTab="ACTIVE" hideTabs /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="support/archived" element={canAccessAny('CUSTOMERS', 'CUSTOMERS_SUPPORT_CHAT') ? <SupportInboxPage initialTab="ARCHIVED" hideTabs /> : <Navigate to={firstAllowedRoute} replace />} />
                 <Route path="support/product-sender" element={canAccess('CUSTOMERS') ? <Navigate to="/app/support/active" replace /> : <Navigate to={firstAllowedRoute} replace />} />
                 <Route path="whatsapp" element={canAccess('CUSTOMERS') ? <Navigate to="/app/support/active" replace /> : <Navigate to={firstAllowedRoute} replace />} />
                 <Route path="whatsapp/*" element={canAccess('CUSTOMERS') ? <Navigate to="/app/support/active" replace /> : <Navigate to={firstAllowedRoute} replace />} />
                 <Route path="offers" element={canAccess(['MARKETING_AUTOMATION', 'OFFERS']) ? <Navigate to="/app/campaigns/offers" replace /> : <Navigate to={firstAllowedRoute} replace />} />
                 <Route path="campaigns" element={canAccess(['MARKETING_AUTOMATION', 'OFFERS']) ? <Navigate to="/app/campaigns/dashboard" replace /> : <Navigate to={firstAllowedRoute} replace />} />
-                <Route path="campaigns/dashboard" element={canAccess(['MARKETING_AUTOMATION', 'OFFERS']) ? <CampaignStudioModulePage screen="dashboard" /> : <Navigate to={firstAllowedRoute} replace />} />
-                <Route path="campaigns/list" element={canAccess(['MARKETING_AUTOMATION', 'OFFERS']) ? <CampaignStudioModulePage screen="list" /> : <Navigate to={firstAllowedRoute} replace />} />
-                <Route path="campaigns/create" element={canAccess(['MARKETING_AUTOMATION', 'OFFERS']) ? <CampaignStudioModulePage screen="create" /> : <Navigate to={firstAllowedRoute} replace />} />
-                <Route path="campaigns/offers" element={canAccess(['MARKETING_AUTOMATION', 'OFFERS']) ? <CampaignStudioModulePage screen="offers" /> : <Navigate to={firstAllowedRoute} replace />} />
-                <Route path="campaigns/approval" element={canAccess(['MARKETING_AUTOMATION', 'OFFERS']) ? <CampaignStudioModulePage screen="approval" /> : <Navigate to={firstAllowedRoute} replace />} />
-                <Route path="campaigns/templates" element={canAccess(['MARKETING_AUTOMATION', 'OFFERS']) ? <Navigate to="/app/campaigns/create" replace /> : <Navigate to={firstAllowedRoute} replace />} />
-                <Route path="campaigns/audience" element={canAccess(['MARKETING_AUTOMATION', 'OFFERS']) ? <Navigate to="/app/campaigns/list" replace /> : <Navigate to={firstAllowedRoute} replace />} />
-                <Route path="campaigns/analytics" element={canAccess(['MARKETING_AUTOMATION', 'OFFERS']) ? <Navigate to="/app/campaigns/dashboard" replace /> : <Navigate to={firstAllowedRoute} replace />} />
-                <Route path="campaigns/scheduler" element={canAccess(['MARKETING_AUTOMATION', 'OFFERS']) ? <Navigate to="/app/campaigns/create" replace /> : <Navigate to={firstAllowedRoute} replace />} />
-                <Route path="campaigns/reports" element={canAccess(['MARKETING_AUTOMATION', 'OFFERS']) ? <Navigate to="/app/campaigns/dashboard" replace /> : <Navigate to={firstAllowedRoute} replace />} />
-                <Route path="campaigns/automation" element={canAccess(['MARKETING_AUTOMATION', 'OFFERS']) ? <Navigate to="/app/campaigns/list" replace /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="campaigns/dashboard" element={canAccessAny(['MARKETING_AUTOMATION', 'OFFERS'], 'CAMPAIGNS_DASHBOARD') ? <CampaignStudioModulePage screen="dashboard" /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="campaigns/list" element={canAccessAny(['MARKETING_AUTOMATION', 'OFFERS'], 'CAMPAIGNS_LIST') ? <CampaignStudioModulePage screen="list" /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="campaigns/create" element={canAccessAny(['MARKETING_AUTOMATION', 'OFFERS'], 'CAMPAIGNS_CREATE') ? <CampaignStudioModulePage screen="create" /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="campaigns/offers" element={canAccessAny(['MARKETING_AUTOMATION', 'OFFERS'], 'CAMPAIGNS_OFFERS') ? <CampaignStudioModulePage screen="offers" /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="campaigns/approval" element={canAccessAny(['MARKETING_AUTOMATION', 'OFFERS'], 'CAMPAIGNS_APPROVAL') ? <CampaignStudioModulePage screen="approval" /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="campaigns/templates" element={canAccessAny(['MARKETING_AUTOMATION', 'OFFERS'], 'CAMPAIGNS_TEMPLATES') ? <CampaignStudioModulePage screen="templates" /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="campaigns/audience" element={canAccessAny(['MARKETING_AUTOMATION', 'OFFERS'], 'CAMPAIGNS_AUDIENCE') ? <CampaignStudioModulePage screen="audience" /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="campaigns/analytics" element={canAccess(['MARKETING_AUTOMATION', 'OFFERS']) ? <CampaignStudioModulePage screen="analytics" /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="campaigns/scheduler" element={canAccess(['MARKETING_AUTOMATION', 'OFFERS']) ? <CampaignStudioModulePage screen="scheduler" /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="campaigns/reports" element={canAccess(['MARKETING_AUTOMATION', 'OFFERS']) ? <CampaignStudioModulePage screen="reports" /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="campaigns/automation" element={canAccess(['MARKETING_AUTOMATION', 'OFFERS']) ? <CampaignStudioModulePage screen="automation" /> : <Navigate to={firstAllowedRoute} replace />} />
                 <Route path="reports" element={canAccess('REPORTS') ? <Navigate to="/app/reports/dashboard" replace /> : <Navigate to={firstAllowedRoute} replace />} />
-                <Route path="reports/dashboard" element={canAccess('REPORTS') ? <ReportsPage initialTab="dashboard" hideTabs /> : <Navigate to={firstAllowedRoute} replace />} />
-                <Route path="reports/sales" element={canAccess('REPORTS') ? <ReportsPage initialTab="sales" hideTabs /> : <Navigate to={firstAllowedRoute} replace />} />
-                <Route path="reports/payments" element={canAccess('REPORTS') ? <ReportsPage initialTab="payments" hideTabs /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="reports/dashboard" element={canAccessAny('REPORTS', 'REPORTS_DASHBOARD') ? <ReportsPage initialTab="dashboard" hideTabs /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="reports/sales" element={canAccessAny('REPORTS', 'REPORTS_SALES') ? <ReportsPage initialTab="sales" hideTabs /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="reports/payments" element={canAccessAny('REPORTS', 'REPORTS_PAYMENTS') ? <ReportsPage initialTab="payments" hideTabs /> : <Navigate to={firstAllowedRoute} replace />} />
                 <Route path="reports/low-stock" element={canAccess('REPORTS') ? <Navigate to="/app/reports/dashboard" replace /> : <Navigate to={firstAllowedRoute} replace />} />
                 <Route path="reports/website-orders" element={canAccess('REPORTS') ? <Navigate to="/app/reports/dashboard" replace /> : <Navigate to={firstAllowedRoute} replace />} />
                 <Route path="salesperson-sales" element={canAccess('SALESPERSON_SALES') ? <SalespersonSalesPage auth={auth} /> : <Navigate to={firstAllowedRoute} replace />} />
                 <Route path="site-interactions" element={canAccess('SITE_INTERACTIONS') ? <SiteInteractionsPage /> : <Navigate to={firstAllowedRoute} replace />} />
                 <Route path="settings/receipt" element={canAccess('RECEIPT_SETTINGS') ? <Navigate to="/app/settings/receipt/business" replace /> : <Navigate to={firstAllowedRoute} replace />} />
-                <Route path="settings/receipt/business" element={canAccess('RECEIPT_SETTINGS') ? <ReceiptSettingsPage initialTab="brand" hideTabs /> : <Navigate to={firstAllowedRoute} replace />} />
-                <Route path="settings/receipt/theme" element={canAccess('RECEIPT_SETTINGS') ? <ReceiptSettingsPage initialTab="theme" hideTabs /> : <Navigate to={firstAllowedRoute} replace />} />
-                <Route path="settings/receipt/social" element={canAccess('RECEIPT_SETTINGS') ? <ReceiptSettingsPage initialTab="social" hideTabs /> : <Navigate to={firstAllowedRoute} replace />} />
-                <Route path="settings/receipt/meta-catalog" element={canAccess('RECEIPT_SETTINGS') ? <ReceiptSettingsPage initialTab="facebook" hideTabs /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="settings/receipt/business" element={canAccessAny('RECEIPT_SETTINGS', 'RECEIPT_SETTINGS_BUSINESS') ? <ReceiptSettingsPage initialTab="brand" hideTabs /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="settings/receipt/theme" element={canAccessAny('RECEIPT_SETTINGS', 'RECEIPT_SETTINGS_THEME') ? <ReceiptSettingsPage initialTab="theme" hideTabs /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="settings/receipt/social" element={canAccessAny('RECEIPT_SETTINGS', 'RECEIPT_SETTINGS_SOCIAL') ? <ReceiptSettingsPage initialTab="social" hideTabs /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="settings/receipt/meta-catalog" element={canAccessAny('RECEIPT_SETTINGS', 'RECEIPT_SETTINGS_META_CATALOG') ? <ReceiptSettingsPage initialTab="facebook" hideTabs /> : <Navigate to={firstAllowedRoute} replace />} />
                 <Route path="users" element={canAccess('USER_MANAGEMENT') ? <UsersPage /> : <Navigate to={firstAllowedRoute} replace />} />
                 <Route path="*" element={<Navigate to={firstAllowedRoute} replace />} />
               </Routes>
@@ -389,7 +443,7 @@ function ProtectedApp({ auth, onLogout, branding }) {
 
 export default function App() {
   const location = useLocation();
-  const [auth, setAuth] = useState(getStoredAuthSession());
+  const [auth, setAuth] = useState(() => getStoredAuthSession() || getLocalDevAdminSession());
   const [branding, setBranding] = useState(() => getStoredBranding());
   const [siteVisitCount, setSiteVisitCount] = useState(() => getStoredVisitCount());
 
