@@ -2,7 +2,7 @@
 
 ## Current Task: Admin Panel Cleanup, Navigation Refactor, and Campaign Image Generation Fix
 
-Status: Completed locally and build-verified. Not deployed in this pass.
+Status: Completed, deployed to EC2, and live-smoke verified.
 
 Scope:
 - Admin sidebar was simplified so duplicate/dead menu entries are no longer shown.
@@ -24,3 +24,13 @@ Verification:
 - Backend `./mvnw -DskipTests package` passed.
 - Local Vite login route loaded without browser console errors.
 - Full authenticated admin browser smoke was not completed because the in-app browser's read-only evaluation surface could not seed session storage; production build verification covers compile/runtime bundle integrity.
+
+Deployment:
+- Release `local-20260522150704` packaged and uploaded to `s3://retail-shop-single-artifactbucket-x5x2zrjqspuk/releases/local-20260522150704/release.tar.gz`.
+- EC2 SSM deploy command `8c43c0c7-0f48-47f1-b151-9b4619f9ccd4` completed successfully.
+- Release directory: `/opt/retail-shop/releases/local-20260522150704`.
+
+Live verification:
+- `https://kpskrishnai.com/actuator/health` returned `UP`.
+- `https://kpskrishnai.com/`, `/login`, `/app`, `/app/crm/customers/overview`, `/app/support/active`, `/products?q=neckless%201500`, and `/ai-catalog.json` returned HTTP 200.
+- Old `/app/whatsapp/templates` route returned HTTP 200 through the app fallback/redirect-compatible SPA route.

@@ -6,7 +6,7 @@
 
 - Admin Panel Cleanup & Navigation Refactor.
   - Current status:
-    - Implementation complete locally and build-verified.
+    - Implementation complete, deployed, and live-smoke verified.
     - Billing submenu was removed; old Billing Checkout and Latest Invoices routes redirect to Billing.
     - Inventory now shows only Products and Categories; Collections and Brands are removed from admin navigation and old routes redirect to Products.
     - Customer CRM navigation was simplified to Dashboard, Customer Info, Search Activity, Login History, Support Chat, and AI Insights. Customer List now redirects directly to Customer Info.
@@ -20,7 +20,8 @@
     - Frontend `npm run build` passed.
     - Backend `./mvnw -DskipTests package` passed.
     - Local browser login route loaded without console errors; authenticated browser smoke could not seed session storage due the in-app browser read-only evaluation surface.
-    - Not deployed in this pass.
+    - EC2 release `local-20260522150704` deployed successfully via SSM command `8c43c0c7-0f48-47f1-b151-9b4619f9ccd4`.
+    - Live checks passed: `/actuator/health` returned `UP`; `/`, `/login`, `/app`, `/app/crm/customers/overview`, `/app/support/active`, `/products?q=neckless%201500`, and `/ai-catalog.json` returned HTTP 200.
 
 - Customer Intelligence CRM workspace redesign.
   - Current status:

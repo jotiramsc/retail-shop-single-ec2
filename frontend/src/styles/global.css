@@ -7876,6 +7876,75 @@ th {
   text-transform: uppercase;
 }
 
+.sneat-shipping-activity-card {
+  min-width: 0;
+}
+
+.sneat-shipping-timeline {
+  display: grid;
+  gap: 0;
+}
+
+.sneat-shipping-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1.6rem minmax(0, 1fr) auto;
+  gap: 0.9rem;
+  min-height: 5rem;
+  color: #697a8d;
+}
+
+.sneat-shipping-row:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  top: 1.6rem;
+  bottom: 0.35rem;
+  left: 0.48rem;
+  border-left: 1px dashed rgba(132, 146, 166, 0.28);
+}
+
+.sneat-shipping-row.is-done:not(:last-child)::after {
+  border-left-style: solid;
+  border-left-color: #0aa39a;
+}
+
+.sneat-shipping-dot {
+  position: relative;
+  z-index: 1;
+  width: 1rem;
+  height: 1rem;
+  margin-top: 0.25rem;
+  border: 0.22rem solid #edf2f7;
+  border-radius: 50%;
+  background: #8a99aa;
+}
+
+.sneat-shipping-row.is-done .sneat-shipping-dot {
+  background: #0aa39a;
+  box-shadow: 0 0 0 0.12rem rgba(10, 163, 154, 0.12);
+}
+
+.sneat-shipping-row.is-exception .sneat-shipping-dot {
+  background: #ff6b35;
+}
+
+.sneat-shipping-row strong {
+  display: block;
+  color: #384551;
+  font-size: 0.98rem;
+}
+
+.sneat-shipping-row p {
+  margin: 0.7rem 0 0;
+  color: #697a8d;
+}
+
+.sneat-shipping-row time {
+  color: #a1acb8;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .customer-address-card {
   display: flex;
   gap: 0.8rem;

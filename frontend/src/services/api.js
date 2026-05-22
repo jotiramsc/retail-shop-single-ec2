@@ -8,6 +8,10 @@ import {
 
 const runtimeApiBaseUrl = window.__APP_CONFIG__?.API_BASE_URL;
 const resolvedApiBaseUrl = runtimeApiBaseUrl || import.meta.env.VITE_API_BASE_URL || '/api';
+const isLocalDevAdmin = () => import.meta.env.DEV
+  && typeof window !== 'undefined'
+  && ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname)
+  && window.location.pathname.startsWith('/app');
 
 const api = axios.create({
   baseURL: resolvedApiBaseUrl,
@@ -42,6 +46,8 @@ api.interceptors.request.use((config) => {
   if (isStaffAppRequest()) {
     if (staffSession?.token) {
       config.headers.Authorization = staffSession.token;
+    } else if (isLocalDevAdmin()) {
+      config.headers.Authorization = 'local-dev-admin';
     } else if (customerSession?.token) {
       config.headers.Authorization = customerSession.token;
     }
@@ -58,7 +64,7 @@ api.interceptors.response.use(
     const staffSession = getStoredAuthSession();
     const customerSession = getStoredCustomerSession();
 
-    if (status === 401 && window.location.pathname.startsWith('/app')) {
+    if (status === 401 && window.location.pathname.startsWith('/app') && !isLocalDevAdmin()) {
       clearAuthSession();
       if (window.location.pathname !== '/login') {
         window.location.href = '/login';

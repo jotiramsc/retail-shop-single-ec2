@@ -21,7 +21,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.imageio.ImageIO;
+import java.awt.BasicStroke;
+import java.awt.Color;
 import java.awt.Graphics2D;
+import java.awt.GradientPaint;
 import java.awt.RenderingHints;
 import java.awt.geom.Ellipse2D;
 import java.awt.image.BufferedImage;
@@ -45,7 +48,7 @@ import java.util.UUID;
 @Slf4j
 public class ProductCategoryOptionServiceImpl implements ProductCategoryOptionService {
 
-    private static final Duration CATEGORY_ICON_OPENAI_TIMEOUT = Duration.ofSeconds(12);
+    private static final Duration CATEGORY_ICON_OPENAI_TIMEOUT = Duration.ofSeconds(60);
 
     private final ProductCategoryOptionRepository productCategoryOptionRepository;
     private final MarketingProperties marketingProperties;
@@ -135,11 +138,8 @@ public class ProductCategoryOptionServiceImpl implements ProductCategoryOptionSe
         if (displayName.isBlank()) {
             throw new BusinessException("Category name is required");
         }
-        if (!isOpenAiImageConfigured()) {
-            throw new BusinessException("Marketing OpenAI image generation is not configured. Set MARKETING_OPENAI_API_KEY or OPEN_AI_API_KEY.");
-        }
         try {
-            return List.of(generateOpenAiCategoryIcon(
+            return List.of(generateCategoryIcon(
                     displayName,
                     "preview"
             ));
@@ -147,8 +147,8 @@ public class ProductCategoryOptionServiceImpl implements ProductCategoryOptionSe
             Thread.currentThread().interrupt();
             throw new BusinessException("Category icon generation was interrupted");
         } catch (Exception exception) {
-            log.warn("OpenAI category icon generation failed for {}", displayName, exception);
-            throw new BusinessException("OpenAI category icon generation failed: " + exception.getMessage());
+            log.warn("Category icon generation failed for {}", displayName, exception);
+            throw new BusinessException("Category icon generation failed: " + exception.getMessage());
         }
     }
 
@@ -161,18 +161,15 @@ public class ProductCategoryOptionServiceImpl implements ProductCategoryOptionSe
             throw new BusinessException("Category already has an icon. Use regenerate to replace it.");
         }
         String displayName = normalizeDisplayName(category.getDisplayName());
-        if (!isOpenAiImageConfigured()) {
-            throw new BusinessException("Marketing OpenAI image generation is not configured. Set MARKETING_OPENAI_API_KEY or OPEN_AI_API_KEY.");
-        }
         CategoryIconOptionResponse generated;
         try {
-            generated = generateOpenAiCategoryIcon(displayName, "category-" + category.getId());
+            generated = generateCategoryIcon(displayName, "category-" + category.getId());
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             throw new BusinessException("Category icon generation was interrupted");
         } catch (Exception exception) {
-            log.warn("OpenAI category icon generation failed for {}", displayName, exception);
-            throw new BusinessException("OpenAI category icon generation failed: " + exception.getMessage());
+            log.warn("Category icon generation failed for {}", displayName, exception);
+            throw new BusinessException("Category icon generation failed: " + exception.getMessage());
         }
         category.setIconImageUrl(generated.getImageUrl());
         return mapToResponse(productCategoryOptionRepository.save(category));
@@ -250,11 +247,30 @@ public class ProductCategoryOptionServiceImpl implements ProductCategoryOptionSe
         return normalized == null || normalized.isBlank() ? null : normalized;
     }
 
+    private CategoryIconOptionResponse generateCategoryIcon(String categoryName,
+                                                            String seed) throws IOException, InterruptedException {
+        if (!isOpenAiImageConfigured()) {
+            log.warn("OpenAI category icon generation is not configured. Using local fallback icon for {}", categoryName);
+            return generateFallbackCategoryIcon(categoryName, seed);
+        }
+        IOException lastFailure = null;
+        for (int attempt = 1; attempt <= 2; attempt++) {
+            try {
+                return generateOpenAiCategoryIcon(categoryName, seed);
+            } catch (IOException exception) {
+                lastFailure = exception;
+                log.warn("OpenAI category icon generation attempt {} failed for {}: {}", attempt, categoryName, exception.getMessage());
+            }
+        }
+        log.warn("OpenAI category icon generation failed after retries for {}. Using local fallback icon.", categoryName, lastFailure);
+        return generateFallbackCategoryIcon(categoryName, seed);
+    }
+
     private CategoryIconOptionResponse generateOpenAiCategoryIcon(String categoryName,
                                                                   String seed) throws IOException, InterruptedException {
         String prompt = buildCategoryIconPrompt(categoryName, seed);
         Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("model", defaultString(marketingProperties.getAi().getImageModel(), "gpt-image-1.5"));
+        payload.put("model", defaultString(marketingProperties.getAi().getImageModel(), "gpt-image-1"));
         payload.put("prompt", prompt);
         payload.put("size", defaultString(marketingProperties.getAi().getImageSize(), "1024x1024"));
         payload.put("quality", defaultString(marketingProperties.getAi().getImageQuality(), "medium"));
@@ -283,13 +299,90 @@ public class ProductCategoryOptionServiceImpl implements ProductCategoryOptionSe
                 .build();
     }
 
+    private CategoryIconOptionResponse generateFallbackCategoryIcon(String categoryName, String seed) throws IOException {
+        byte[] imageBytes = createLocalCategoryIconPng(categoryName, seed);
+        ImageUploadResponse uploadResponse = imageUploadService.uploadImageBytes(imageBytes, "image/png", "category-icons");
+        if (uploadResponse == null || isBlank(uploadResponse.getCloudfrontUrl())) {
+            throw new IOException("fallback category icon could not be uploaded");
+        }
+        return CategoryIconOptionResponse.builder()
+                .label("Generated Icon")
+                .imageUrl(uploadResponse.getCloudfrontUrl().trim())
+                .build();
+    }
+
+    private byte[] createLocalCategoryIconPng(String categoryName, String seed) throws IOException {
+        int size = 1024;
+        BufferedImage output = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D graphics = output.createGraphics();
+        try {
+            graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            graphics.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
+            graphics.setPaint(new GradientPaint(0, 0, new Color(9, 96, 82), size, size, new Color(45, 212, 191)));
+            graphics.fill(new Ellipse2D.Double(64, 64, size - 128, size - 128));
+            graphics.setColor(new Color(236, 253, 245, 210));
+            graphics.setStroke(new BasicStroke(26, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            graphics.draw(new Ellipse2D.Double(88, 88, size - 176, size - 176));
+
+            graphics.setColor(new Color(255, 255, 255, 236));
+            graphics.setStroke(new BasicStroke(34, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            drawFallbackSymbol(graphics, categoryName, size);
+
+            graphics.setColor(new Color(204, 251, 241, 180));
+            graphics.setStroke(new BasicStroke(12, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            graphics.draw(new Ellipse2D.Double(190, 190, size - 380, size - 380));
+        } finally {
+            graphics.dispose();
+        }
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        if (!ImageIO.write(output, "png", outputStream)) {
+            throw new IOException("fallback category icon could not be encoded");
+        }
+        return outputStream.toByteArray();
+    }
+
+    private void drawFallbackSymbol(Graphics2D graphics, String categoryName, int size) {
+        String normalized = categoryName == null ? "" : categoryName.toLowerCase(Locale.ROOT);
+        if (normalized.contains("ear") || normalized.contains("jhum") || normalized.contains("bali")) {
+            graphics.draw(new Ellipse2D.Double(315, 310, 145, 210));
+            graphics.draw(new Ellipse2D.Double(565, 310, 145, 210));
+            graphics.fillOval(370, 550, 38, 38);
+            graphics.fillOval(620, 550, 38, 38);
+            return;
+        }
+        if (normalized.contains("bangle") || normalized.contains("bracelet")) {
+            graphics.draw(new Ellipse2D.Double(300, 310, 424, 300));
+            graphics.draw(new Ellipse2D.Double(360, 380, 304, 160));
+            return;
+        }
+        if (normalized.contains("ring")) {
+            graphics.draw(new Ellipse2D.Double(360, 410, 300, 300));
+            graphics.fillOval(470, 285, 80, 80);
+            graphics.drawLine(450, 390, 510, 345);
+            graphics.drawLine(575, 390, 520, 345);
+            return;
+        }
+        if (normalized.contains("lip") || normalized.contains("cosmetic") || normalized.contains("makeup")
+                || normalized.contains("beauty") || normalized.contains("skin") || normalized.contains("kajal")) {
+            graphics.drawRoundRect(410, 300, 210, 430, 70, 70);
+            graphics.drawLine(430, 470, 600, 470);
+            graphics.fillRoundRect(458, 230, 110, 120, 50, 50);
+            return;
+        }
+        graphics.drawArc(260, 220, 500, 540, 200, 140);
+        graphics.fillOval(470, 640, 84, 84);
+        graphics.drawLine(510, 638, 510, 575);
+        graphics.fillOval(305, 515, 44, 44);
+        graphics.fillOval(676, 515, 44, 44);
+    }
+
     private String buildCategoryIconPrompt(String categoryName, String seed) {
         String subject = productSymbolFor(categoryName);
         return """
                 Create one premium ecommerce category icon for KRISHNAI Pearl Shopee.
                 Category: %s.
                 Depict: %s.
-                Style: luxury Indian boutique, elegant jewelry-and-beauty retail, clean vector-like product silhouette, polished warm-gold linework with subtle pearl/ivory highlights, refined circular medallion composition, mobile app icon readability at 48px.
+                Style: luxury Indian boutique, elegant jewelry-and-beauty retail, clean vector-like product silhouette, polished emerald and teal linework with subtle pearl/ivory highlights, refined circular medallion composition, mobile app icon readability at 48px.
                 Composition: centered single object or simple paired objects, no hands, no people, no model, no background scene.
                 Technical: square PNG, transparent background outside the circular medallion, no text, no letters, no logo, no watermark, no price tags, no extra decorative clutter.
                 Seed/context: %s.

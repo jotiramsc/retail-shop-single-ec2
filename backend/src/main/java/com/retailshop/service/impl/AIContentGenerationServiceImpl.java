@@ -54,7 +54,7 @@ import java.util.UUID;
 @Service
 public class AIContentGenerationServiceImpl implements AIContentGenerationService {
 
-    private static final Duration CAMPAIGN_IMAGE_OPENAI_TIMEOUT = Duration.ofSeconds(12);
+    private static final Duration CAMPAIGN_IMAGE_OPENAI_TIMEOUT = Duration.ofSeconds(60);
 
     private final MarketingProperties marketingProperties;
     private final ObjectMapper objectMapper;
@@ -743,7 +743,7 @@ public class AIContentGenerationServiceImpl implements AIContentGenerationServic
             return null;
         }
         Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("model", defaultString(marketingProperties.getAi().getImageModel(), "gpt-image-1.5"));
+        payload.put("model", defaultString(marketingProperties.getAi().getImageModel(), "gpt-image-1"));
         payload.put("prompt", imagePrompt);
         payload.put("size", defaultString(marketingProperties.getAi().getImageSize(), "1024x1024"));
         payload.put("quality", defaultString(marketingProperties.getAi().getImageQuality(), "medium"));

@@ -184,7 +184,7 @@ marketing:
     enabled: ${MARKETING_AI_ENABLED:true}
     api-key: ${OPEN_AI_API_KEY:${MARKETING_OPENAI_API_KEY:}}
     model: ${MARKETING_OPENAI_MODEL:gpt-4.1-mini}
-    image-model: ${MARKETING_OPENAI_IMAGE_MODEL:gpt-image-1.5}
+    image-model: ${MARKETING_OPENAI_IMAGE_MODEL:gpt-image-1}
     image-size: ${MARKETING_OPENAI_IMAGE_SIZE:1024x1024}
     image-quality: ${MARKETING_OPENAI_IMAGE_QUALITY:medium}
   meta:

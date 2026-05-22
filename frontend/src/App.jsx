@@ -211,6 +211,11 @@ function ProtectedApp({ auth, onLogout, branding }) {
   }, [location.pathname]);
 
   const handleParentMenuToggle = (item) => {
+    if (isMenuCollapsed) {
+      setIsMenuCollapsed(false);
+      setOpenMenuKey(item.to);
+      return;
+    }
     setOpenMenuKey((current) => (current === item.to ? '' : item.to));
   };
 
@@ -252,27 +257,26 @@ function ProtectedApp({ auth, onLogout, branding }) {
                 {group.items.map((item) => {
                   const isParentActive = isNavItemActive(location, item);
                   const hasChildren = Boolean(item.children?.length);
-                  const isOpen = hasChildren && openMenuKey === item.to;
+                  const isOpen = hasChildren && !isMenuCollapsed && openMenuKey === item.to;
                   return (
                     <li key={item.to} className={`menu-item ${isParentActive ? 'active' : ''} ${isOpen ? 'open' : ''}`}>
                       {hasChildren ? (
                         <div className="menu-link kps-parent-link kps-menu-parent-row">
-                          <NavLink to={item.children[0]?.to || item.to} className="kps-menu-parent-target" aria-label={`Open ${item.label}`}>
+                          <button
+                            type="button"
+                            className="kps-parent-icon-toggle"
+                            onClick={() => handleParentMenuToggle(item)}
+                            aria-expanded={isOpen}
+                            aria-label={`${isOpen ? 'Collapse' : 'Expand'} ${item.label} submenu`}
+                          >
                             <i className={`menu-icon tf-icons bx ${item.icon}`} />
+                          </button>
+                          <NavLink to={item.children[0]?.to || item.to} className="kps-menu-parent-target" aria-label={`Open ${item.label}`}>
                             <div>{item.label}</div>
                           </NavLink>
                           {item.badgeKey === 'supportUnread' && Number(supportSummary.unreadCount || 0) > 0 ? (
                             <span className="badge bg-label-warning rounded-pill ms-auto">{supportSummary.unreadCount}</span>
                           ) : null}
-                          <button
-                            type="button"
-                            className="kps-submenu-toggle"
-                            onClick={() => handleParentMenuToggle(item)}
-                            aria-expanded={isOpen}
-                            aria-label={`${isOpen ? 'Collapse' : 'Expand'} ${item.label} submenu`}
-                          >
-                            <i className="bx bx-chevron-right" />
-                          </button>
                         </div>
                       ) : (
                         <NavLink to={item.to} end={item.to === '/app'} className="menu-link kps-parent-link">

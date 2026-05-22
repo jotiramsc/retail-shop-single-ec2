@@ -1,7 +1,5 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import PageHeader from '../components/PageHeader';
-import Panel from '../components/Panel';
 import { retailService } from '../services/retailService';
 import { getApiErrorMessage } from '../utils/validation';
 
@@ -204,17 +202,38 @@ export default function ReceiptSettingsPage({
     }
   };
 
+  const pageTitle = {
+    brand: 'Business details',
+    theme: 'Theme and media',
+    social: 'Social links',
+    facebook: 'Meta catalog'
+  }[activeTab] || 'Brand configuration';
+
   return (
-    <div className="page">
+    <div className="sneat-module-page settings-admin-page">
       {hidePageHeader ? null : (
-        <PageHeader
-          eyebrow="Admin"
-          title="Brand configuration"
-          description="Control the store identity, receipt details, customer access branding, logo, hero text, trust badges, and images."
-        />
+        <section className="sneat-page-title">
+          <div>
+            <span className="sneat-eyebrow">Admin settings</span>
+            <h1>{pageTitle}</h1>
+            <p>Control store identity, checkout settings, website media, social links, and catalog feeds with the new admin component style.</p>
+          </div>
+          <div className="sneat-page-actions">
+            <button className="btn btn-primary" type="submit" form="brand-settings-form">
+              <i className="bx bx-save me-1" /> Save
+            </button>
+          </div>
+        </section>
       )}
 
-      <Panel title="Business and receipt details" subtitle="These values are used across the website, customer access screens, printed receipts, and Facebook catalog feed.">
+      <section className="sneat-card settings-modern-card">
+        <div className="sneat-card-head">
+          <div>
+            <small>Configuration</small>
+            <h3>{pageTitle}</h3>
+          </div>
+          <span className="badge bg-label-primary">Live settings</span>
+        </div>
         {hideTabs ? null : <div className="admin-tab-row settings-tabs" role="tablist" aria-label="Brand configuration sections">
           {[
             ['brand', 'Brand Details'],
@@ -232,7 +251,7 @@ export default function ReceiptSettingsPage({
             </button>
           ))}
         </div>}
-        <form className="form-grid" onSubmit={handleSubmit}>
+        <form id="brand-settings-form" className="form-grid settings-modern-form" onSubmit={handleSubmit}>
           {activeTab === 'brand' ? (
             <>
               <div className="settings-two-column">
@@ -487,9 +506,9 @@ export default function ReceiptSettingsPage({
 
           {error ? <p className="error-text">{error}</p> : null}
           {success ? <p className="success-text">{success}</p> : null}
-          <button className="primary-btn" type="submit">Save configuration</button>
+          <button className="btn btn-primary" type="submit"><i className="bx bx-save me-1" /> Save configuration</button>
         </form>
-      </Panel>
+      </section>
     </div>
   );
 }

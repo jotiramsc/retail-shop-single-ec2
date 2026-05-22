@@ -19,6 +19,15 @@ const ORDER_STATUS_OPTIONS = [
   'PAYMENT_FAILED'
 ];
 
+const shippingTimelineTemplate = [
+  { status: 'PENDING', title: 'Order was placed', description: 'Your order has been placed successfully' },
+  { status: 'CONFIRMED', title: 'Pick-up', description: 'Pick-up scheduled with courier' },
+  { status: 'SHIPPED', title: 'Dispatched', description: 'Item has been picked up by courier' },
+  { status: 'SHIPPED', title: 'Package arrived', description: 'Package arrived at sorting facility' },
+  { status: 'SHIPPED', title: 'Dispatched for delivery', description: 'Package has left the sorting facility' },
+  { status: 'DELIVERED', title: 'Delivery', description: 'Package will be delivered by tomorrow' }
+];
+
 const previewOrderPage = {
   invoices: [
     {
@@ -79,6 +88,15 @@ function normalizeSource(row, mode) {
   return String(row?.source || (mode === 'invoices' || mode === 'invoice-details' ? 'BILLING' : 'BILLING')).toUpperCase();
 }
 
+function statusRank(status) {
+  const normalized = String(status || '').toUpperCase();
+  if (normalized === 'DELIVERED' || normalized === 'COMPLETED') return 5;
+  if (normalized === 'SHIPPED') return 4;
+  if (normalized === 'CONFIRMED') return 1;
+  if (normalized === 'CANCELLED' || normalized === 'RETURNED' || normalized === 'REFUND_INITIATED' || normalized === 'PAYMENT_FAILED') return 0;
+  return normalized ? 0 : -1;
+}
+
 function AdminOrderDetails({ mode }) {
   const { orderId } = useParams();
   const location = useLocation();
@@ -100,6 +118,7 @@ function AdminOrderDetails({ mode }) {
   const tax = invoice?.tax ?? stateOrder?.tax ?? 0;
   const delivery = invoice?.delivery ?? stateOrder?.delivery ?? 0;
   const total = invoice?.finalAmount ?? stateOrder?.finalAmount ?? 0;
+  const activeShippingRank = statusRank(currentStatus);
 
   useEffect(() => {
     if (!orderId || isWebsiteOrder) return;
@@ -206,8 +225,8 @@ function AdminOrderDetails({ mode }) {
           </section>
 
           {isWebsiteOrder ? (
-            <section className="sneat-card">
-              <div className="sneat-card-head"><div><small>Delivery</small><h3>Status template</h3></div></div>
+            <section className="sneat-card sneat-shipping-activity-card">
+              <div className="sneat-card-head"><div><small>Delivery</small><h3>Shipping activity</h3></div></div>
               <label className="sneat-status-control">
                 <span>Website order status</span>
                 <select
@@ -222,13 +241,30 @@ function AdminOrderDetails({ mode }) {
                   ))}
                 </select>
               </label>
-              <div className="sneat-order-timeline">
-                {['Order placed', 'Payment verified', currentStatus || 'Awaiting fulfilment'].map((label, index) => (
-                  <div className="sneat-timeline-row" key={label}>
-                    <i className="bx bx-check" />
-                    <div><strong>{label}</strong><span>{index === 0 ? formatDate(stateOrder?.createdAt) : 'Website order tracking'}</span></div>
+              <div className="sneat-shipping-timeline">
+                {shippingTimelineTemplate.map((step, index) => {
+                  const isDone = index <= activeShippingRank;
+                  return (
+                    <div className={`sneat-shipping-row ${isDone ? 'is-done' : ''}`} key={`${step.title}-${index}`}>
+                      <span className="sneat-shipping-dot" />
+                      <div>
+                        <strong>{index === 0 ? `${step.title} (Order ID: #${reference})` : step.title}</strong>
+                        <p>{step.description}</p>
+                      </div>
+                      <time>{index === 0 ? formatDate(stateOrder?.createdAt) : isDone ? 'Updated' : 'Pending'}</time>
+                    </div>
+                  );
+                })}
+                {['CANCELLED', 'RETURNED', 'REFUND_INITIATED', 'PAYMENT_FAILED'].includes(String(currentStatus || '').toUpperCase()) ? (
+                  <div className="sneat-shipping-row is-exception">
+                    <span className="sneat-shipping-dot" />
+                    <div>
+                      <strong>{currentStatus.replaceAll('_', ' ')}</strong>
+                      <p>This website order has moved out of the normal delivery flow.</p>
+                    </div>
+                    <time>Current</time>
                   </div>
-                ))}
+                ) : null}
               </div>
             </section>
           ) : (

@@ -1,8 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import DataTable from '../components/DataTable';
-import MetricCard from '../components/MetricCard';
-import PageHeader from '../components/PageHeader';
-import Panel from '../components/Panel';
 import { retailService } from '../services/retailService';
 import { currency, formatDate } from '../utils/format';
 import { getApiErrorMessage } from '../utils/validation';
@@ -11,6 +8,19 @@ const today = new Date().toISOString().slice(0, 10);
 const monthStart = `${today.slice(0, 8)}01`;
 const yearStart = `${today.slice(0, 4)}-01-01`;
 const websiteOption = { id: 'WEBSITE', displayName: 'Website' };
+
+function SalesStat({ icon, label, value, note, tone = 'primary' }) {
+  return (
+    <article className={`sneat-stat-card is-${tone}`}>
+      <span className="sneat-stat-icon"><i className={`bx ${icon}`} /></span>
+      <div>
+        <small>{label}</small>
+        <strong>{value}</strong>
+        {note ? <span>{note}</span> : null}
+      </div>
+    </article>
+  );
+}
 
 export default function SalespersonSalesPage({ auth }) {
   const isAdmin = auth?.role === 'ADMIN';
@@ -98,26 +108,34 @@ export default function SalespersonSalesPage({ auth }) {
   );
 
   return (
-    <div className="page">
-      <PageHeader
-        eyebrow="Salesperson Sales"
-        title="Track sales performance by salesperson"
-        description="See totals, trends, and bill-level detail for each salesperson, with admin-wide visibility and self-view for staff."
-      />
+    <div className="sneat-module-page salesperson-sales-page">
+      <section className="sneat-page-title">
+        <div>
+          <span className="sneat-eyebrow">eCommerce sales</span>
+          <h1>Salesperson performance</h1>
+          <p>Track counter billing and website sales with clean filters, trend bars, and bill-level records.</p>
+        </div>
+        <div className="sneat-page-actions">
+          <button type="button" className="btn btn-outline-primary" onClick={() => applyQuickFilter('TODAY')}>Today</button>
+          <button type="button" className="btn btn-primary" onClick={() => loadReport()} disabled={loading}>
+            <i className="bx bx-refresh me-1" /> Refresh
+          </button>
+        </div>
+      </section>
 
-      <Panel title="Filters" subtitle={isAdmin ? 'Filter across all salespersons or focus on one performer.' : `Showing only ${auth?.displayName || 'your'} sales.`}>
-        <div className="salesperson-sales-filters">
-          <label>
-            <span>From</span>
-            <input type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} max={toDate} />
-          </label>
-          <label>
-            <span>To</span>
-            <input type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} min={fromDate} max={today} />
-          </label>
+      <section className="sneat-card sneat-filter-card">
+        <div className="sneat-card-head">
+          <div>
+            <small>Filters</small>
+            <h3>{isAdmin ? 'All salespersons' : auth?.displayName || 'Current user'}</h3>
+          </div>
+          <span className="badge bg-label-primary">{viewType}</span>
+        </div>
+        <div className="sneat-filter-grid salesperson-filter-grid">
+          <label><span>From</span><input type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} max={toDate} /></label>
+          <label><span>To</span><input type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} min={fromDate} max={today} /></label>
           {isAdmin ? (
-            <label>
-              <span>Salesperson</span>
+            <label><span>Salesperson</span>
               <select value={salespersonId} onChange={(event) => setSalespersonId(event.target.value)}>
                 <option value="">All salespersons</option>
                 {salesPeople.map((salesPerson) => (
@@ -128,53 +146,43 @@ export default function SalespersonSalesPage({ auth }) {
               </select>
             </label>
           ) : (
-            <div className="salesperson-sales-lockup">
+            <div className="sneat-lockup-field">
               <span>Salesperson</span>
               <strong>{auth?.displayName || 'Current user'}</strong>
             </div>
           )}
-
-          <div className="salesperson-sales-filter-group">
-            <span>Quick filters</span>
-            <div className="salesperson-sales-quick-actions">
-              <button type="button" className="ghost-btn compact-btn" onClick={() => applyQuickFilter('TODAY')}>Today</button>
-              <button type="button" className="ghost-btn compact-btn" onClick={() => applyQuickFilter('MONTH')}>This Month</button>
-              <button type="button" className="ghost-btn compact-btn" onClick={() => applyQuickFilter('YEAR')}>This Year</button>
-            </div>
+        </div>
+        <div className="sneat-toolbar-row">
+          <div className="btn-group" role="group" aria-label="Quick date filters">
+            <button type="button" className="btn btn-outline-primary" onClick={() => applyQuickFilter('TODAY')}>Today</button>
+            <button type="button" className="btn btn-outline-primary" onClick={() => applyQuickFilter('MONTH')}>This Month</button>
+            <button type="button" className="btn btn-outline-primary" onClick={() => applyQuickFilter('YEAR')}>This Year</button>
           </div>
-
-          <div className="salesperson-sales-filter-group">
-            <span>Breakdown</span>
-            <div className="salesperson-sales-view-switch">
-              {['DAILY', 'MONTHLY', 'YEARLY'].map((type) => (
-                <button
-                  key={type}
-                  type="button"
-                  className={`ghost-btn compact-btn ${viewType === type ? 'active' : ''}`}
-                  onClick={() => setViewType(type)}
-                >
-                  {type}
-                </button>
-              ))}
-            </div>
+          <div className="btn-group" role="group" aria-label="Breakdown">
+            {['DAILY', 'MONTHLY', 'YEARLY'].map((type) => (
+              <button key={type} type="button" className={`btn ${viewType === type ? 'btn-primary' : 'btn-outline-primary'}`} onClick={() => setViewType(type)}>
+                {type}
+              </button>
+            ))}
           </div>
         </div>
-      </Panel>
+      </section>
 
       {error ? <p className="error-text">{error}</p> : null}
 
-      <div className="metrics-grid">
-        <MetricCard label="Total Sales Amount" value={currency(report?.totalSalesAmount)} tone="highlight" />
-        <MetricCard label="Total Orders" value={report?.totalOrders ?? 0} />
-        <MetricCard label="Total Items Sold" value={report?.totalItemsSold ?? 0} />
-        <MetricCard label="Average Order Value" value={currency(report?.averageOrderValue)} />
-      </div>
+      <section className="sneat-stat-grid">
+        <SalesStat icon="bx-rupee" label="Total Sales Amount" value={currency(report?.totalSalesAmount)} note="Current filter" />
+        <SalesStat icon="bx-receipt" label="Total Orders" value={report?.totalOrders ?? 0} note="Bills and website orders" tone="info" />
+        <SalesStat icon="bx-package" label="Total Items Sold" value={report?.totalItemsSold ?? 0} note="Units sold" tone="success" />
+        <SalesStat icon="bx-trending-up" label="Average Order Value" value={currency(report?.averageOrderValue)} note="AOV" tone="warning" />
+      </section>
 
-      <div className="two-column">
-        <Panel
-          title={`${viewType.charAt(0)}${viewType.slice(1).toLowerCase()} trend`}
-          subtitle={loading ? 'Refreshing sales trend...' : `Viewing ${report?.salespersonName || 'All salespersons'} from ${fromDate} to ${toDate}.`}
-        >
+      <section className="sneat-dashboard-grid">
+        <article className="sneat-card">
+          <div className="sneat-card-head">
+            <div><small>Trend</small><h3>{`${viewType.charAt(0)}${viewType.slice(1).toLowerCase()} trend`}</h3></div>
+            <span className="badge bg-label-info">{fromDate} to {toDate}</span>
+          </div>
           <div className="salesperson-sales-trend">
             {(report?.trend || []).length === 0 ? (
               <p className="empty-cell">No sales captured for this selection yet.</p>
@@ -192,12 +200,10 @@ export default function SalespersonSalesPage({ auth }) {
               ))
             )}
           </div>
-        </Panel>
+        </article>
 
-        <Panel
-          title="Sales snapshot"
-          subtitle="A clean roll-up of the current filter selection."
-        >
+        <article className="sneat-card">
+          <div className="sneat-card-head"><div><small>Snapshot</small><h3>Sales snapshot</h3></div></div>
           <div className="salesperson-sales-snapshot">
             <div>
               <span>Viewing</span>
@@ -216,10 +222,11 @@ export default function SalespersonSalesPage({ auth }) {
               <strong>{report?.records?.length ?? 0}</strong>
             </div>
           </div>
-        </Panel>
-      </div>
+        </article>
+      </section>
 
-      <Panel title="Detailed sales records" subtitle="Bill-level detail for the active date range and salesperson filter.">
+      <section className="sneat-card">
+        <div className="sneat-card-head"><div><small>Records</small><h3>Detailed sales records</h3></div></div>
         <DataTable
           columns={[
             { key: 'date', label: 'Date', render: (row) => formatDate(row.date) },
@@ -232,7 +239,7 @@ export default function SalespersonSalesPage({ auth }) {
           rows={report?.records || []}
           emptyMessage={loading ? 'Loading salesperson sales...' : 'No sales records found for the current filter.'}
         />
-      </Panel>
+      </section>
     </div>
   );
 }

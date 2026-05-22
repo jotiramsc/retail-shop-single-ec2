@@ -19,7 +19,7 @@ public class MarketingProperties {
         private boolean enabled = true;
         private String apiKey = "";
         private String model = "gpt-4.1-mini";
-        private String imageModel = "gpt-image-1.5";
+        private String imageModel = "gpt-image-1";
         private String imageSize = "1024x1024";
         private String imageQuality = "medium";
     }

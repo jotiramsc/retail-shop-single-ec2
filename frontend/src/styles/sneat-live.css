@@ -132,6 +132,27 @@ body {
   align-items: center;
 }
 
+.kps-parent-icon-toggle {
+  display: inline-grid;
+  flex: 0 0 auto;
+  width: 2.35rem;
+  height: 2.35rem;
+  place-items: center;
+  border: 0;
+  border-radius: 0.75rem;
+  background: transparent;
+  color: inherit;
+}
+
+.kps-parent-icon-toggle:hover,
+.kps-parent-icon-toggle[aria-expanded="true"] {
+  background: rgba(45, 212, 191, 0.16);
+}
+
+.kps-parent-icon-toggle .menu-icon {
+  margin: 0;
+}
+
 .kps-menu-parent-target {
   display: flex;
   flex: 1;
@@ -139,27 +160,6 @@ body {
   align-items: center;
   color: inherit;
   text-decoration: none;
-}
-
-.kps-submenu-toggle {
-  display: inline-grid;
-  flex: 0 0 1.9rem;
-  width: 1.9rem;
-  height: 1.9rem;
-  place-items: center;
-  border: 0;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.12);
-  color: inherit;
-  transition: background-color 0.2s ease, transform 0.2s ease;
-}
-
-.kps-submenu-toggle:hover {
-  background: rgba(45, 212, 191, 0.2);
-}
-
-.kps-sneat-menu .menu-item.open .kps-submenu-toggle i {
-  transform: rotate(90deg);
 }
 
 .kps-sneat-menu .menu-sub .menu-link {
@@ -421,20 +421,13 @@ body {
 }
 
 .kps-menu-collapsed .kps-menu-parent-target {
-  flex: 0 0 auto;
+  display: none;
 }
 
-.kps-menu-collapsed .kps-submenu-toggle {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+.kps-menu-collapsed .kps-parent-icon-toggle {
+  width: 3.4rem;
+  height: 3.15rem;
   border-radius: 0.9rem;
-  background: transparent;
-}
-
-.kps-menu-collapsed .kps-submenu-toggle i {
-  opacity: 0;
 }
 
 .kps-menu-collapsed .menu-inner {
@@ -453,33 +446,22 @@ body {
 }
 
 .kps-menu-collapsed .menu-sub {
-  position: absolute;
-  top: 0;
-  left: calc(100% + 0.65rem);
-  z-index: 60;
-  display: grid !important;
-  width: 14rem;
-  max-height: none !important;
-  padding: 0.6rem;
-  overflow: visible;
+  position: static !important;
+  display: none !important;
+  width: 0 !important;
+  max-height: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
   visibility: hidden !important;
   opacity: 0 !important;
   pointer-events: none !important;
-  border: 1px solid rgba(94, 234, 212, 0.22);
-  border-radius: 0.9rem;
-  background:
-    linear-gradient(180deg, rgba(10, 74, 61, 0.96), rgba(13, 104, 85, 0.92)),
-    url("/assets/glowjewels/maharashtrian_jewelry_flatlay.png") center / cover;
-  box-shadow: 0 1rem 2rem rgba(15, 118, 110, 0.24);
-  transform: translateX(-0.45rem);
-  transition: opacity 0.22s ease, transform 0.22s ease, visibility 0.22s ease;
 }
 
 .kps-menu-collapsed .menu-item.open > .menu-sub {
-  visibility: visible !important;
-  opacity: 1 !important;
-  pointer-events: auto !important;
-  transform: translateX(0);
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
 
 .kps-menu-collapsed .menu-sub .menu-link {

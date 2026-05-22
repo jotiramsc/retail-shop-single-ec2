@@ -106,6 +106,7 @@ export const retailService = {
   getCustomerHistory: (mobile) => api.get(`/customers/history?mobile=${mobile}`).then((res) => res.data),
   previewInvoice: (payload) => api.post('/billing/preview', payload).then((res) => res.data),
   createInvoice: (payload) => api.post('/billing/create', payload).then((res) => res.data),
+  getInvoice: (id) => api.get(`/billing/${id}`).then((res) => res.data),
   updateInvoice: (id, payload) => api.put(`/billing/${id}`, payload).then((res) => res.data),
   searchInvoices: ({ fromDate, toDate, customerName, page = 0, size = 10 }) => {
     const params = new URLSearchParams();
