@@ -4,6 +4,7 @@ import PageHeader from '../components/PageHeader';
 import { retailService } from '../services/retailService';
 import { currency, formatDate } from '../utils/format';
 import { getApiErrorMessage } from '../utils/validation';
+import { confirmAction, showError, showSuccess } from '../utils/notifications';
 
 const STATUS_OPTIONS = ['', 'OPEN', 'IN_PROGRESS', 'RESOLVED'];
 
@@ -269,7 +270,12 @@ export default function SupportInboxPage({
       return;
     }
     if (Number(product.quantity || 0) <= 0) {
-      const shouldSend = window.confirm(`${product.name} is out of stock. Send this suggestion anyway?`);
+      const shouldSend = await confirmAction({
+        title: 'Product is out of stock',
+        message: `${product.name} is out of stock. Send this suggestion anyway?`,
+        confirmText: 'Send anyway',
+        tone: 'warning'
+      });
       if (!shouldSend) {
         return;
       }
@@ -281,9 +287,12 @@ export default function SupportInboxPage({
       setSelected(detail);
       setShowProductPicker(false);
       setSuccess('Product sent to WhatsApp.');
+      showSuccess('Product sent to WhatsApp.');
       await Promise.all([loadSummary(), loadConversations()]);
     } catch (requestError) {
-      setError(getApiErrorMessage(requestError, 'Unable to send product.'));
+      const message = getApiErrorMessage(requestError, 'Unable to send product.');
+      setError(message);
+      showError(message);
     } finally {
       setLoading(false);
     }

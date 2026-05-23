@@ -49,7 +49,7 @@ public class AuthController {
                 .displayName(user.getDisplayName())
                 .permissions((user.getRole() == StaffRole.ADMIN || user.getRole() == StaffRole.OWNER
                         ? java.util.Arrays.stream(AppPermission.values())
-                        : user.getPermissions().stream()).map(Enum::name).toList())
+                        : staffUserService.getEffectivePermissions(user).stream()).map(Enum::name).toList())
                 .token("Bearer " + token.token())
                 .expiresAt(token.expiresAt())
                 .build();

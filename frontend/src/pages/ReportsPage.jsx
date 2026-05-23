@@ -398,7 +398,7 @@ export default function ReportsPage({
   };
 
   return (
-    <div className="page">
+    <div className="page reports-page">
       {hidePageHeader ? null : (
         <PageHeader
           eyebrow="Reports"

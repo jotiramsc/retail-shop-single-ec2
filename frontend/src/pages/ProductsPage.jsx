@@ -6,6 +6,7 @@ import Panel from '../components/Panel';
 import { retailService } from '../services/retailService';
 import { currency } from '../utils/format';
 import { getApiErrorMessage } from '../utils/validation';
+import { confirmAction, showError, showSuccess, showToast } from '../utils/notifications';
 
 const createBlankProduct = (defaultCategory = '') => ({
   name: '',
@@ -122,6 +123,17 @@ export default function ProductsPage({
       setActiveInventoryTab(requestedTab);
     }
   }, [requestedTab, activeInventoryTab, hideTabs]);
+
+  useEffect(() => {
+    const requestedQuery = searchParams.get('q') || searchParams.get('search') || '';
+    if (!requestedQuery) return;
+    if (activeInventoryTab === 'categories') {
+      setInventoryTableSearch(requestedQuery);
+      return;
+    }
+    setInventorySearch(requestedQuery);
+    setInventoryTableSearch(requestedQuery);
+  }, [searchParams, activeInventoryTab]);
 
   useEffect(() => {
     if (!hideTabs) return;
@@ -479,19 +491,28 @@ export default function ProductsPage({
         setCategoryForm((current) => ({ ...current, iconImageUrl: options[0].imageUrl }));
         setIconOptions([]);
         setCategorySuccess(editingCategoryId ? 'Category icon generated. Save the category to apply it.' : 'Category icon generated. Save the category to keep it.');
+        showToast({ title: 'Icon generated', message: 'Transparent category icon is ready.', tone: 'success' });
       } else {
         setCategoryError('OpenAI returned no category icon. Please try again.');
+        showError('OpenAI returned no category icon. Please try again.');
       }
     } catch (requestError) {
       setIconOptions([]);
-      setCategoryError(getApiErrorMessage(requestError, 'Unable to generate category icon with OpenAI.'));
+      const message = getApiErrorMessage(requestError, 'Unable to generate category icon with OpenAI.');
+      setCategoryError(message);
+      showError(message, 'Icon generation failed');
     } finally {
       setIconGenerating(false);
     }
   };
 
   const handleDeleteProduct = async (product) => {
-    const confirmed = window.confirm(`Remove "${product.name}" from active inventory? Receipts and invoices will stay preserved.`);
+    const confirmed = await confirmAction({
+      title: 'Remove product?',
+      message: `Remove "${product.name}" from active inventory? Receipts and invoices will stay preserved.`,
+      confirmText: 'Remove',
+      tone: 'danger'
+    });
     if (!confirmed) {
       return;
     }
@@ -505,11 +526,14 @@ export default function ProductsPage({
         resetForm();
       }
       setSuccess('Product removed from active inventory. Existing receipts and invoices are preserved.');
+      showSuccess('Product removed from active inventory.');
       const nextPage = products.length === 1 && productsPage.page > 0 ? productsPage.page - 1 : productsPage.page;
       loadProducts(nextPage);
       loadProductDirectory();
     } catch (requestError) {
-      setError(getApiErrorMessage(requestError, 'Unable to delete product.'));
+      const message = getApiErrorMessage(requestError, 'Unable to delete product.');
+      setError(message);
+      showError(message);
     }
   };
 
@@ -632,7 +656,12 @@ export default function ProductsPage({
       .slice(0, normalized || inventoryCategoryFilter || inventoryStockFilter !== 'ALL' || inventoryWebsiteFilter !== 'ALL' ? 80 : products.length);
   }, [inventoryTableSearch, inventoryCategoryFilter, inventoryStockFilter, inventoryWebsiteFilter, products, searchableProducts]);
 
-  const categoryTableRows = useMemo(() => categoriesPage.items || [], [categoriesPage.items]);
+  const categoryTableRows = useMemo(() => {
+    const normalized = activeInventoryTab === 'categories' ? inventoryTableSearch.trim().toLowerCase() : '';
+    const rows = categoriesPage.items || [];
+    if (!normalized) return rows;
+    return rows.filter((category) => `${category.displayName} ${category.code} ${category.description || ''}`.toLowerCase().includes(normalized));
+  }, [activeInventoryTab, categoriesPage.items, inventoryTableSearch]);
 
   return (
     <div className="page">
@@ -1030,6 +1059,12 @@ export default function ProductsPage({
                 <strong>{categoriesPage.totalItems || categoryTableRows.length} categories</strong>
                 <span>Transparent icons, catalog sync, and product form visibility.</span>
               </div>
+              <input
+                value={activeInventoryTab === 'categories' ? inventoryTableSearch : ''}
+                onChange={(event) => setInventoryTableSearch(event.target.value)}
+                placeholder="Search categories"
+                aria-label="Search categories"
+              />
               <button
                 type="button"
                 className="primary-btn compact-btn"

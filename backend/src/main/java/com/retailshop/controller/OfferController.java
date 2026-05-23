@@ -29,30 +29,33 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/offers")
 @RequiredArgsConstructor
-@PreAuthorize("hasAuthority('PERM_OFFERS')")
 public class OfferController {
 
     private final OfferService offerService;
     private final AutomationService automationService;
 
     @PostMapping
+    @PreAuthorize("hasAuthority('PERM_OFFERS')")
     @ResponseStatus(HttpStatus.CREATED)
     public OfferResponse createOffer(@Valid @RequestBody OfferRequest request) {
         return offerService.createOffer(request);
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasAuthority('PERM_OFFERS')")
     public OfferResponse updateOffer(@PathVariable UUID id, @Valid @RequestBody OfferRequest request) {
         return offerService.updateOffer(id, request);
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('PERM_OFFERS')")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteOffer(@PathVariable UUID id) {
         offerService.deleteOffer(id);
     }
 
     @GetMapping
+    @PreAuthorize("hasAnyAuthority('PERM_OFFERS', 'PERM_BILLING', 'PERM_MARKETING_AUTOMATION', 'PERM_CAMPAIGNS')")
     public PaginatedResponse<OfferResponse> getOffers(@RequestParam(defaultValue = "0") int page,
                                                       @RequestParam(defaultValue = "10") int size) {
         Pageable pageable = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 100));
@@ -60,6 +63,7 @@ public class OfferController {
     }
 
     @GetMapping("/suggested")
+    @PreAuthorize("hasAnyAuthority('PERM_OFFERS', 'PERM_MARKETING_AUTOMATION', 'PERM_CAMPAIGNS')")
     public List<OfferSuggestionResponse> getSuggestedOffers() {
         return automationService.suggestOffersForSlowMovingProducts();
     }

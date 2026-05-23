@@ -59,14 +59,19 @@ export default function BillingPage() {
   }, [popupMessage]);
 
   useEffect(() => {
-    Promise.all([
+    Promise.allSettled([
       retailService.getProducts({ page: 0, size: 250 }),
       retailService.getTrendingProducts(),
       retailService.getReceiptSettings(),
       retailService.getOffers({ page: 0, size: 250 }),
       retailService.getSalesPeople()
     ])
-      .then(([allProducts, trending, settings, offersPage, salesPeopleList]) => {
+      .then(([allProductsResult, trendingResult, settingsResult, offersResult, salesPeopleResult]) => {
+        const allProducts = allProductsResult.status === 'fulfilled' ? allProductsResult.value : { items: [] };
+        const trending = trendingResult.status === 'fulfilled' ? trendingResult.value : [];
+        const settings = settingsResult.status === 'fulfilled' ? settingsResult.value : null;
+        const offersPage = offersResult.status === 'fulfilled' ? offersResult.value : { items: [] };
+        const salesPeopleList = salesPeopleResult.status === 'fulfilled' ? salesPeopleResult.value : [];
         setProducts((allProducts.items || []).filter((product) => product.useForBilling !== false));
         setTrendingProducts((trending || []).filter((product) => product.useForBilling !== false));
         setReceiptSettings(settings);
@@ -84,6 +89,11 @@ export default function BillingPage() {
             salesPersonUserId: currentUserMatch?.id || salesPeopleList?.[0]?.id || ''
           };
         });
+        if (allProductsResult.status === 'rejected') {
+          setError('Unable to load billing products for this account. Check checkout permission.');
+        } else {
+          setError('');
+        }
       })
       .catch(() => setError('Unable to load billing data.'));
   }, []);

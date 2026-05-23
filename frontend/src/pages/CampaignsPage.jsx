@@ -8,6 +8,7 @@ import { retailService } from '../services/retailService';
 import { currency, formatDate } from '../utils/format';
 import { getStoredAuthSession } from '../utils/auth';
 import { getApiErrorMessage } from '../utils/validation';
+import { confirmAction, promptAction, showError, showSuccess, showToast } from '../utils/notifications';
 
 const TABS = [
   { value: 'campaigns', label: 'Campaigns' },
@@ -572,7 +573,13 @@ export default function CampaignsPage({
   };
 
   const handleDeleteCampaign = async (campaignId, campaignName) => {
-    if (!window.confirm(`Delete campaign "${campaignName || 'this campaign'}"? This will remove its drafts, approvals, schedules, and logs.`)) {
+    const confirmed = await confirmAction({
+      title: 'Delete campaign?',
+      message: `Delete "${campaignName || 'this campaign'}"? This removes drafts, approvals, schedules, and logs.`,
+      confirmText: 'Delete',
+      tone: 'danger'
+    });
+    if (!confirmed) {
       return;
     }
     setLoading(true);
@@ -588,8 +595,11 @@ export default function CampaignsPage({
       await loadScheduled(0);
       await loadApprovalQueue();
       await loadAnalytics();
+      showSuccess('Campaign deleted.');
     } catch (requestError) {
-      setError(getApiErrorMessage(requestError, 'Unable to delete campaign.'));
+      const message = getApiErrorMessage(requestError, 'Unable to delete campaign.');
+      setError(message);
+      showError(message);
     } finally {
       setLoading(false);
     }
@@ -618,13 +628,16 @@ export default function CampaignsPage({
     try {
       await retailService.updateMarketingContent(contentId, buildContentUpdatePayload(contentId));
       setSuccess('Draft updated.');
+      showSuccess('Draft updated.');
       if (selectedCampaign?.id) {
         await loadCampaignDetails(selectedCampaign.id);
       }
       await loadApprovalQueue();
       await loadCampaigns(campaignsPage.page || 0);
     } catch (requestError) {
-      setError(getApiErrorMessage(requestError, 'Unable to update content draft.'));
+      const message = getApiErrorMessage(requestError, 'Unable to update content draft.');
+      setError(message);
+      showError(message);
     }
   };
 
@@ -654,13 +667,16 @@ export default function CampaignsPage({
         imageUrl: uploadedUrl
       });
       setSuccess('Custom campaign image uploaded and saved.');
+      showToast({ title: 'Upload saved', message: 'Custom campaign image uploaded and saved.', tone: 'success' });
       if (selectedCampaign?.id) {
         await loadCampaignDetails(selectedCampaign.id);
       }
       await loadApprovalQueue();
       await loadCampaigns(campaignsPage.page || 0);
     } catch (requestError) {
-      setError(getApiErrorMessage(requestError, 'Unable to upload custom campaign image.'));
+      const message = getApiErrorMessage(requestError, 'Unable to upload custom campaign image.');
+      setError(message);
+      showError(message, 'Upload failed');
     } finally {
       setUploadingImageByContent((current) => ({ ...current, [contentId]: false }));
     }
@@ -671,6 +687,7 @@ export default function CampaignsPage({
     try {
       await retailService.approveMarketingContent(contentId, {});
       setSuccess('Content approved.');
+      showSuccess('Content approved.');
       if (selectedCampaign?.id) {
         await loadCampaignDetails(selectedCampaign.id);
       }
@@ -678,12 +695,19 @@ export default function CampaignsPage({
       await loadCampaigns(campaignsPage.page || 0);
       await loadScheduled(0);
     } catch (requestError) {
-      setError(getApiErrorMessage(requestError, 'Unable to approve content.'));
+      const message = getApiErrorMessage(requestError, 'Unable to approve content.');
+      setError(message);
+      showError(message);
     }
   };
 
   const rejectContent = async (contentId) => {
-    const reason = window.prompt('Reason for rejection');
+    const reason = await promptAction({
+      title: 'Reject content',
+      message: 'Add a short reason so the team knows what needs to change.',
+      placeholder: 'Reason for rejection',
+      confirmText: 'Reject'
+    });
     if (!reason) {
       return;
     }
@@ -691,13 +715,16 @@ export default function CampaignsPage({
     try {
       await retailService.rejectMarketingContent(contentId, { reason });
       setSuccess('Content rejected.');
+      showToast({ title: 'Rejected', message: 'Content rejected.', tone: 'warning' });
       if (selectedCampaign?.id) {
         await loadCampaignDetails(selectedCampaign.id);
       }
       await loadApprovalQueue();
       await loadCampaigns(campaignsPage.page || 0);
     } catch (requestError) {
-      setError(getApiErrorMessage(requestError, 'Unable to reject content.'));
+      const message = getApiErrorMessage(requestError, 'Unable to reject content.');
+      setError(message);
+      showError(message);
     }
   };
 
@@ -711,24 +738,34 @@ export default function CampaignsPage({
     try {
       await retailService.scheduleMarketingContent(contentId, { scheduledAt });
       setSuccess('Content scheduled.');
+      showSuccess('Content scheduled.');
       if (selectedCampaign?.id) {
         await loadCampaignDetails(selectedCampaign.id);
       }
       await loadCampaigns(campaignsPage.page || 0);
       await loadScheduled(0);
     } catch (requestError) {
-      setError(getApiErrorMessage(requestError, 'Unable to schedule content.'));
+      const message = getApiErrorMessage(requestError, 'Unable to schedule content.');
+      setError(message);
+      showError(message);
     }
   };
 
   const publishContentNow = async (contentId) => {
-    if (!window.confirm('Publish this approved content right now?')) {
+    const confirmed = await confirmAction({
+      title: 'Publish now?',
+      message: 'This approved content will be published immediately.',
+      confirmText: 'Publish now',
+      tone: 'info'
+    });
+    if (!confirmed) {
       return;
     }
     resetNotices();
     try {
       await retailService.publishMarketingContentNow(contentId);
       setSuccess('Content published.');
+      showSuccess('Content published.');
       if (selectedCampaign?.id) {
         await loadCampaignDetails(selectedCampaign.id);
       }
@@ -736,7 +773,9 @@ export default function CampaignsPage({
       await loadScheduled(0);
       await loadAnalytics();
     } catch (requestError) {
-      setError(getApiErrorMessage(requestError, 'Unable to publish content.'));
+      const message = getApiErrorMessage(requestError, 'Unable to publish content.');
+      setError(message);
+      showError(message);
     }
   };
 
@@ -747,7 +786,13 @@ export default function CampaignsPage({
       return;
     }
     const label = platform ? platform : 'all platforms';
-    if (!window.confirm(`Approve and publish ${contents.length} draft${contents.length === 1 ? '' : 's'} for ${label}?`)) {
+    const confirmed = await confirmAction({
+      title: 'Approve and publish?',
+      message: `Approve and publish ${contents.length} draft${contents.length === 1 ? '' : 's'} for ${label}?`,
+      confirmText: 'Approve & publish',
+      tone: 'info'
+    });
+    if (!confirmed) {
       return;
     }
     setLoading(true);
@@ -762,6 +807,7 @@ export default function CampaignsPage({
         }
       }
       setSuccess(`Approved and published ${label}.`);
+      showSuccess(`Approved and published ${label}.`);
       if (selectedCampaign?.id) {
         await loadCampaignDetails(selectedCampaign.id);
       }
@@ -770,7 +816,9 @@ export default function CampaignsPage({
       await loadScheduled(0);
       await loadAnalytics();
     } catch (requestError) {
-      setError(getApiErrorMessage(requestError, `Unable to approve and publish ${label}.`));
+      const message = getApiErrorMessage(requestError, `Unable to approve and publish ${label}.`);
+      setError(message);
+      showError(message);
     } finally {
       setLoading(false);
     }
