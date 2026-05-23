@@ -17,6 +17,7 @@ public class ReportOrderRowResponse {
     private OrderSource source;
     private OrderStatus status;
     private LocalDateTime createdAt;
+    private UUID customerId;
     private String customerName;
     private String customerMobile;
     private String salesPersonName;

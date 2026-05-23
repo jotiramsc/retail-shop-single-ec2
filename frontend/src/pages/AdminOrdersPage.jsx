@@ -62,6 +62,16 @@ const previewOrderPage = {
   hasPrevious: false
 };
 
+const customerCrmPath = (order = {}) => {
+  if (order.customerId) {
+    return `/app/crm/customers/overview?customerId=${encodeURIComponent(order.customerId)}`;
+  }
+  const mobile = order.customerMobile || order.mobile || order.phone;
+  return `/app/crm/customers/overview${mobile ? `?mobile=${encodeURIComponent(mobile)}` : ''}`;
+};
+
+const couponOffersPath = (couponCode) => `/app/campaigns/offers${couponCode ? `?coupon=${encodeURIComponent(couponCode)}` : ''}`;
+
 function isLocalPreviewEnabled() {
   if (!import.meta.env.DEV || typeof window === 'undefined') return false;
   return ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
@@ -112,6 +122,8 @@ function AdminOrderDetails({ mode }) {
   const reference = normalizeReference(invoice || stateOrder);
   const customerName = invoice?.customerName || stateOrder?.customerName || 'Walk-in customer';
   const customerMobile = invoice?.customerMobile || stateOrder?.customerMobile || 'No mobile captured';
+  const customerLink = customerCrmPath(invoice || stateOrder || {});
+  const couponCode = invoice?.couponCode || stateOrder?.couponCode || '';
   const items = invoice?.items || stateOrder?.items || [];
   const subtotal = invoice?.totalAmount ?? stateOrder?.subtotal ?? stateOrder?.finalAmount ?? 0;
   const discount = invoice?.discount ?? stateOrder?.discount ?? 0;
@@ -213,13 +225,13 @@ function AdminOrderDetails({ mode }) {
         <aside className="sneat-order-side-stack">
           <section className="sneat-card">
             <div className="sneat-card-head"><div><small>Customer</small><h3>Customer details</h3></div></div>
-            <div className="sneat-side-customer">
+            <Link className="sneat-side-customer sneat-clickable-customer" to={customerLink}>
               <span className="sneat-avatar">{String(customerName || 'C').slice(0, 1).toUpperCase()}</span>
               <div><strong>{customerName}</strong><span>{customerMobile}</span></div>
-            </div>
+            </Link>
             <div className="sneat-detail-list">
               <span><b>Payment</b>{invoice?.paymentMode || stateOrder?.paymentMode || stateOrder?.paymentStatus || 'Paid'}</span>
-              <span><b>Coupon</b>{invoice?.couponCode || stateOrder?.couponCode || 'No coupon'}</span>
+              <span><b>Coupon</b>{couponCode ? <Link className="sneat-table-link" to={couponOffersPath(couponCode)}>{couponCode}</Link> : 'No coupon'}</span>
               <span><b>Source</b>{isWebsiteOrder ? 'Website order' : 'Shop billing'}</span>
             </div>
           </section>
@@ -413,8 +425,16 @@ export default function AdminOrdersPage({ mode = 'orders' }) {
               </Link>
             ) },
             { key: 'createdAt', label: 'Date', render: (row) => formatDate(row.createdAt) },
-            { key: 'customerName', label: 'Customer' },
-            { key: 'customerMobile', label: 'Mobile' },
+            { key: 'customerName', label: 'Customer', render: (row) => (
+              <Link className="sneat-table-link" to={customerCrmPath(row)}>
+                {row.customerName || 'Customer'}
+              </Link>
+            ) },
+            { key: 'customerMobile', label: 'Mobile', render: (row) => (
+              <Link className="sneat-table-link" to={customerCrmPath(row)}>
+                {row.customerMobile || 'No mobile'}
+              </Link>
+            ) },
             { key: 'source', label: 'Source', render: (row) => normalizeSource(row, mode) === 'WEBSITE' ? 'Website' : 'Shop' },
             { key: 'salesPersonName', label: 'Sales person', render: (row) => row.salesPersonName || 'Website' },
             { key: 'paymentMode', label: 'Payment' },

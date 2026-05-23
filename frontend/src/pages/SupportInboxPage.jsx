@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import PageHeader from '../components/PageHeader';
 import { retailService } from '../services/retailService';
 import { currency, formatDate } from '../utils/format';
@@ -64,6 +64,14 @@ const isRecentlyActive = (value) => {
   }
   const timestamp = new Date(value).getTime();
   return Number.isFinite(timestamp) && Date.now() - timestamp < 1000 * 60 * 15;
+};
+
+const customerCrmPath = (conversation = {}) => {
+  if (conversation.customerId) {
+    return `/app/crm/customers/overview?customerId=${encodeURIComponent(conversation.customerId)}`;
+  }
+  const mobile = conversation.phone || conversation.customerMobile || conversation.mobile;
+  return `/app/crm/customers/overview${mobile ? `?mobile=${encodeURIComponent(mobile)}` : ''}`;
 };
 
 function SupportIcon({ name }) {
@@ -421,8 +429,8 @@ export default function SupportInboxPage({
                     {initialsFor(selected.customerName, selected.phone)}
                   </span>
                   <div>
-                    <strong>{selected.customerName || 'Customer'}</strong>
-                    <span>{selected.phone} · {statusLabel(selected.status)}{selected.resolvedAt ? ` · Resolved ${formatDate(selected.resolvedAt)}` : ''}</span>
+                    <Link className="support-customer-link" to={customerCrmPath(selected)}>{selected.customerName || 'Customer'}</Link>
+                    <span><Link className="support-customer-link is-phone" to={customerCrmPath(selected)}>{selected.phone}</Link> · {statusLabel(selected.status)}{selected.resolvedAt ? ` · Resolved ${formatDate(selected.resolvedAt)}` : ''}</span>
                   </div>
                 </div>
                 <div className="support-chat-actions">

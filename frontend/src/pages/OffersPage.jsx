@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import DataTable from '../components/DataTable';
 import PageHeader from '../components/PageHeader';
 import Panel from '../components/Panel';
@@ -70,6 +71,8 @@ const WEEKDAYS = [
 ];
 
 export default function OffersPage({ embedded = false }) {
+  const [searchParams] = useSearchParams();
+  const requestedCoupon = searchParams.get('coupon');
   const [products, setProducts] = useState([]);
   const [offersPage, setOffersPage] = useState({ items: [], page: 0, totalPages: 0, totalItems: 0, hasNext: false, hasPrevious: false });
   const [categoryOptions, setCategoryOptions] = useState([]);
@@ -89,6 +92,13 @@ export default function OffersPage({ embedded = false }) {
   const selectedProduct = sortedProducts.find((product) => product.id === form.productId);
   const selectedCategory = sortedCategories.find((category) => category.code === form.category);
   const isBuyGetOffer = BUY_GET_TYPES.has(form.type);
+  const visibleOffers = useMemo(() => {
+    if (!requestedCoupon) {
+      return offersPage.items || [];
+    }
+    const normalized = requestedCoupon.trim().toUpperCase();
+    return (offersPage.items || []).filter((offer) => String(offer.couponCode || '').toUpperCase().includes(normalized));
+  }, [offersPage.items, requestedCoupon]);
 
   const changeScheduleType = (scheduleType) => {
     setForm((current) => {
@@ -135,6 +145,12 @@ export default function OffersPage({ embedded = false }) {
     setOffersPage(offersData);
     setSuggestions(suggestionsData);
     setCategoryOptions(categoriesData);
+    if (requestedCoupon) {
+      const match = (offersData.items || []).find((offer) => String(offer.couponCode || '').toUpperCase() === requestedCoupon.toUpperCase());
+      if (match) {
+        beginEdit(match);
+      }
+    }
   };
 
   useEffect(() => {
@@ -547,7 +563,7 @@ export default function OffersPage({ embedded = false }) {
               )
             }
           ]}
-          rows={offersPage.items || []}
+          rows={visibleOffers}
           pagination={offersPage}
           onPageChange={load}
         />

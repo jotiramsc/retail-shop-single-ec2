@@ -45,6 +45,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -104,6 +105,50 @@ class ProductCategoryOptionServiceImplTest {
 
         assertThrows(BusinessException.class, () -> service.generateIconOptions("Bali Mens"));
         verify(imageUploadService, never()).uploadImageBytes(any(), any(), any());
+    }
+
+    @Test
+    void shouldUseFallbackIconWhenConfiguredOpenAiGenerationFails() {
+        MarketingProperties marketingProperties = marketingProperties();
+        when(imageUploadService.uploadImageBytes(any(), eq("image/png"), eq("category-icons")))
+                .thenReturn(ImageUploadResponse.builder()
+                        .id(UUID.randomUUID())
+                        .category("category-icons")
+                        .cloudfrontUrl("https://cdn.example.com/category-icons/fallback.png")
+                        .build());
+        ProductCategoryOptionServiceImpl service = new ProductCategoryOptionServiceImpl(
+                productCategoryOptionRepository,
+                marketingProperties,
+                new ObjectMapper(),
+                imageUploadService,
+                new CapturingHttpClient("{}")
+        );
+
+        var options = service.generateIconOptions("Bali Mens");
+
+        assertEquals(1, options.size());
+        assertEquals("Generated Icon", options.get(0).getLabel());
+        assertEquals("https://cdn.example.com/category-icons/fallback.png", options.get(0).getImageUrl());
+        verify(imageUploadService, times(1)).uploadImageBytes(any(), eq("image/png"), eq("category-icons"));
+    }
+
+    @Test
+    void shouldReportFallbackUploadFailureWhenConfiguredOpenAiGenerationFails() {
+        MarketingProperties marketingProperties = marketingProperties();
+        when(imageUploadService.uploadImageBytes(any(), eq("image/png"), eq("category-icons")))
+                .thenReturn(null);
+        ProductCategoryOptionServiceImpl service = new ProductCategoryOptionServiceImpl(
+                productCategoryOptionRepository,
+                marketingProperties,
+                new ObjectMapper(),
+                imageUploadService,
+                new CapturingHttpClient("{}")
+        );
+
+        BusinessException exception = assertThrows(BusinessException.class, () -> service.generateIconOptions("Bali Mens"));
+
+        assertTrue(exception.getMessage().contains("fallback category icon could not be uploaded"));
+        verify(imageUploadService, times(1)).uploadImageBytes(any(), eq("image/png"), eq("category-icons"));
     }
 
     private MarketingProperties marketingProperties() {

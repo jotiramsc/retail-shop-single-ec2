@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useEffect, useMemo, useState } from 'react';
 import { retailService } from '../services/retailService';
 import { currency, formatDate } from '../utils/format';
@@ -372,6 +372,9 @@ function CustomerAccountPanel({ detailTab, customer, loading }) {
 }
 
 function CustomerDirectoryScreen({ detailTab = 'Overview' }) {
+  const [searchParams] = useSearchParams();
+  const requestedCustomerId = searchParams.get('customerId');
+  const requestedMobile = searchParams.get('mobile');
   const [customersPage, setCustomersPage] = useState({ items: [], totalItems: 0, page: 0, totalPages: 0 });
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [customerDetails, setCustomerDetails] = useState(null);
@@ -402,10 +405,6 @@ function CustomerDirectoryScreen({ detailTab = 'Overview' }) {
     }
   };
 
-  useEffect(() => {
-    loadCustomers(0, segment);
-  }, []);
-
   const loadCustomerDetails = async (customer) => {
     setSelectedCustomer(customer);
     setLoadingDetails(true);
@@ -422,11 +421,73 @@ function CustomerDirectoryScreen({ detailTab = 'Overview' }) {
   };
 
   useEffect(() => {
-    const firstCustomer = customersPage.items?.[0];
-    if (!selectedCustomer && firstCustomer?.id) {
-      loadCustomerDetails(firstCustomer);
+    const openRequestedCustomer = async () => {
+      if (requestedCustomerId) {
+        setLoadingCustomers(true);
+        try {
+          const details = await retailService.getCustomerDetails(requestedCustomerId);
+          const items = details ? [details] : [];
+          setCustomersPage({ items, totalItems: items.length, page: 0, totalPages: 1, hasNext: false, hasPrevious: false });
+          if (details?.id) {
+            setSelectedCustomer(details);
+            setCustomerDetails(details);
+          }
+          setError('');
+          return;
+        } catch (requestError) {
+          setError(isLocalCrmPreviewEnabled() ? '' : getApiErrorMessage(requestError, 'Unable to open requested customer.'));
+        } finally {
+          setLoadingCustomers(false);
+        }
+      }
+
+      if (requestedMobile) {
+        setLoadingCustomers(true);
+        try {
+          const matches = await retailService.searchCustomers(requestedMobile);
+          setSearch(requestedMobile);
+          setCustomersPage({ items: matches || [], totalItems: matches?.length || 0, page: 0, totalPages: 1, hasNext: false, hasPrevious: false });
+          if (matches?.[0]?.id) {
+            await loadCustomerDetails(matches[0]);
+          }
+          setError('');
+          return;
+        } catch (requestError) {
+          setError(isLocalCrmPreviewEnabled() ? '' : getApiErrorMessage(requestError, 'Unable to search customer by mobile.'));
+        } finally {
+          setLoadingCustomers(false);
+        }
+      }
+
+      await loadCustomers(0, segment);
+    };
+
+    openRequestedCustomer();
+  }, []);
+
+  useEffect(() => {
+    const customers = customersPage.items || [];
+    if (selectedCustomer || !customers.length) {
+      return;
     }
-  }, [customersPage.items, selectedCustomer]);
+    const normalizedRequestedMobile = String(requestedMobile || '').replace(/\D/g, '');
+    const requestedCustomer = customers.find((customer) => {
+      if (requestedCustomerId && customer.id === requestedCustomerId) {
+        return true;
+      }
+      if (!normalizedRequestedMobile) {
+        return false;
+      }
+      return String(customer.mobile || '').replace(/\D/g, '').endsWith(normalizedRequestedMobile.slice(-10));
+    });
+    const firstCustomer = requestedCustomer || customers[0];
+    if (firstCustomer?.id) {
+      loadCustomerDetails(firstCustomer);
+      if (requestedMobile && !search) {
+        setSearch(requestedMobile);
+      }
+    }
+  }, [customersPage.items, requestedCustomerId, requestedMobile, search, selectedCustomer]);
 
   const customers = customersPage.items || [];
   const filteredCustomers = customers.filter((customer) => customerMatches(customer, search));

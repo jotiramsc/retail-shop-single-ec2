@@ -489,8 +489,16 @@ export default function CampaignsPage({
       const created = await retailService.createMarketingCampaign(normalizeCampaignPayload(form));
       let response = created;
       if (generateAfterCreate) {
+        const optimisticCampaign = { ...created, status: 'GENERATING' };
+        setForm(blankForm);
+        setSelectedCampaign(optimisticCampaign);
+        setCampaignsPage((current) => ({
+          ...current,
+          items: [optimisticCampaign, ...(current.items || []).filter((item) => item.id !== created.id)]
+        }));
+        selectTab('campaigns');
+        setSuccess('Campaign saved. AI draft generation has started in the background.');
         response = await retailService.generateMarketingCampaignAsync(created.id);
-        setSuccess('Campaign saved. AI draft generation has started and may take 1-2 minutes while images are created.');
         scheduleGenerationRefresh(created.id);
       } else {
         setSuccess('Campaign draft created.');

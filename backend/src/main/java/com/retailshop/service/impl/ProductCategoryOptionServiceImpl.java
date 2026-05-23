@@ -250,8 +250,7 @@ public class ProductCategoryOptionServiceImpl implements ProductCategoryOptionSe
     private CategoryIconOptionResponse generateCategoryIcon(String categoryName,
                                                             String seed) throws IOException, InterruptedException {
         if (!isOpenAiImageConfigured()) {
-            log.warn("OpenAI category icon generation is not configured. Using local fallback icon for {}", categoryName);
-            return generateFallbackCategoryIcon(categoryName, seed);
+            throw new IOException("OpenAI category icon generation is not configured. Configure marketing AI image settings before generating category icons.");
         }
         IOException lastFailure = null;
         for (int attempt = 1; attempt <= 2; attempt++) {
