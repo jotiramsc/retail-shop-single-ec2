@@ -70,6 +70,7 @@ This repo also supports a lower-cost single-EC2 deployment model:
 
 Runbook:
 
+- [Krishnai app context and deployment handoff](docs/KRISHNAI_APP_CONTEXT.md)
 - [Single EC2 deployment](docs/single-ec2-deployment.md)
 - [GitHub deploy for Single EC2](docs/github-single-ec2-deploy.md)
 - [Security hardening plan](docs/security-hardening-plan.md)
