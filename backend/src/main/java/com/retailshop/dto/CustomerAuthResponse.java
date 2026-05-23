@@ -13,6 +13,7 @@ public class CustomerAuthResponse {
     private String name;
     private String email;
     private String mobile;
+    private String profileImageUrl;
     private String authProvider;
     private boolean mobileVerified;
     private boolean emailVerified;

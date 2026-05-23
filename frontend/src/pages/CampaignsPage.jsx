@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import DataTable from '../components/DataTable';
 import PageHeader from '../components/PageHeader';
 import Panel from '../components/Panel';
@@ -12,6 +12,7 @@ import { getApiErrorMessage } from '../utils/validation';
 const TABS = [
   { value: 'campaigns', label: 'Campaigns' },
   { value: 'create', label: 'Campaign Studio' },
+  { value: 'templates', label: 'Templates' },
   { value: 'offers', label: 'Offers & Coupons' },
   { value: 'approval', label: 'Approval Queue' },
   { value: 'schedule', label: 'Schedule View' },
@@ -261,6 +262,7 @@ export default function CampaignsPage({
   hideTabs = false
 }) {
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const requestedTab = searchParams.get('tab');
   const auth = getStoredAuthSession() || {};
   const canApprove = auth.role === 'ADMIN' || auth.role === 'OWNER';
@@ -301,6 +303,22 @@ export default function CampaignsPage({
       setActiveTab(nextTab);
     }
   }, [activeTab, hideTabs, initialTab]);
+
+  useEffect(() => {
+    if (activeTab !== 'create' || typeof window === 'undefined') return;
+    const rawTemplate = window.sessionStorage.getItem('kps_campaign_template_draft');
+    if (!rawTemplate) return;
+    window.sessionStorage.removeItem('kps_campaign_template_draft');
+    try {
+      const draft = JSON.parse(rawTemplate);
+      if (draft?.campaignName) {
+        setForm({ ...blankForm, ...draft });
+        setSuccess('Template loaded. Review details, adjust the offer or greeting type, then save or generate.');
+      }
+    } catch {
+      setError('Unable to load the selected template. Please choose it again.');
+    }
+  }, [activeTab]);
 
   const selectTab = (tab) => {
     setActiveTab(tab);
@@ -792,7 +810,7 @@ export default function CampaignsPage({
 
   const useSuggestion = (suggestion, goal = 'OFFER') => {
     const shouldUseOffer = goal === 'OFFER';
-    setForm({
+    const templateForm = {
       ...blankForm,
       campaignName: suggestion.campaignName || suggestion.occasionName || '',
       campaignType: suggestion.campaignType || 'FESTIVAL',
@@ -809,7 +827,13 @@ export default function CampaignsPage({
       targetPlatforms: suggestion.targetPlatforms?.length ? suggestion.targetPlatforms : blankForm.targetPlatforms,
       language: suggestion.language || 'MARATHI',
       tone: suggestion.tone || 'FESTIVE'
-    });
+    };
+    setForm(templateForm);
+    if (activeTab === 'templates' && typeof window !== 'undefined') {
+      window.sessionStorage.setItem('kps_campaign_template_draft', JSON.stringify(templateForm));
+      navigate('/app/campaigns/create');
+      return;
+    }
     selectTab('create');
     setSuccess(`${suggestion.occasionName || suggestion.campaignName} template loaded as a ${shouldUseOffer ? 'coupon offer' : 'festival greeting'}. Edit anything, then generate drafts from the list.`);
     setError('');
@@ -1139,7 +1163,7 @@ export default function CampaignsPage({
         </div>
       ) : null}
 
-      {activeTab === 'create' ? (
+      {activeTab === 'templates' ? (
         <div className="marketing-automation-stack">
           <Panel
             title="Campaign template library"
@@ -1207,7 +1231,11 @@ export default function CampaignsPage({
               ))}
             </div>
           </Panel>
+        </div>
+      ) : null}
 
+      {activeTab === 'create' ? (
+        <div className="marketing-automation-stack">
           <Panel title="Create campaign" subtitle="Build the campaign details first, then save it as a draft or save and generate AI content.">
             <div className="campaign-create-stepper" aria-label="Campaign creation steps">
               <span className="is-active"><b>1</b> Template</span>

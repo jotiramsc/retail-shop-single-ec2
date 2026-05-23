@@ -222,6 +222,7 @@ public class CustomerAuthServiceImpl implements CustomerAuthService {
         String googleSubject = normalizeText((String) tokenPayload.get("sub"));
         String email = normalizeEmail((String) tokenPayload.get("email"));
         String name = normalizeText((String) tokenPayload.get("name"));
+        String picture = normalizeText((String) tokenPayload.get("picture"));
 
         if (!hasText(googleSubject)) {
             throw new BusinessException("Google sign-in did not return a valid account id");
@@ -246,6 +247,9 @@ public class CustomerAuthServiceImpl implements CustomerAuthService {
         if (hasText(name) && !hasText(customer.getName())) {
             customer.setName(name);
         }
+        if (hasText(picture) && !hasText(customer.getProfileImageUrl())) {
+            customer.setProfileImageUrl(picture);
+        }
         applyProfileCompletion(customer);
 
         Customer savedCustomer = customerRepository.save(customer);
@@ -254,10 +258,11 @@ public class CustomerAuthServiceImpl implements CustomerAuthService {
     }
 
     private Optional<Customer> findExistingCustomer(String mobile) {
-        return safeOptional(customerRepository.findByMobile(mobile))
-                .or(() -> safeOptional(customerRepository.findByMobile(formatDisplayMobile(mobile))))
-                .or(() -> safeOptional(customerRepository.findByMobile("91" + mobile)))
-                .or(() -> safeOptional(customerRepository.findByNormalizedMobile(mobile)));
+        String normalized = normalizeLocalMobile(mobile);
+        return safeOptional(customerRepository.findByMobile(normalized))
+                .or(() -> safeOptional(customerRepository.findByMobile("+91 " + normalized)))
+                .or(() -> safeOptional(customerRepository.findByMobile("91" + normalized)))
+                .or(() -> safeOptional(customerRepository.findByNormalizedMobile(normalized)));
     }
 
     private Customer createOtpCustomer(String mobile) {
@@ -344,6 +349,7 @@ public class CustomerAuthServiceImpl implements CustomerAuthService {
                 .name(customer.getName())
                 .email(customer.getEmail())
                 .mobile(customer.getMobile())
+                .profileImageUrl(customer.getProfileImageUrl())
                 .authProvider(customer.getAuthProvider())
                 .mobileVerified(customer.isMobileVerified())
                 .emailVerified(customer.isEmailVerified())
@@ -407,7 +413,7 @@ public class CustomerAuthServiceImpl implements CustomerAuthService {
     }
 
     private String formatDisplayMobile(String mobile) {
-        return "+91 " + mobile;
+        return normalizeLocalMobile(mobile);
     }
 
     private String mergeCustomerSource(String current, String incoming) {

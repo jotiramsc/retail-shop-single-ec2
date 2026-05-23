@@ -2251,9 +2251,9 @@ table {
   width: 44px;
   height: 44px;
   place-items: center;
-  border: 1px solid rgba(201, 125, 58, 0.24);
-  border-radius: 14px;
-  background: #fffaf5;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   color: #c97d3a;
 }
 
@@ -2349,6 +2349,78 @@ table {
   grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
 }
 
+.dashboard-search-strip,
+.sneat-dashboard-top {
+  display: grid;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.dashboard-search-strip {
+  grid-template-columns: minmax(220px, 0.65fr) minmax(280px, 1fr);
+  align-items: end;
+  padding: 1rem;
+  border: 1px solid rgba(105, 122, 141, 0.14);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.dashboard-search-strip h2 {
+  margin: 0;
+  color: #384551;
+  font-size: 1.2rem;
+}
+
+.dashboard-search-field {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.65rem;
+  margin: 0;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid rgba(105, 122, 141, 0.2);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.dashboard-search-field input {
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  color: #384551;
+}
+
+.dashboard-search-field button {
+  border: 0;
+  border-radius: 8px;
+  background: #696cff;
+  color: #fff;
+  font-weight: 800;
+  padding: 0.45rem 0.75rem;
+}
+
+.sneat-dashboard-top {
+  grid-template-columns: minmax(0, 1.35fr) repeat(2, minmax(220px, 0.7fr));
+}
+
+.dashboard-click-card {
+  position: relative;
+  color: inherit;
+  text-decoration: none;
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.dashboard-click-card:hover {
+  transform: translateY(-2px);
+  color: inherit;
+  box-shadow: 0 14px 32px rgba(67, 89, 113, 0.12);
+}
+
+.dashboard-card-arrow {
+  margin-left: auto;
+  color: #a1acb8;
+}
+
 .sneat-stat-card.is-danger .sneat-stat-icon {
   background: rgba(255, 62, 29, 0.12);
   color: #ff3e1d;
@@ -2390,6 +2462,101 @@ table {
   border-radius: 14px;
   color: #697a8d;
   text-align: center;
+}
+
+.kps-sneat-navbar {
+  min-height: 58px;
+  padding-block: 0.4rem;
+}
+
+.kps-navbar-title {
+  gap: 0.55rem;
+  padding: 0.45rem 0.7rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.16);
+  font-weight: 800;
+}
+
+.kps-avatar-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-height: 44px;
+  padding: 0.35rem 0.55rem;
+  border: 0;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.kps-avatar-initial {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(113, 221, 55, 0.16);
+  color: #71dd37;
+  font-weight: 950;
+}
+
+.kps-user-chip {
+  display: grid;
+  line-height: 1.1;
+  text-align: left;
+}
+
+.kps-user-chip strong {
+  color: #384551;
+  font-size: 0.9rem;
+}
+
+.kps-user-chip small {
+  color: #697a8d;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.users-admin-page .two-column {
+  grid-template-columns: minmax(360px, 0.8fr) minmax(0, 1.2fr);
+}
+
+.users-admin-page .panel {
+  border-radius: 12px;
+}
+
+.permission-group-card {
+  border-radius: 10px;
+}
+
+.support-conversation-card {
+  padding: 0.95rem;
+}
+
+@media (max-width: 1080px) {
+  .sneat-dashboard-top,
+  .dashboard-search-strip {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .dashboard-search-field {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .dashboard-search-field button {
+    grid-column: 1 / -1;
+  }
+
+  .kps-user-chip,
+  .kps-navbar-title span {
+    display: none;
+  }
+
+  .kps-sneat-navbar {
+    min-height: 50px;
+  }
 }
 
 .crm-detail-tab-row {
@@ -6128,6 +6295,10 @@ th {
   align-items: start;
 }
 
+.account-form-dashboard-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 0.68fr);
+}
+
 .account-customer-panel,
 .account-profile-panel,
 .account-module-panel,
@@ -6344,6 +6515,25 @@ th {
   font-size: 2.2rem;
 }
 
+.account-photo-upload {
+  position: absolute;
+  right: 0.35rem;
+  bottom: 0.35rem;
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border-radius: 999px;
+  background: #2b1d16;
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 8px 18px rgba(43, 29, 22, 0.22);
+}
+
+.account-photo-upload input {
+  display: none;
+}
+
 .account-profile-photo img {
   width: 100%;
   height: 100%;
@@ -6415,6 +6605,10 @@ th {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.8rem;
+}
+
+.account-profile-form-grid {
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
 }
 
 .account-form-grid label {
@@ -6609,6 +6803,10 @@ th {
     grid-template-columns: 220px minmax(0, 1fr);
   }
 
+  .account-form-dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
   .account-module-panel {
     grid-column: 2;
     position: relative;
@@ -6633,6 +6831,10 @@ th {
   }
 
   .account-dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .account-form-dashboard-grid {
     grid-template-columns: 1fr;
   }
 
@@ -10154,16 +10356,12 @@ th {
 .category-icon-preview {
   width: 72px;
   height: 72px;
-  border: 1px dashed rgba(128, 94, 46, 0.28);
-  border-radius: 999px;
+  border: 0;
+  border-radius: 0;
   display: grid;
   place-items: center;
   overflow: hidden;
-  background:
-    linear-gradient(45deg, rgba(128, 94, 46, 0.08) 25%, transparent 25% 75%, rgba(128, 94, 46, 0.08) 75%),
-    linear-gradient(45deg, rgba(128, 94, 46, 0.08) 25%, transparent 25% 75%, rgba(128, 94, 46, 0.08) 75%);
-  background-position: 0 0, 8px 8px;
-  background-size: 16px 16px;
+  background: transparent;
   color: rgba(89, 66, 46, 0.7);
   font-size: 0.78rem;
   text-align: center;
@@ -10188,9 +10386,9 @@ th {
   display: grid;
   gap: 0.35rem;
   padding: 0.5rem;
-  border: 1px solid rgba(128, 94, 46, 0.16);
-  border-radius: 14px;
-  background: #fffaf5;
+  border: 1px solid rgba(128, 94, 46, 0.08);
+  border-radius: 10px;
+  background: transparent;
   cursor: pointer;
 }
 
@@ -10201,12 +10399,8 @@ th {
 
 .category-icon-options img {
   aspect-ratio: 1;
-  border-radius: 999px;
-  background:
-    linear-gradient(45deg, rgba(128, 94, 46, 0.08) 25%, transparent 25% 75%, rgba(128, 94, 46, 0.08) 75%),
-    linear-gradient(45deg, rgba(128, 94, 46, 0.08) 25%, transparent 25% 75%, rgba(128, 94, 46, 0.08) 75%);
-  background-position: 0 0, 8px 8px;
-  background-size: 16px 16px;
+  border-radius: 0;
+  background: transparent;
 }
 
 .admin-ai-description-card {

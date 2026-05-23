@@ -339,7 +339,6 @@ function ProtectedApp({ auth, onLogout, branding }) {
                   </button>
                   <ul className="dropdown-menu dropdown-menu-end">
                     <li><span className="dropdown-item"><i className="bx bx-user me-2" />{auth.displayName} ({auth.role})</span></li>
-                    <li><span className="dropdown-item"><i className="bx bx-phone me-2" />{branding.contact?.phoneLabel || 'No phone configured'}</span></li>
                     <li><div className="dropdown-divider" /></li>
                     <li><button className="dropdown-item" type="button" onClick={onLogout}><i className="bx bx-power-off me-2" />Log Out</button></li>
                   </ul>

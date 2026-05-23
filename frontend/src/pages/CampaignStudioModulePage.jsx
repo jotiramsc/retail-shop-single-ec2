@@ -166,6 +166,15 @@ export default function CampaignStudioModulePage({ screen = 'dashboard' }) {
     );
   }
 
+  if (screen === 'templates') {
+    return (
+      <div className="sneat-module-page">
+        <SneatHero meta={screenMeta.templates} />
+        <CampaignsPage initialTab="templates" hidePageHeader hideTabs />
+      </div>
+    );
+  }
+
   if (screen === 'offers') {
     return (
       <div className="sneat-module-page">
@@ -214,17 +223,6 @@ export default function CampaignStudioModulePage({ screen = 'dashboard' }) {
   );
 
   const renderScreen = () => {
-    if (screen === 'templates') {
-      return (
-        <section className="sneat-grid-3">
-          {(suggestions.length ? suggestions : campaigns.slice(0, 6)).map((entry) => <SuggestionCard key={entry.id || entry.campaignName || entry.occasionName} suggestion={entry} />)}
-          {!suggestions.length && !campaigns.length ? (
-            <article className="sneat-empty-card"><i className="bx bx-copy-alt" /><h3>No templates yet</h3><p>Template suggestions will appear from the marketing suggestions API.</p></article>
-          ) : null}
-        </section>
-      );
-    }
-
     if (screen === 'audience') {
       return (
         <section className="sneat-two-column">

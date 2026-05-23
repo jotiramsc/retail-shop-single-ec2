@@ -415,7 +415,7 @@ public class ProductCategoryOptionServiceImpl implements ProductCategoryOptionSe
                 Style: simple jewellery line-art icon like a premium ecommerce category glyph, thin outline drawing, no shading, no photo realism, no 3D, mobile readability at 48px.
                 Palette: primary stroke %s, gem/accent %s, dark detail %s.
                 Composition: centered single object or simple paired objects, no hands, no people, no model, no background scene.
-                Technical: square PNG, fully transparent background, only clean strokes and tiny gem accents, no enclosing circle unless the product itself is circular, no filled square or filled circle background, no text, no letters, no logo, no watermark, no price tags, no extra decorative clutter.
+                Technical: square PNG, fully transparent background, icon artwork only, no card, no badge, no outer border, no enclosing circular border, no curved decorative border lines, no filled square or filled circle background, no text, no letters, no logo, no watermark, no price tags, no extra decorative clutter.
                 Seed/context: %s.
                 """.formatted(categoryName, subject, primaryColor, accentColor, detailColor, seed);
     }

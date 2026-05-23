@@ -65,6 +65,13 @@ export const retailService = {
   deleteAddress: (id) => api.delete(`/address/${id}`).then((res) => res.data),
   getCustomerProfile: () => api.get('/customer-profile').then((res) => res.data),
   updateCustomerProfile: (payload) => api.put('/customer-profile', payload).then((res) => res.data),
+  uploadCustomerProfileImage: ({ file }) => {
+    const formData = new FormData();
+    formData.append('image', file);
+    return api.post('/customer-profile/image', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    }).then((res) => res.data);
+  },
   placeOrder: (payload) => api.post('/order/place', payload).then((res) => res.data),
   getOrders: () => api.get('/orders').then((res) => res.data),
   updateOrderStatus: (orderId, payload) => api.patch(`/admin/orders/${orderId}/status`, payload).then((res) => res.data),

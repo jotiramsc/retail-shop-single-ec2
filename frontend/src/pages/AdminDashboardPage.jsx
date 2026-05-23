@@ -1,14 +1,14 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { retailService } from '../services/retailService';
 import { currency } from '../utils/format';
 import { getApiErrorMessage } from '../utils/validation';
 
-function DashboardMetric({ icon, label, value, note, tone = 'primary', trend }) {
+function DashboardMetric({ icon, label, value, note, tone = 'primary', trend, to }) {
   const trendValue = trend?.percentage ?? trend;
   const direction = trend?.direction || (String(trendValue || '').startsWith('-') ? 'down' : 'up');
-  return (
-    <article className={`sneat-stat-card is-${tone}`}>
+  const content = (
+    <>
       <span className="sneat-stat-icon"><i className={`bx ${icon}`} /></span>
       <div>
         <small>{label}</small>
@@ -20,6 +20,19 @@ function DashboardMetric({ icon, label, value, note, tone = 'primary', trend }) 
           </em>
         ) : null}
       </div>
+    </>
+  );
+  if (to) {
+    return (
+      <Link className={`sneat-stat-card dashboard-click-card is-${tone}`} to={to}>
+        {content}
+        <i className="bx bx-chevron-right dashboard-card-arrow" />
+      </Link>
+    );
+  }
+  return (
+    <article className={`sneat-stat-card is-${tone}`}>
+      {content}
     </article>
   );
 }
@@ -109,9 +122,11 @@ function formatOrderDate(value) {
 }
 
 export default function AdminDashboardPage({ branding, auth }) {
+  const navigate = useNavigate();
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [dashboardSearch, setDashboardSearch] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -145,6 +160,26 @@ export default function AdminDashboardPage({ branding, auth }) {
     Math.max(30, Math.min(96, Number(analytics?.revenueToday || 0) / 100)),
     Math.max(22, Number(analytics?.lowStockProducts || 1) * 18)
   ];
+  const dashboardSearchTargets = [
+    { keywords: ['customer', 'crm', 'mobile', 'profile'], to: '/app/crm/customers/overview' },
+    { keywords: ['sale', 'sales', 'revenue', 'report'], to: '/app/reports/sales' },
+    { keywords: ['order', 'orders', 'pending', 'completed', 'cancelled'], to: '/app/billing/orders' },
+    { keywords: ['invoice', 'bill', 'billing', 'checkout'], to: '/app/billing' },
+    { keywords: ['product', 'inventory', 'stock', 'low stock'], to: '/app/inventory/products' },
+    { keywords: ['category', 'categories'], to: '/app/inventory/categories' },
+    { keywords: ['campaign', 'template', 'offer', 'coupon'], to: '/app/campaigns/templates' },
+    { keywords: ['chat', 'support', 'whatsapp'], to: '/app/support/active' },
+    { keywords: ['user', 'team', 'staff'], to: '/app/users' },
+    { keywords: ['visit', 'website'], to: '/app/site-interactions' }
+  ];
+
+  const submitDashboardSearch = (event) => {
+    event.preventDefault();
+    const query = dashboardSearch.trim().toLowerCase();
+    if (!query) return;
+    const match = dashboardSearchTargets.find((target) => target.keywords.some((keyword) => query.includes(keyword)));
+    navigate(match?.to || `/app/crm/customers/overview?search=${encodeURIComponent(dashboardSearch.trim())}`);
+  };
 
   return (
     <div className="sneat-module-page admin-dashboard-page">
@@ -153,10 +188,16 @@ export default function AdminDashboardPage({ branding, auth }) {
           <span className="sneat-eyebrow">Search</span>
           <h2>Find anything in Krishnai admin</h2>
         </div>
-        <label className="dashboard-search-field">
+        <form className="dashboard-search-field" onSubmit={submitDashboardSearch}>
           <i className="bx bx-search" />
-          <input type="search" placeholder="Search products, customers, invoices, campaigns..." />
-        </label>
+          <input
+            type="search"
+            value={dashboardSearch}
+            onChange={(event) => setDashboardSearch(event.target.value)}
+            placeholder="Search products, customers, invoices, campaigns..."
+          />
+          <button type="submit">Open</button>
+        </form>
       </section>
 
       <section className="sneat-dashboard-top">
@@ -193,16 +234,16 @@ export default function AdminDashboardPage({ branding, auth }) {
 
       {!loading && !error ? (
       <section className="sneat-stat-grid dashboard-analytics-grid">
-        <DashboardMetric icon="bx-group" label="Total customers" value={analyticsValue(analytics?.totalCustomers)} note="Live customer records" trend={analytics?.customerGrowth} tone="info" />
-        <DashboardMetric icon="bx-show" label="Customer visits" value={analyticsValue(analytics?.customerVisits)} note="Current month visits" trend={analytics?.visitGrowth} />
-        <DashboardMetric icon="bx-rupee" label="Total sales" value={currency(analyticsValue(analytics?.totalSales))} note="All captured revenue" trend={analytics?.salesGrowth} tone="success" />
-        <DashboardMetric icon="bx-cart" label="Total orders" value={analyticsValue(analytics?.totalOrders)} note="Shop and website" trend={analytics?.orderGrowth} tone="warning" />
-        <DashboardMetric icon="bx-time-five" label="Pending orders" value={analyticsValue(analytics?.pendingOrders)} note="Need action" tone="warning" />
-        <DashboardMetric icon="bx-check-circle" label="Completed orders" value={analyticsValue(analytics?.completedOrders)} note="Fulfilled/sold" tone="success" />
-        <DashboardMetric icon="bx-x-circle" label="Cancelled orders" value={analyticsValue(analytics?.cancelledOrders)} note="Cancelled/failed" tone="danger" />
-        <DashboardMetric icon="bx-wallet" label="Revenue today" value={currency(analyticsValue(analytics?.revenueToday))} note="Compared with yesterday" trend={analytics?.todayRevenueGrowth} tone="success" />
-        <DashboardMetric icon="bx-calendar-star" label="Revenue this month" value={currency(analyticsValue(analytics?.revenueThisMonth))} note="Compared with last month" trend={analytics?.monthRevenueGrowth} />
-        <DashboardMetric icon="bx-error" label="Low-stock products" value={analyticsValue(analytics?.lowStockProducts)} note="At or below alert" tone="danger" />
+        <DashboardMetric icon="bx-group" label="Total customers" value={analyticsValue(analytics?.totalCustomers)} note="Live customer records" trend={analytics?.customerGrowth} tone="info" to="/app/crm/customers/overview" />
+        <DashboardMetric icon="bx-show" label="Customer visits" value={analyticsValue(analytics?.customerVisits)} note="Current month visits" trend={analytics?.visitGrowth} to="/app/site-interactions" />
+        <DashboardMetric icon="bx-rupee" label="Total sales" value={currency(analyticsValue(analytics?.totalSales))} note="All captured revenue" trend={analytics?.salesGrowth} tone="success" to="/app/reports/sales" />
+        <DashboardMetric icon="bx-cart" label="Total orders" value={analyticsValue(analytics?.totalOrders)} note="Shop and website" trend={analytics?.orderGrowth} tone="warning" to="/app/billing/orders" />
+        <DashboardMetric icon="bx-time-five" label="Pending orders" value={analyticsValue(analytics?.pendingOrders)} note="Need action" tone="warning" to="/app/billing/orders?status=PENDING" />
+        <DashboardMetric icon="bx-check-circle" label="Completed orders" value={analyticsValue(analytics?.completedOrders)} note="Fulfilled/sold" tone="success" to="/app/billing/orders?status=COMPLETED" />
+        <DashboardMetric icon="bx-x-circle" label="Cancelled orders" value={analyticsValue(analytics?.cancelledOrders)} note="Cancelled/failed" tone="danger" to="/app/billing/orders?status=CANCELLED" />
+        <DashboardMetric icon="bx-wallet" label="Revenue today" value={currency(analyticsValue(analytics?.revenueToday))} note="Compared with yesterday" trend={analytics?.todayRevenueGrowth} tone="success" to="/app/reports/sales" />
+        <DashboardMetric icon="bx-calendar-star" label="Revenue this month" value={currency(analyticsValue(analytics?.revenueThisMonth))} note="Compared with last month" trend={analytics?.monthRevenueGrowth} to="/app/reports/sales" />
+        <DashboardMetric icon="bx-error" label="Low-stock products" value={analyticsValue(analytics?.lowStockProducts)} note="At or below alert" tone="danger" to="/app/reports/low-stock" />
       </section>
       ) : null}
 

@@ -2,14 +2,17 @@ package com.retailshop.service.impl;
 
 import com.retailshop.dto.CustomerProfileRequest;
 import com.retailshop.dto.CustomerProfileResponse;
+import com.retailshop.dto.ImageUploadResponse;
 import com.retailshop.entity.Customer;
 import com.retailshop.exception.BusinessException;
 import com.retailshop.exception.ResourceNotFoundException;
 import com.retailshop.repository.CustomerRepository;
 import com.retailshop.service.CustomerProfileService;
+import com.retailshop.service.ImageUploadService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -22,6 +25,7 @@ import java.util.UUID;
 public class CustomerProfileServiceImpl implements CustomerProfileService {
 
     private final CustomerRepository customerRepository;
+    private final ImageUploadService imageUploadService;
 
     @Override
     @Transactional(readOnly = true)
@@ -72,6 +76,23 @@ public class CustomerProfileServiceImpl implements CustomerProfileService {
         customer.setGender(normalizeText(request.getGender()));
         customer.setProfileImageUrl(normalizeText(request.getProfileImageUrl()));
         customer.setAlternateMobile(normalizeOptionalMobile(request.getAlternateMobile()));
+        applyProfileCompletion(customer);
+        return map(customerRepository.save(customer));
+    }
+
+    @Override
+    @Transactional
+    public CustomerProfileResponse updateProfileImage(UUID customerId, MultipartFile image) {
+        if (image == null || image.isEmpty()) {
+            throw new BusinessException("Choose a profile image before uploading");
+        }
+        Customer customer = customerRepository.findById(customerId)
+                .orElseThrow(() -> new ResourceNotFoundException("Customer not found"));
+        ImageUploadResponse upload = imageUploadService.uploadImage(image, "customer-profiles");
+        if (upload == null || !hasText(upload.getCloudfrontUrl())) {
+            throw new BusinessException("Profile image upload failed");
+        }
+        customer.setProfileImageUrl(upload.getCloudfrontUrl().trim());
         applyProfileCompletion(customer);
         return map(customerRepository.save(customer));
     }
@@ -130,10 +151,8 @@ public class CustomerProfileServiceImpl implements CustomerProfileService {
     }
 
     private Optional<Customer> findExistingCustomer(String mobile) {
-        return customerRepository.findByMobile(mobile)
-                .or(() -> customerRepository.findByMobile(formatDisplayMobile(mobile)))
-                .or(() -> customerRepository.findByMobile("91" + mobile))
-                .or(() -> customerRepository.findByNormalizedMobile(mobile));
+        String normalized = normalizeLocalMobile(mobile);
+        return customerRepository.findByMobile(normalized);
     }
 
     private String normalizeLocalMobile(String mobile) {
@@ -163,7 +182,7 @@ public class CustomerProfileServiceImpl implements CustomerProfileService {
     }
 
     private String formatDisplayMobile(String mobile) {
-        return "+91 " + mobile;
+        return mobile;
     }
 
     private String normalizeEmail(String value) {

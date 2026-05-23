@@ -75,6 +75,7 @@ export default function CustomerProfilePage() {
   const [addressForm, setAddressForm] = useState(initialAddress);
   const [loading, setLoading] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
+  const [uploadingProfileImage, setUploadingProfileImage] = useState(false);
   const [verifyingMobile, setVerifyingMobile] = useState(false);
   const [savingAddress, setSavingAddress] = useState(false);
   const [error, setError] = useState('');
@@ -99,10 +100,10 @@ export default function CustomerProfilePage() {
         setProfile(profileResponse);
         setProfileName(profileResponse?.name || '');
         setProfileEmail(profileResponse?.email || '');
-        setProfileMobile(profileResponse?.mobile || '');
+        setProfileMobile(normalizeMobileDigits(profileResponse?.mobile || ''));
         setProfileDob(profileResponse?.dateOfBirth || '');
         setProfileGender(profileResponse?.gender || '');
-        setProfileImageUrl(profileResponse?.profileImageUrl || '');
+        setProfileImageUrl(profileResponse?.profileImageUrl || customerSession?.profileImageUrl || '');
         setAlternateMobile(profileResponse?.alternateMobile || '');
         setAddresses(addressResponse || []);
         setOrders(orderResponse || []);
@@ -140,7 +141,7 @@ export default function CustomerProfilePage() {
       const updated = await retailService.updateCustomerProfile({
         name: profileName,
         email: profileEmail,
-        mobile: profileMobile,
+        mobile: normalizeMobileDigits(profileMobile),
         dateOfBirth: profileDob || null,
         gender: profileGender,
         profileImageUrl,
@@ -149,7 +150,7 @@ export default function CustomerProfilePage() {
       setProfile(updated);
       setProfileName(updated?.name || '');
       setProfileEmail(updated?.email || '');
-      setProfileMobile(updated?.mobile || '');
+      setProfileMobile(normalizeMobileDigits(updated?.mobile || ''));
       setProfileDob(updated?.dateOfBirth || '');
       setProfileGender(updated?.gender || '');
       setProfileImageUrl(updated?.profileImageUrl || '');
@@ -161,6 +162,7 @@ export default function CustomerProfilePage() {
         name: updated.name,
         email: updated.email,
         mobile: updated.mobile,
+        profileImageUrl: updated.profileImageUrl,
         mobileVerified: updated.mobileVerified,
         profileComplete: updated.profileComplete,
         missingFields: updated.missingFields || []
@@ -185,7 +187,7 @@ export default function CustomerProfilePage() {
     setError('');
     setSuccess('');
     try {
-      const response = await retailService.sendOtp({ mobile: profileMobile, purpose: 'PROFILE' });
+      const response = await retailService.sendOtp({ mobile: normalizeMobileDigits(profileMobile), purpose: 'PROFILE' });
       setMobileOtpSent(true);
       setMobileOtp('');
       setSuccess(response?.message || 'OTP sent for mobile verification.');
@@ -206,12 +208,12 @@ export default function CustomerProfilePage() {
     setError('');
     setSuccess('');
     try {
-      const sessionUpdate = await retailService.verifyProfileMobileOtp({ mobile: profileMobile, otp: mobileOtp, purpose: 'PROFILE' });
+      const sessionUpdate = await retailService.verifyProfileMobileOtp({ mobile: normalizeMobileDigits(profileMobile), otp: mobileOtp, purpose: 'PROFILE' });
       const updatedProfile = await retailService.getCustomerProfile();
       setProfile(updatedProfile);
       setProfileName(updatedProfile?.name || '');
       setProfileEmail(updatedProfile?.email || '');
-      setProfileMobile(updatedProfile?.mobile || '');
+      setProfileMobile(normalizeMobileDigits(updatedProfile?.mobile || ''));
       setProfileDob(updatedProfile?.dateOfBirth || '');
       setProfileGender(updatedProfile?.gender || '');
       setProfileImageUrl(updatedProfile?.profileImageUrl || '');
@@ -224,6 +226,7 @@ export default function CustomerProfilePage() {
         name: updatedProfile.name,
         email: updatedProfile.email,
         mobile: updatedProfile.mobile,
+        profileImageUrl: updatedProfile.profileImageUrl,
         mobileVerified: updatedProfile.mobileVerified,
         profileComplete: updatedProfile.profileComplete,
         missingFields: updatedProfile.missingFields || []
@@ -303,6 +306,36 @@ export default function CustomerProfilePage() {
     };
     window.localStorage.setItem('kps_customer_preference_draft', JSON.stringify(preferenceDraft));
     setSuccess('Preferences saved on this device. Profile details can be updated anytime.');
+  };
+
+  const uploadProfileImage = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setUploadingProfileImage(true);
+    setError('');
+    setSuccess('');
+    try {
+      const updated = await retailService.uploadCustomerProfileImage({ file });
+      setProfile(updated);
+      setProfileImageUrl(updated?.profileImageUrl || '');
+      const nextSession = {
+        ...customerSession,
+        profileImageUrl: updated?.profileImageUrl || customerSession?.profileImageUrl
+      };
+      storeCustomerSession(nextSession);
+      setCustomerSession(nextSession);
+      setSuccess('Profile photo updated.');
+    } catch (err) {
+      if (isCustomerAuthError(err)) {
+        clearCustomerSession();
+        setCustomerSession(null);
+        return;
+      }
+      setError(getApiErrorMessage(err, 'Unable to upload profile photo. Please try a smaller image.'));
+    } finally {
+      setUploadingProfileImage(false);
+      event.target.value = '';
+    }
   };
 
   const logout = () => {
@@ -450,13 +483,16 @@ export default function CustomerProfilePage() {
             </div>
           </section>
 
-          <div className="account-dashboard-grid">
-            {customerSelector}
+          <div className="account-dashboard-grid account-form-dashboard-grid">
 
             <section className="account-profile-panel">
               <div className="account-profile-hero">
                 <div className="account-profile-photo">
                   {profileImageUrl ? <img src={profileImageUrl} alt={profileName || 'Customer'} /> : <span>{String(profileName || 'K').slice(0, 1).toUpperCase()}</span>}
+                  <label className="account-photo-upload" title="Upload profile photo">
+                    <input type="file" accept="image/*" onChange={uploadProfileImage} disabled={uploadingProfileImage} />
+                    <i className="bx bx-camera" />
+                  </label>
                 </div>
                 <div>
                   <p className="glow-kicker">{membershipLevel}</p>
@@ -493,17 +529,17 @@ export default function CustomerProfilePage() {
                   </div>
                   <span>{savingProfile ? 'Saving...' : 'Auto-save ready'}</span>
                 </div>
-                <div className="account-form-grid">
+                <div className="account-form-grid account-profile-form-grid">
                   <label>Full name<input value={profileName} onChange={(event) => setProfileName(event.target.value)} placeholder="Full name" /></label>
                   <label>Email<input value={profileEmail} onChange={(event) => setProfileEmail(event.target.value)} placeholder="Email address" type="email" /></label>
-                  <label>Mobile<input value={profileMobile} onChange={(event) => setProfileMobile(event.target.value)} placeholder="Mobile number" /></label>
-                  <label>Alternate mobile<input value={alternateMobile} onChange={(event) => setAlternateMobile(event.target.value)} placeholder="Alternate mobile" /></label>
+                  <label>Mobile<input value={profileMobile} onChange={(event) => setProfileMobile(normalizeMobileDigits(event.target.value))} placeholder="10 digit mobile number" inputMode="numeric" maxLength="10" /></label>
+                  <label>Alternate mobile<input value={alternateMobile} onChange={(event) => setAlternateMobile(normalizeMobileDigits(event.target.value))} placeholder="10 digit alternate mobile" inputMode="numeric" maxLength="10" /></label>
                   <label>Date of birth<input value={profileDob} onChange={(event) => setProfileDob(event.target.value)} type="date" /></label>
                   <label>Anniversary date<input value={anniversaryDate} onChange={(event) => setAnniversaryDate(event.target.value)} type="date" /></label>
                   <label>Gender<select value={profileGender} onChange={(event) => setProfileGender(event.target.value)}><option value="">Select gender</option><option value="Female">Female</option><option value="Male">Male</option><option value="Other">Other</option><option value="Prefer not to say">Prefer not to say</option></select></label>
                   <label>Preferred language<select value={preferredLanguage} onChange={(event) => setPreferredLanguage(event.target.value)}><option>Marathi</option><option>Hindi</option><option>English</option></select></label>
                   <label>Instagram ID<input value={instagramId} onChange={(event) => setInstagramId(event.target.value)} placeholder="@username" /></label>
-                  <label>Profile image URL<input value={profileImageUrl} onChange={(event) => setProfileImageUrl(event.target.value)} placeholder="Profile image URL" /></label>
+                  <label>Profile image URL<input value={profileImageUrl} onChange={(event) => setProfileImageUrl(event.target.value)} placeholder="Google photo or uploaded image URL" /></label>
                   <label className="is-wide">Notes/preferences<textarea value={customerNotes} onChange={(event) => setCustomerNotes(event.target.value)} placeholder="Sizing, gifting notes, preferred designs, or delivery context" /></label>
                 </div>
                 <div className="account-sticky-actions">
