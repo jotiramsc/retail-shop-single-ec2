@@ -67,6 +67,7 @@ export default function CustomerProfilePage() {
   const [festivalPreference, setFestivalPreference] = useState('Ganesh Chaturthi, Diwali, wedding gifting');
   const [budgetRange, setBudgetRange] = useState('1000-3000');
   const [customerSearch, setCustomerSearch] = useState('');
+  const [activeWizardStep, setActiveWizardStep] = useState('profile');
   const [activePanel, setActivePanel] = useState('addresses');
   const [mobileSelectorOpen, setMobileSelectorOpen] = useState(false);
   const [mobileOtp, setMobileOtp] = useState('');
@@ -287,6 +288,23 @@ export default function CustomerProfilePage() {
     }
   };
 
+  const savePreferenceDraft = () => {
+    const preferenceDraft = {
+      favoriteCategory,
+      preferredTone,
+      stylePreference,
+      bridalInterest,
+      festivalPreference,
+      budgetRange,
+      preferredLanguage,
+      instagramId,
+      customerNotes,
+      anniversaryDate
+    };
+    window.localStorage.setItem('kps_customer_preference_draft', JSON.stringify(preferenceDraft));
+    setSuccess('Preferences saved on this device. Profile details can be updated anytime.');
+  };
+
   const logout = () => {
     clearCustomerSession();
     setCustomerSession(null);
@@ -332,6 +350,23 @@ export default function CustomerProfilePage() {
     { key: 'rewards', label: 'Rewards' }
   ];
   const preferenceChips = [favoriteCategory || 'Pearl jewellery', preferredTone, stylePreference, bridalInterest ? 'Bridal shopping' : 'Occasion gifting', budgetRange].filter(Boolean);
+  const wizardSteps = [
+    { key: 'profile', label: 'Profile', note: `${completionPercent}% ready`, icon: 'bx-user' },
+    { key: 'verify', label: 'Verify', note: profile?.mobileVerified && !mobileChanged ? 'Done' : 'OTP needed', icon: 'bx-shield-quarter' },
+    { key: 'preferences', label: 'Preferences', note: preferenceChips.length ? `${preferenceChips.length} signals` : 'Optional', icon: 'bx-diamond' },
+    { key: 'addresses', label: 'Addresses', note: `${addresses.length} saved`, icon: 'bx-map' },
+    { key: 'activity', label: 'Orders', note: `${orders.length} orders`, icon: 'bx-package' }
+  ];
+
+  const openWizardStep = (stepKey) => {
+    setActiveWizardStep(stepKey);
+    if (stepKey === 'addresses') {
+      setActivePanel('addresses');
+    }
+    if (stepKey === 'activity') {
+      setActivePanel(orders.length ? 'orders' : wishlistItems.length ? 'wishlist' : 'rewards');
+    }
+  };
 
   const customerSelector = (
     <aside className={`account-customer-panel ${mobileSelectorOpen ? 'is-open' : ''}`} aria-label="Customer selector">
@@ -389,6 +424,32 @@ export default function CustomerProfilePage() {
         {success ? <p className="success-text account-floating-save">{success}</p> : null}
 
         {!loading ? (
+          <>
+          <section className="account-profile-wizard" aria-label="Profile completion steps">
+            <div className="account-profile-wizard-head">
+              <div>
+                <p className="glow-kicker">Profile setup</p>
+                <h2>Complete what you know now</h2>
+              </div>
+              <span>{completionPercent}% profile ready</span>
+            </div>
+            <div className="account-wizard-steps">
+              {wizardSteps.map((step, index) => (
+                <button
+                  key={step.key}
+                  type="button"
+                  className={activeWizardStep === step.key ? 'is-active' : ''}
+                  onClick={() => openWizardStep(step.key)}
+                >
+                  <span>{index + 1}</span>
+                  <i className={`bx ${step.icon}`} />
+                  <strong>{step.label}</strong>
+                  <small>{step.note}</small>
+                </button>
+              ))}
+            </div>
+          </section>
+
           <div className="account-dashboard-grid">
             {customerSelector}
 
@@ -424,7 +485,7 @@ export default function CustomerProfilePage() {
                 </div>
               )}
 
-              <form className="account-form-card" onSubmit={saveProfile}>
+              <form className={`account-form-card account-wizard-panel ${activeWizardStep === 'profile' ? 'is-active' : ''}`} onSubmit={saveProfile}>
                 <div className="account-section-heading">
                   <div>
                     <p className="glow-kicker">Personal Details</p>
@@ -450,7 +511,7 @@ export default function CustomerProfilePage() {
                 </div>
               </form>
 
-              <div className="account-form-card">
+              <div className={`account-form-card account-wizard-panel ${activeWizardStep === 'preferences' ? 'is-active' : ''}`}>
                 <div className="account-section-heading">
                   <div>
                     <p className="glow-kicker">Jewellery Preferences</p>
@@ -466,6 +527,9 @@ export default function CustomerProfilePage() {
                   <label className="is-wide">Festival preferences<textarea value={festivalPreference} onChange={(event) => setFestivalPreference(event.target.value)} /></label>
                 </div>
                 <div className="account-chip-row">{preferenceChips.map((chip) => <span key={chip}>{chip}</span>)}</div>
+                <div className="account-sticky-actions">
+                  <button type="button" className="primary-btn compact-btn" onClick={savePreferenceDraft}>Save preferences</button>
+                </div>
               </div>
 
               <div className="account-insight-grid">
@@ -474,7 +538,7 @@ export default function CustomerProfilePage() {
                 <div><span>Frequent category</span><strong>{favoriteCategory || wishlistItems[0]?.category || 'Pearl jewellery'}</strong></div>
               </div>
 
-              <div className={`customer-mobile-verification ${mobileVerificationRequired ? '' : 'is-verified'}`}>
+              <div className={`customer-mobile-verification account-wizard-panel ${mobileVerificationRequired ? '' : 'is-verified'} ${activeWizardStep === 'verify' ? 'is-active' : ''}`}>
                 <div>
                   <strong>{profile?.mobileVerified ? 'Mobile verified' : 'Mobile OTP verification'}</strong>
                   <span>{profile?.mobileVerified && !mobileChanged ? profile?.mobile : 'Required before checkout and payment.'}</span>
@@ -493,7 +557,7 @@ export default function CustomerProfilePage() {
               </div>
             </section>
 
-            <aside className="account-module-panel">
+            <aside className={`account-module-panel ${['addresses', 'activity'].includes(activeWizardStep) ? 'is-active' : ''}`}>
               <div className="account-module-tabs">
                 {panelTabs.map((tab) => <button key={tab.key} type="button" className={activePanel === tab.key ? 'is-active' : ''} onClick={() => setActivePanel(tab.key)}>{tab.label}</button>)}
               </div>
@@ -533,6 +597,7 @@ export default function CustomerProfilePage() {
               {activePanel === 'rewards' ? <div className="account-support-card"><strong>{membershipLevel}</strong><p>{rewardPoints} reward points, referral rewards, coupon history, and festive member offers will be collected here.</p><div><button type="button">View coupons</button><button type="button">Refer friend</button></div></div> : null}
             </aside>
           </div>
+          </>
         ) : null}
       </section>
     </main>

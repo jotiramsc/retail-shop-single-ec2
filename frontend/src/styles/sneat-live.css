@@ -2316,6 +2316,51 @@ body {
   font-weight: 600;
 }
 
+.crm-tabular-overview {
+  grid-template-columns: minmax(220px, 0.36fr) minmax(0, 1fr);
+  align-items: start;
+}
+
+.crm-tabular-overview .sneat-user-profile-card {
+  position: sticky;
+  top: 1rem;
+}
+
+.crm-table-section {
+  min-width: 0;
+}
+
+.crm-table-section .sneat-card-head {
+  align-items: center;
+}
+
+.crm-kv-table-wrap {
+  border: 1px solid #e7e9ed;
+  border-radius: 0.75rem;
+}
+
+.crm-kv-table {
+  margin: 0;
+}
+
+.crm-kv-table th {
+  width: 13.5rem;
+  color: #697a8d;
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.crm-kv-table td {
+  color: #566a7f;
+  font-weight: 650;
+}
+
+.crm-tabular-overview .crm-table-section:nth-of-type(n + 4) {
+  grid-column: 1 / -1;
+}
+
 .offers-embedded-stack .table-responsive,
 .marketing-automation-page .table-responsive,
 .admin-order-detail-page .table-responsive {
@@ -2330,12 +2375,14 @@ body {
   }
 
   .sneat-order-detail-grid,
-  .salesperson-filter-grid {
+  .salesperson-filter-grid,
+  .crm-tabular-overview {
     grid-template-columns: 1fr;
   }
 
   .sneat-user-list-card,
-  .sneat-user-profile-card {
+  .sneat-user-profile-card,
+  .crm-tabular-overview .sneat-user-profile-card {
     position: static;
   }
 }
@@ -2388,5 +2435,19 @@ body {
   .sneat-shipping-row time {
     grid-column: 2;
     justify-self: start;
+  }
+
+  .crm-kv-table th,
+  .crm-kv-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .crm-kv-table th {
+    padding-bottom: 0.1rem;
+  }
+
+  .crm-kv-table td {
+    padding-top: 0;
   }
 }

@@ -6443,6 +6443,52 @@ th {
   gap: 1rem;
 }
 
+.campaign-template-hero {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: stretch;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  border: 1px solid #e7d8c8;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #fffaf4 0%, #f6fbf8 100%);
+}
+
+.campaign-template-hero h3,
+.campaign-template-hero p {
+  margin: 0;
+}
+
+.campaign-template-hero p {
+  max-width: 720px;
+  margin-top: 0.35rem;
+  color: #6a574b;
+}
+
+.campaign-template-hero-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(86px, 1fr));
+  gap: 0.6rem;
+  min-width: min(390px, 100%);
+}
+
+.campaign-template-hero-metrics span {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.85rem;
+  border: 1px solid #e7e9ed;
+  border-radius: 14px;
+  background: #fff;
+  color: #697a8d;
+  font-weight: 700;
+}
+
+.campaign-template-hero-metrics strong {
+  color: #384551;
+  font-size: 1.35rem;
+}
+
 .marketing-suggestion-group-head {
   display: grid;
   gap: 0.25rem;
@@ -6521,9 +6567,29 @@ th {
   font-size: 0.82rem;
   line-height: 1.3;
   display: -webkit-box;
-  -webkit-line-clamp: 1;
+  -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+.marketing-template-prompt {
+  grid-column: 2;
+  font-size: 0.78rem;
+  color: #697a8d;
+}
+
+.marketing-template-prompt summary {
+  cursor: pointer;
+  color: #2fbf8f;
+  font-weight: 800;
+}
+
+.marketing-template-prompt span {
+  display: block;
+  margin-top: 0.35rem;
+  padding: 0.55rem;
+  border-radius: 10px;
+  background: #f5f5f9;
 }
 
 .marketing-suggestion-meta {
@@ -6548,13 +6614,61 @@ th {
 }
 
 .marketing-suggestion-card .marketing-preview-channels,
-.marketing-suggestion-card .primary-btn {
+.marketing-suggestion-actions {
   grid-column: 2;
 }
 
-.marketing-suggestion-card .primary-btn {
+.marketing-suggestion-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1fr);
+  gap: 0.5rem;
+}
+
+.marketing-suggestion-actions .primary-btn,
+.marketing-suggestion-actions .ghost-btn {
   min-height: 34px;
   padding: 0.42rem 0.7rem;
+}
+
+.campaign-create-stepper {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.7rem;
+  margin-bottom: 1rem;
+}
+
+.campaign-create-stepper span {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.75rem;
+  border: 1px dashed #d9dee3;
+  border-radius: 14px;
+  color: #697a8d;
+  font-weight: 800;
+  background: #fff;
+}
+
+.campaign-create-stepper b {
+  display: inline-grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  color: #697a8d;
+  background: #f5f5f9;
+}
+
+.campaign-create-stepper .is-active {
+  color: #384551;
+  border-style: solid;
+  border-color: rgba(47, 191, 143, 0.36);
+  background: rgba(47, 191, 143, 0.08);
+}
+
+.campaign-create-stepper .is-active b {
+  color: #fff;
+  background: #2fbf8f;
 }
 
 .marketing-tab-row,
@@ -8345,6 +8459,99 @@ th {
   background: linear-gradient(90deg, #1f5f58 0%, #ae7830 100%);
 }
 
+.salesperson-trend-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-bottom: 1rem;
+}
+
+.salesperson-trend-summary span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 999px;
+  color: #566a7f;
+  background: #f5f5f9;
+  font-weight: 800;
+}
+
+.salesperson-trend-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 0.85rem;
+}
+
+.salesperson-trend-tile {
+  position: relative;
+  display: grid;
+  gap: 0.85rem;
+  padding: 1rem;
+  border: 1px solid #e7e9ed;
+  border-radius: 0.75rem;
+  background: #fff;
+  box-shadow: 0 0.125rem 0.375rem rgba(67, 89, 113, 0.08);
+}
+
+.salesperson-trend-tile::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0.25rem;
+  border-radius: 0.75rem 0 0 0.75rem;
+  background: #696cff;
+}
+
+.salesperson-trend-tile.is-success::before {
+  background: #71dd37;
+}
+
+.salesperson-trend-tile.is-info::before {
+  background: #03c3ec;
+}
+
+.salesperson-trend-tile.is-warning::before {
+  background: #ffab00;
+}
+
+.salesperson-trend-rank,
+.salesperson-trend-share {
+  width: max-content;
+  padding: 0.32rem 0.55rem;
+  border-radius: 999px;
+  color: #696cff;
+  background: rgba(105, 108, 255, 0.12);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.salesperson-trend-tile small {
+  display: block;
+  color: #697a8d;
+  font-weight: 800;
+}
+
+.salesperson-trend-tile strong {
+  color: #384551;
+  font-size: 1.35rem;
+}
+
+.salesperson-trend-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.salesperson-trend-metrics span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: #697a8d;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
 .salesperson-sales-snapshot {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -8388,6 +8595,25 @@ th {
   .salesperson-sales-trend-copy {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .campaign-template-hero,
+  .sneat-detail-header {
+    flex-direction: column;
+  }
+
+  .campaign-template-hero-metrics,
+  .campaign-create-stepper,
+  .marketing-suggestion-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .marketing-suggestion-card {
+    grid-template-columns: 68px minmax(0, 1fr);
+  }
+
+  .marketing-suggestion-actions {
+    grid-template-columns: 1fr;
   }
 
   .marketing-tab-row,

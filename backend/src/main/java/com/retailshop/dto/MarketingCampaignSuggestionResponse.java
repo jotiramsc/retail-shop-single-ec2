@@ -21,6 +21,9 @@ public class MarketingCampaignSuggestionResponse {
     private String campaignName;
     private String offerTitle;
     private String rationale;
+    private String description;
+    private String imagePrompt;
+    private String templateType;
     private String windowLabel;
     private Integer daysUntil;
     private LocalDate highlightDate;

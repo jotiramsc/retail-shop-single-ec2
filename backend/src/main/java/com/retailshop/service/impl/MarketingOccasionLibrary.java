@@ -12,6 +12,7 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.Month;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -211,22 +212,32 @@ final class MarketingOccasionLibrary {
         LocalDate windowEnd = today.plusDays(Math.max(daysAhead, 1));
         List<MarketingCampaignSuggestionResponse> suggestions = new ArrayList<>();
         for (Occasion occasion : OCCASIONS) {
+            MarketingCampaignSuggestionResponse suggestion = null;
             switch (occasion.mode()) {
                 case FIXED_DATE, APPROXIMATE_DATE, NTH_WEEKDAY -> {
                     LocalDate nextDate = occasion.nextOccurrence(today);
                     if (nextDate != null && !nextDate.isBefore(today) && !nextDate.isAfter(windowEnd)) {
-                        suggestions.add(occasion.toSuggestion("UPCOMING", nextDate, nextDate, today, landingUrl));
+                        suggestion = occasion.toSuggestion("UPCOMING", nextDate, nextDate, today, landingUrl);
                     }
                 }
                 case SEASONAL -> {
                     LocalDate seasonAnchor = occasion.nextOccurrence(today);
                     if (occasion.isActive(today) || (seasonAnchor != null && !seasonAnchor.isAfter(windowEnd))) {
                         LocalDate startDate = occasion.isActive(today) ? today : seasonAnchor;
-                        suggestions.add(occasion.toSuggestion("SEASONAL", seasonAnchor, startDate, today, landingUrl));
+                        suggestion = occasion.toSuggestion("SEASONAL", seasonAnchor, startDate, today, landingUrl);
                     }
                 }
-                case EVERGREEN -> suggestions.add(occasion.toSuggestion("EVERGREEN", today, today, today, landingUrl));
+                case EVERGREEN -> suggestion = occasion.toSuggestion("EVERGREEN", today, today, today, landingUrl);
             }
+            if (suggestion == null) {
+                LocalDate nextDate = occasion.nextOccurrence(today);
+                LocalDate startDate = nextDate == null || nextDate.isBefore(today) ? today : nextDate.minusDays(7);
+                if (startDate.isBefore(today)) {
+                    startDate = today;
+                }
+                suggestion = occasion.toSuggestion("TEMPLATE", nextDate, startDate, today, landingUrl);
+            }
+            suggestions.add(suggestion);
         }
 
         suggestions.sort(Comparator
@@ -239,7 +250,8 @@ final class MarketingOccasionLibrary {
         return switch (kind) {
             case "UPCOMING" -> 0;
             case "SEASONAL" -> 1;
-            default -> 2;
+            case "EVERGREEN" -> 2;
+            default -> 3;
         };
     }
 
@@ -424,13 +436,20 @@ final class MarketingOccasionLibrary {
             LocalDate resolvedEnd = switch (kind) {
                 case "UPCOMING" -> resolvedHighlight.plusDays(4);
                 case "SEASONAL" -> resolvedStart.plusDays(14);
+                case "TEMPLATE" -> resolvedHighlight == null ? resolvedStart.plusDays(10) : resolvedHighlight.plusDays(4);
                 default -> resolvedStart.plusDays(20);
             };
             String windowLabel = switch (kind) {
-                case "UPCOMING" -> "%s within next %d days".formatted(DATE_LABEL.format(resolvedHighlight), Math.max(0, today.until(resolvedHighlight).getDays()));
+                case "UPCOMING" -> "%s within next %d days".formatted(DATE_LABEL.format(resolvedHighlight), Math.max(0, ChronoUnit.DAYS.between(today, resolvedHighlight)));
                 case "SEASONAL" -> isActive(today) ? "Active now" : "Season starting soon";
+                case "TEMPLATE" -> resolvedHighlight == null || resolvedHighlight.equals(today)
+                        ? "Ready template"
+                        : "Ready for %s".formatted(DATE_LABEL.format(resolvedHighlight));
                 default -> "Ready to use any time";
             };
+            String description = "%s Use it as a greeting-only message or attach a coupon/offer before generation.".formatted(rationale);
+            String imagePrompt = "Create a premium KPS Krishnai social media campaign image for %s (%s). Visual direction: %s. Use a jewellery and beauty retail mood, elegant Indian festive styling, warm lighting, clear product focus, no text overlays, no logos, no watermarks."
+                    .formatted(englishName, marathiName, visualHints);
             return MarketingCampaignSuggestionResponse.builder()
                     .key(key)
                     .kind(kind)
@@ -438,8 +457,11 @@ final class MarketingOccasionLibrary {
                     .campaignName(marathiName)
                     .offerTitle(offerTitle)
                     .rationale(rationale)
+                    .description(description)
+                    .imagePrompt(imagePrompt)
+                    .templateType(mode == OccurrenceMode.EVERGREEN ? "EVERGREEN" : campaignType.name())
                     .windowLabel(windowLabel)
-                    .daysUntil((int) today.until(resolvedHighlight).getDays())
+                    .daysUntil((int) ChronoUnit.DAYS.between(today, resolvedHighlight))
                     .highlightDate(resolvedHighlight)
                     .startDate(resolvedStart)
                     .endDate(resolvedEnd)

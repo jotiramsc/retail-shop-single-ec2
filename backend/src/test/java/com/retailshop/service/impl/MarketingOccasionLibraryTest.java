@@ -20,6 +20,9 @@ class MarketingOccasionLibraryTest {
         assertTrue(suggestions.stream().anyMatch(entry -> "मातृ दिन".equals(entry.getOccasionName())));
         assertTrue(suggestions.stream().anyMatch(entry -> "लग्नाचा सीझन".equals(entry.getOccasionName())));
         assertTrue(suggestions.stream().anyMatch(entry -> "दुकान वर्धापन दिन".equals(entry.getOccasionName())));
+        assertTrue(suggestions.stream().anyMatch(entry -> "दिवाळी".equals(entry.getOccasionName()) && "TEMPLATE".equals(entry.getKind())));
+        assertTrue(suggestions.stream().allMatch(entry -> entry.getDescription() != null && !entry.getDescription().isBlank()));
+        assertTrue(suggestions.stream().allMatch(entry -> entry.getImagePrompt() != null && entry.getImagePrompt().contains("KPS Krishnai")));
     }
 
     @Test

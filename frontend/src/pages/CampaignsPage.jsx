@@ -69,7 +69,8 @@ const blankForm = {
 const SUGGESTION_KIND_LABELS = {
   UPCOMING: 'Next 20 days',
   SEASONAL: 'Seasonal',
-  EVERGREEN: 'Ready anytime'
+  EVERGREEN: 'Ready anytime',
+  TEMPLATE: 'All templates'
 };
 
 function toDatetimeLocal(value) {
@@ -221,6 +222,9 @@ function buildMarketingPreviewDataUrl(campaign, content, draft) {
 }
 
 function buildSuggestionPreviewDataUrl(suggestion) {
+  if (suggestion.previewImageUrl || suggestion.imageUrl) {
+    return suggestion.previewImageUrl || suggestion.imageUrl;
+  }
   return buildMarketingPreviewDataUrl(
     {
       campaignName: suggestion.campaignName || suggestion.occasionName || 'Suggested campaign',
@@ -232,10 +236,23 @@ function buildSuggestionPreviewDataUrl(suggestion) {
       platform: suggestion.targetPlatforms?.[0] || 'INSTAGRAM'
     },
     {
-      captionText: suggestion.occasionName || suggestion.campaignName || 'Suggested campaign',
+      captionText: suggestion.description || suggestion.occasionName || suggestion.campaignName || 'Suggested campaign',
       callToAction: suggestion.windowLabel || 'Edit and generate'
     }
   );
+}
+
+function suggestionKindHelp(kind) {
+  if (kind === 'UPCOMING') {
+    return 'Festival-ready ideas inside the next 20 days';
+  }
+  if (kind === 'SEASONAL') {
+    return 'Good to run while the retail season is active';
+  }
+  if (kind === 'EVERGREEN') {
+    return 'Business-led campaigns you can run any time';
+  }
+  return 'Prepared festival and important-day templates for later use';
 }
 
 export default function CampaignsPage({
@@ -749,7 +766,8 @@ export default function CampaignsPage({
   const groupedSuggestions = useMemo(() => ({
     UPCOMING: suggestions.filter((entry) => entry.kind === 'UPCOMING'),
     SEASONAL: suggestions.filter((entry) => entry.kind === 'SEASONAL'),
-    EVERGREEN: suggestions.filter((entry) => entry.kind === 'EVERGREEN')
+    EVERGREEN: suggestions.filter((entry) => entry.kind === 'EVERGREEN'),
+    TEMPLATE: suggestions.filter((entry) => entry.kind === 'TEMPLATE')
   }), [suggestions]);
 
   const createPreviewUrl = useMemo(() => buildMarketingPreviewDataUrl(
@@ -772,17 +790,18 @@ export default function CampaignsPage({
   const analyticsSourceRows = analytics?.bySource || [];
   const analyticsCampaignRows = analytics?.byCampaign || [];
 
-  const useSuggestion = (suggestion) => {
+  const useSuggestion = (suggestion, goal = 'OFFER') => {
+    const shouldUseOffer = goal === 'OFFER';
     setForm({
       ...blankForm,
       campaignName: suggestion.campaignName || suggestion.occasionName || '',
       campaignType: suggestion.campaignType || 'FESTIVAL',
-      campaignGoal: suggestion.discountType && suggestion.discountType !== 'NONE' ? 'OFFER' : 'GREETING',
-      offerMode: suggestion.discountType && suggestion.discountType !== 'NONE' ? 'MANUAL' : 'NONE',
-      offerTitle: suggestion.offerTitle || '',
+      campaignGoal: shouldUseOffer ? 'OFFER' : 'GREETING',
+      offerMode: shouldUseOffer ? 'MANUAL' : 'NONE',
+      offerTitle: shouldUseOffer ? suggestion.offerTitle || '' : '',
       landingUrl: suggestion.landingUrl || blankForm.landingUrl,
-      discountType: suggestion.discountType || 'NONE',
-      discountValue: suggestion.discountType && suggestion.discountType !== 'NONE' && suggestion.discountValue != null
+      discountType: shouldUseOffer ? suggestion.discountType || 'PERCENTAGE' : 'NONE',
+      discountValue: shouldUseOffer && suggestion.discountType && suggestion.discountType !== 'NONE' && suggestion.discountValue != null
         ? String(suggestion.discountValue)
         : '',
       startDate: suggestion.startDate || '',
@@ -792,7 +811,7 @@ export default function CampaignsPage({
       tone: suggestion.tone || 'FESTIVE'
     });
     selectTab('create');
-    setSuccess(`${suggestion.occasionName || suggestion.campaignName} suggestion loaded into the campaign form. You can edit it before generating drafts.`);
+    setSuccess(`${suggestion.occasionName || suggestion.campaignName} template loaded as a ${shouldUseOffer ? 'coupon offer' : 'festival greeting'}. Edit anything, then generate drafts from the list.`);
     setError('');
   };
 
@@ -1123,16 +1142,28 @@ export default function CampaignsPage({
       {activeTab === 'create' ? (
         <div className="marketing-automation-stack">
           <Panel
-            title="Suggested campaigns for the next 20 days"
-            subtitle="Ready-made Marathi campaign ideas for upcoming dates, seasonal retail moments, and evergreen occasions. Pick one to prefill the campaign form, then edit and generate."
+            title="Campaign template library"
+            subtitle="Festival, important-day, seasonal, and evergreen templates are prepared with preview art direction and Marathi descriptions. Load any template as a greeting or as an offer campaign."
           >
+            <div className="campaign-template-hero">
+              <div>
+                <span className="sneat-eyebrow">Ready templates</span>
+                <h3>{suggestions.length || 0} campaign ideas prepared</h3>
+                <p>Choose greeting when you only want a festival wish, or choose offer when the campaign needs a coupon/discount. Generated drafts can still have images regenerated from the campaign list.</p>
+              </div>
+              <div className="campaign-template-hero-metrics">
+                <span><strong>{groupedSuggestions.UPCOMING.length}</strong> Upcoming</span>
+                <span><strong>{groupedSuggestions.SEASONAL.length}</strong> Seasonal</span>
+                <span><strong>{groupedSuggestions.TEMPLATE.length}</strong> Later</span>
+              </div>
+            </div>
             <div className="marketing-suggestion-groups">
               {Object.entries(groupedSuggestions).map(([kind, items]) => (
                 items.length ? (
                   <section key={kind} className="marketing-suggestion-group">
                     <div className="marketing-suggestion-group-head">
                       <h4>{SUGGESTION_KIND_LABELS[kind] || kind}</h4>
-                      <small>{kind === 'UPCOMING' ? 'Festival-ready ideas based on the next 20 days' : kind === 'SEASONAL' ? 'Good to run while the occasion window is active' : 'Business-led campaigns you can run any time'}</small>
+                      <small>{suggestionKindHelp(kind)}</small>
                     </div>
                     <div className="marketing-suggestion-grid">
                       {items.map((suggestion) => (
@@ -1147,16 +1178,27 @@ export default function CampaignsPage({
                             ) : null}
                           </div>
                           <h4>{suggestion.occasionName}</h4>
-                          <p>{suggestion.rationale}</p>
+                          <p>{suggestion.description || suggestion.rationale}</p>
+                          {suggestion.imagePrompt ? (
+                            <details className="marketing-template-prompt">
+                              <summary>Image prompt ready</summary>
+                              <span>{suggestion.imagePrompt}</span>
+                            </details>
+                          ) : null}
                           <div className="marketing-suggestion-meta">
                             <div><span>Offer</span><strong>{suggestion.offerTitle || '—'}</strong></div>
                             <div><span>Window</span><strong>{suggestion.windowLabel || '—'}</strong></div>
                             <div><span>Tone</span><strong>{suggestion.tone}</strong></div>
                             <div><span>Platforms</span><strong>{(suggestion.targetPlatforms || []).join(', ')}</strong></div>
                           </div>
-                          <button type="button" className="primary-btn compact-btn" onClick={() => useSuggestion(suggestion)}>
-                            Use suggestion
-                          </button>
+                          <div className="marketing-suggestion-actions">
+                            <button type="button" className="ghost-btn compact-btn" onClick={() => useSuggestion(suggestion, 'GREETING')}>
+                              Greeting
+                            </button>
+                            <button type="button" className="primary-btn compact-btn" onClick={() => useSuggestion(suggestion, 'OFFER')}>
+                              Use with offer
+                            </button>
+                          </div>
                         </article>
                       ))}
                     </div>
@@ -1167,6 +1209,12 @@ export default function CampaignsPage({
           </Panel>
 
           <Panel title="Create campaign" subtitle="Build the campaign details first, then save it as a draft or save and generate AI content.">
+            <div className="campaign-create-stepper" aria-label="Campaign creation steps">
+              <span className="is-active"><b>1</b> Template</span>
+              <span className={form.campaignName ? 'is-active' : ''}><b>2</b> Details</span>
+              <span className={form.offerMode !== 'NONE' ? 'is-active' : ''}><b>3</b> Offer</span>
+              <span className={form.targetPlatforms.length ? 'is-active' : ''}><b>4</b> Generate</span>
+            </div>
             <form className="marketing-create-grid" onSubmit={(event) => event.preventDefault()}>
               <label>
                 Campaign name

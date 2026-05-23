@@ -22,6 +22,25 @@ function SalesStat({ icon, label, value, note, tone = 'primary' }) {
   );
 }
 
+function SalesTrendTile({ row, index, total }) {
+  const share = total > 0 ? Math.round((Number(row.totalSalesAmount || 0) / total) * 100) : 0;
+  const tones = ['primary', 'success', 'info', 'warning'];
+  return (
+    <article className={`salesperson-trend-tile is-${tones[index % tones.length]}`}>
+      <span className="salesperson-trend-rank">#{index + 1}</span>
+      <div>
+        <small>{row.label}</small>
+        <strong>{currency(row.totalSalesAmount)}</strong>
+      </div>
+      <div className="salesperson-trend-metrics">
+        <span><i className="bx bx-receipt" /> {row.orderCount} orders</span>
+        <span><i className="bx bx-package" /> {row.itemsSold} items</span>
+      </div>
+      <span className="salesperson-trend-share">{share}% share</span>
+    </article>
+  );
+}
+
 export default function SalespersonSalesPage({ auth }) {
   const isAdmin = auth?.role === 'ADMIN';
   const [fromDate, setFromDate] = useState(monthStart);
@@ -102,10 +121,11 @@ export default function SalespersonSalesPage({ auth }) {
     setViewType('YEARLY');
   };
 
-  const trendMax = useMemo(
-    () => Math.max(1, ...(report?.trend || []).map((row) => Number(row.totalSalesAmount || 0))),
+  const trendTotal = useMemo(
+    () => (report?.trend || []).reduce((sum, row) => sum + Number(row.totalSalesAmount || 0), 0),
     [report]
   );
+  const topTrendRows = useMemo(() => (report?.trend || []).slice(0, 8), [report]);
 
   return (
     <div className="sneat-module-page salesperson-sales-page">
@@ -183,20 +203,16 @@ export default function SalespersonSalesPage({ auth }) {
             <div><small>Trend</small><h3>{`${viewType.charAt(0)}${viewType.slice(1).toLowerCase()} trend`}</h3></div>
             <span className="badge bg-label-info">{fromDate} to {toDate}</span>
           </div>
-          <div className="salesperson-sales-trend">
+          <div className="salesperson-trend-summary">
+            <span><i className="bx bx-line-chart" /> {topTrendRows.length} periods</span>
+            <span><i className="bx bx-wallet" /> {currency(trendTotal)} total</span>
+          </div>
+          <div className="salesperson-trend-grid">
             {(report?.trend || []).length === 0 ? (
               <p className="empty-cell">No sales captured for this selection yet.</p>
             ) : (
-              (report?.trend || []).map((row) => (
-                <div key={row.label} className="salesperson-sales-trend-row">
-                  <div className="salesperson-sales-trend-copy">
-                    <strong>{row.label}</strong>
-                    <span>{row.orderCount} orders · {row.itemsSold} items · {currency(row.totalSalesAmount)}</span>
-                  </div>
-                  <div className="salesperson-sales-trend-bar">
-                    <span style={{ width: `${Math.max(6, (Number(row.totalSalesAmount || 0) / trendMax) * 100)}%` }} />
-                  </div>
-                </div>
+              topTrendRows.map((row, index) => (
+                <SalesTrendTile key={row.label} row={row} index={index} total={trendTotal} />
               ))
             )}
           </div>

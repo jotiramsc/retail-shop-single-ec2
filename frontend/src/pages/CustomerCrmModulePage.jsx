@@ -219,9 +219,80 @@ function MiniTable({ columns, rows, emptyMessage }) {
   );
 }
 
-function AccountOverview({ customer, profileCompletion }) {
+function joinValue(value) {
+  if (Array.isArray(value)) {
+    return value.filter(Boolean).join(', ');
+  }
+  return value;
+}
+
+function KeyValueTable({ rows }) {
   return (
-    <div className="sneat-user-view-grid">
+    <div className="sneat-table-scroll crm-kv-table-wrap">
+      <table className="table table-hover align-middle crm-kv-table">
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.label}>
+              <th>{row.label}</th>
+              <td>{row.value || 'Not captured'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function CrmTableSection({ eyebrow, title, action, children }) {
+  return (
+    <section className="sneat-card crm-table-section">
+      <div className="sneat-card-head">
+        <div><small>{eyebrow}</small><h3>{title}</h3></div>
+        {action}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function AccountOverview({ customer, profileCompletion }) {
+  const summaryRows = [
+    { label: 'Name', value: customer.name },
+    { label: 'Mobile', value: customer.mobile },
+    { label: 'Email', value: customer.email },
+    { label: 'Gender', value: customer.gender },
+    { label: 'DOB', value: customer.dateOfBirth ? formatDate(customer.dateOfBirth) : '' },
+    { label: 'Anniversary', value: customer.anniversaryDate ? formatDate(customer.anniversaryDate) : '' },
+    { label: 'Preferred language', value: customer.preferredLanguage },
+    { label: 'Customer since', value: customer.customerSince ? formatDate(customer.customerSince) : '' },
+    { label: 'Last active', value: customer.lastActiveAt ? formatDate(customer.lastActiveAt) : '' },
+    { label: 'Last order', value: customer.lastOrderDate ? formatDate(customer.lastOrderDate) : '' },
+    { label: 'Location', value: customer.lastKnownLocation || customer.fullAddress },
+    { label: 'Segments', value: joinValue(customer.segments) || customer.segment }
+  ];
+  const preferenceRows = [
+    { label: 'Favorite categories', value: joinValue(customer.preferredCategories) },
+    { label: 'Favorite product types', value: joinValue(customer.preferredProducts) },
+    { label: 'Preferred brands', value: joinValue(customer.preferredBrands) },
+    { label: 'Budget range', value: customer.preferredPriceRange },
+    { label: 'Shopping interests', value: customer.shoppingInterests },
+    { label: 'Preference insights', value: joinValue(customer.preferenceInsights) }
+  ];
+  const engagementRows = [
+    { label: 'Lifetime value', value: currency(customer.totalSpent || 0) },
+    { label: 'Total orders', value: customer.totalOrders },
+    { label: 'Pending orders', value: customer.pendingOrders },
+    { label: 'Support status', value: customer.supportChatStatus },
+    { label: 'Sentiment', value: customer.customerSentiment || 'Learning' },
+    { label: 'Purchase prediction', value: customer.purchasePrediction || 'Learning' },
+    { label: 'Churn risk', value: customer.churnRisk || 'Learning' },
+    { label: 'Engagement score', value: customer.engagementScore },
+    { label: 'Recommended products', value: joinValue(customer.recommendedProducts) }
+  ];
+  const activityRows = customer.searchHistory?.length ? customer.searchHistory : customer.activityHistory || [];
+
+  return (
+    <div className="sneat-user-view-grid crm-tabular-overview">
       <aside className="sneat-user-profile-card">
         <span className="sneat-avatar xl">{customerInitial(customer)}</span>
         <h3>{customer.name || 'Unnamed customer'}</h3>
@@ -233,38 +304,80 @@ function AccountOverview({ customer, profileCompletion }) {
         </div>
       </aside>
 
-      <section className="sneat-card">
-        <div className="sneat-card-head">
-          <div><small>Account</small><h3>Customer details</h3></div>
-          <Link className="btn btn-sm btn-outline-primary" to="/app/support/active"><i className="bx bx-conversation me-1" /> Support</Link>
-        </div>
-        <div className="sneat-detail-grid">
-          <DetailField label="Name" value={customer.name} />
-          <DetailField label="Mobile" value={customer.mobile} />
-          <DetailField label="Email" value={customer.email} />
-          <DetailField label="Gender" value={customer.gender} />
-          <DetailField label="DOB" value={customer.dateOfBirth ? formatDate(customer.dateOfBirth) : ''} />
-          <DetailField label="Anniversary" value={customer.anniversaryDate ? formatDate(customer.anniversaryDate) : ''} />
-          <DetailField label="Preferred language" value={customer.preferredLanguage} />
-          <DetailField label="Customer since" value={customer.customerSince ? formatDate(customer.customerSince) : ''} />
-          <DetailField label="Last active" value={customer.lastActiveAt ? formatDate(customer.lastActiveAt) : ''} />
-          <DetailField label="Lifetime value" value={currency(customer.totalSpent || 0)} />
-          <DetailField label="Support status" value={customer.supportChatStatus} />
-          <DetailField label="Location" value={customer.lastKnownLocation} />
-        </div>
-      </section>
+      <CrmTableSection
+        eyebrow="Single View"
+        title="Account summary"
+        action={<Link className="btn btn-sm btn-outline-primary" to="/app/support/active"><i className="bx bx-conversation me-1" /> Support</Link>}
+      >
+        <KeyValueTable rows={summaryRows} />
+      </CrmTableSection>
 
-      <section className="sneat-card span-2">
-        <div className="sneat-card-head"><div><small>Preferences</small><h3>Shopping intelligence</h3></div></div>
-        <div className="sneat-detail-grid">
-          <DetailField label="Favorite categories" value={(customer.preferredCategories || []).join?.(', ') || customer.preferredCategories} />
-          <DetailField label="Favorite product types" value={(customer.preferredProducts || []).join?.(', ') || customer.preferredProducts} />
-          <DetailField label="Preferred brands" value={(customer.preferredBrands || []).join?.(', ') || customer.preferredBrands} />
-          <DetailField label="Budget range" value={customer.preferredPriceRange} />
-          <DetailField label="Shopping interests" value={customer.shoppingInterests} />
-          <DetailField label="Segments" value={(customer.segments || []).join(', ')} />
-        </div>
-      </section>
+      <CrmTableSection eyebrow="Preferences" title="Shopping intelligence">
+        <KeyValueTable rows={preferenceRows} />
+      </CrmTableSection>
+
+      <CrmTableSection eyebrow="Engagement" title="Revenue, AI, and support">
+        <KeyValueTable rows={engagementRows} />
+      </CrmTableSection>
+
+      <CrmTableSection eyebrow="Orders" title="Order history">
+        <MiniTable
+          emptyMessage="No orders yet"
+          rows={customer.orderHistory || []}
+          columns={[
+            { key: 'orderNumber', label: 'Order' },
+            { key: 'createdAt', label: 'Date', render: (row) => formatDate(row.createdAt) },
+            { key: 'amount', label: 'Amount', render: (row) => currency(row.amount || 0) },
+            { key: 'status', label: 'Status' }
+          ]}
+        />
+      </CrmTableSection>
+
+      <CrmTableSection eyebrow="Signals" title="Search and site activity">
+        <MiniTable
+          emptyMessage="No activity yet"
+          rows={activityRows}
+          columns={[
+            { key: 'createdAt', label: 'Time', render: (row) => formatDate(row.createdAt) },
+            { key: 'activityType', label: 'Type', render: (row) => row.activityType || (row.searchKeyword ? 'SEARCH' : '-') },
+            { key: 'searchKeyword', label: 'Search / Page', render: (row) => row.searchKeyword || row.page || '-' },
+            { key: 'category', label: 'Category', render: (row) => row.category || '-' },
+            { key: 'clickedProduct', label: 'Clicked / Product', render: (row) => row.clickedProduct || row.productName || '-' },
+            { key: 'resultCount', label: 'Results', render: (row) => row.resultCount ?? '-' }
+          ]}
+        />
+      </CrmTableSection>
+
+      <CrmTableSection eyebrow="Security" title="Login history">
+        <MiniTable
+          emptyMessage="No login history yet"
+          rows={customer.loginHistory || []}
+          columns={[
+            { key: 'loginTime', label: 'Login time', render: (row) => formatDate(row.loginTime) },
+            { key: 'loginMethod', label: 'Method', render: (row) => row.loginMethod || '-' },
+            { key: 'device', label: 'Device' },
+            { key: 'browser', label: 'Browser' },
+            { key: 'ip', label: 'IP' },
+            { key: 'location', label: 'Location' },
+            { key: 'status', label: 'Status' }
+          ]}
+        />
+      </CrmTableSection>
+
+      <CrmTableSection eyebrow="Location" title="Location history">
+        <MiniTable
+          emptyMessage="No location history yet"
+          rows={customer.locationHistory || []}
+          columns={[
+            { key: 'createdAt', label: 'Captured', render: (row) => formatDate(row.createdAt) },
+            { key: 'city', label: 'City' },
+            { key: 'state', label: 'State' },
+            { key: 'country', label: 'Country' },
+            { key: 'pincode', label: 'Pincode' },
+            { key: 'locationSource', label: 'Source' }
+          ]}
+        />
+      </CrmTableSection>
     </div>
   );
 }
