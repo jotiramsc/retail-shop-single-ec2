@@ -2488,6 +2488,29 @@ table {
   background: rgba(255, 255, 255, 0.86);
 }
 
+.kps-header-account {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.kps-header-logout {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 42px;
+  border: 1px solid rgba(255, 62, 29, 0.18);
+  border-radius: 12px;
+  background: rgba(255, 62, 29, 0.08);
+  color: #d52b1e;
+  font-weight: 900;
+  padding: 0.45rem 0.72rem;
+}
+
+.kps-header-logout:hover {
+  background: rgba(255, 62, 29, 0.14);
+}
+
 .kps-avatar-initial {
   display: grid;
   width: 34px;
@@ -2551,6 +2574,21 @@ table {
 
   .kps-user-chip,
   .kps-navbar-title span {
+    display: none;
+  }
+
+  .kps-header-account {
+    gap: 0.35rem;
+  }
+
+  .kps-header-logout {
+    width: 38px;
+    min-height: 38px;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .kps-header-logout span {
     display: none;
   }
 

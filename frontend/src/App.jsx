@@ -328,22 +328,19 @@ function ProtectedApp({ auth, onLogout, branding }) {
                   <span>Admin Workspace</span>
                 </div>
               </div>
-              <ul className="navbar-nav flex-row align-items-center ms-auto">
-                <li className="nav-item dropdown">
-                  <button className="nav-link dropdown-toggle hide-arrow kps-avatar-button" type="button" data-bs-toggle="dropdown">
-                    <span className="kps-avatar-initial">{String(auth.displayName || 'K').slice(0, 1).toUpperCase()}</span>
-                    <span className="kps-user-chip">
-                      <strong>{auth.displayName || auth.username || 'Admin user'}</strong>
-                      <small>{auth.role || 'Team member'}</small>
-                    </span>
-                  </button>
-                  <ul className="dropdown-menu dropdown-menu-end">
-                    <li><span className="dropdown-item"><i className="bx bx-user me-2" />{auth.displayName} ({auth.role})</span></li>
-                    <li><div className="dropdown-divider" /></li>
-                    <li><button className="dropdown-item" type="button" onClick={onLogout}><i className="bx bx-power-off me-2" />Log Out</button></li>
-                  </ul>
-                </li>
-              </ul>
+              <div className="kps-header-account ms-auto">
+                <div className="kps-avatar-button" aria-label="Signed in user">
+                  <span className="kps-avatar-initial">{String(auth.displayName || 'K').slice(0, 1).toUpperCase()}</span>
+                  <span className="kps-user-chip">
+                    <strong>{auth.displayName || auth.username || 'Admin user'}</strong>
+                    <small>{auth.role || 'Team member'}</small>
+                  </span>
+                </div>
+                <button className="kps-header-logout" type="button" onClick={onLogout}>
+                  <i className="bx bx-power-off" />
+                  <span>Logout</span>
+                </button>
+              </div>
             </div>
           </nav>
 
