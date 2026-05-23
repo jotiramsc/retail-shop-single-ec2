@@ -334,17 +334,7 @@ public class ProductCategoryOptionServiceImpl implements ProductCategoryOptionSe
             Color primary = Color.decode(primaryColor);
             Color accent = Color.decode(accentColor);
             Color detail = Color.decode(detailColor);
-            graphics.setColor(new Color(primary.getRed(), primary.getGreen(), primary.getBlue(), 235));
-            graphics.setStroke(new BasicStroke(30, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-            graphics.draw(new Ellipse2D.Double(104, 104, size - 208, size - 208));
-
-            graphics.setColor(new Color(accent.getRed(), accent.getGreen(), accent.getBlue(), 226));
-            graphics.setStroke(new BasicStroke(34, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-            drawFallbackSymbol(graphics, categoryName, size);
-
-            graphics.setColor(new Color(detail.getRed(), detail.getGreen(), detail.getBlue(), 210));
-            graphics.setStroke(new BasicStroke(12, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-            graphics.draw(new Ellipse2D.Double(190, 190, size - 380, size - 380));
+            drawFallbackSymbol(graphics, categoryName, size, primary, accent, detail);
         } finally {
             graphics.dispose();
         }
@@ -355,39 +345,65 @@ public class ProductCategoryOptionServiceImpl implements ProductCategoryOptionSe
         return outputStream.toByteArray();
     }
 
-    private void drawFallbackSymbol(Graphics2D graphics, String categoryName, int size) {
+    private void drawFallbackSymbol(Graphics2D graphics, String categoryName, int size, Color primary, Color accent, Color detail) {
         String normalized = categoryName == null ? "" : categoryName.toLowerCase(Locale.ROOT);
+        Color line = new Color(primary.getRed(), primary.getGreen(), primary.getBlue(), 238);
+        Color fine = new Color(detail.getRed(), detail.getGreen(), detail.getBlue(), 210);
+        Color gem = new Color(accent.getRed(), accent.getGreen(), accent.getBlue(), 230);
+        graphics.setColor(line);
+        graphics.setStroke(new BasicStroke(40, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
         if (normalized.contains("ear") || normalized.contains("jhum") || normalized.contains("bali")) {
-            graphics.draw(new Ellipse2D.Double(315, 310, 145, 210));
-            graphics.draw(new Ellipse2D.Double(565, 310, 145, 210));
-            graphics.fillOval(370, 550, 38, 38);
-            graphics.fillOval(620, 550, 38, 38);
+            graphics.drawLine(330, 230, 330, 315);
+            graphics.drawLine(690, 230, 690, 315);
+            graphics.draw(new Ellipse2D.Double(260, 330, 140, 210));
+            graphics.draw(new Ellipse2D.Double(620, 330, 140, 210));
+            graphics.setStroke(new BasicStroke(24, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            graphics.setColor(gem);
+            graphics.draw(new Ellipse2D.Double(290, 560, 80, 80));
+            graphics.draw(new Ellipse2D.Double(650, 560, 80, 80));
+            graphics.fillOval(315, 680, 34, 34);
+            graphics.fillOval(675, 680, 34, 34);
             return;
         }
         if (normalized.contains("bangle") || normalized.contains("bracelet")) {
-            graphics.draw(new Ellipse2D.Double(300, 310, 424, 300));
-            graphics.draw(new Ellipse2D.Double(360, 380, 304, 160));
+            graphics.draw(new Ellipse2D.Double(255, 300, 500, 360));
+            graphics.setColor(fine);
+            graphics.setStroke(new BasicStroke(24, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            graphics.draw(new Ellipse2D.Double(310, 350, 390, 250));
+            graphics.drawArc(245, 310, 520, 340, 205, 130);
+            graphics.drawArc(245, 310, 520, 340, 25, 130);
             return;
         }
         if (normalized.contains("ring")) {
-            graphics.draw(new Ellipse2D.Double(360, 410, 300, 300));
-            graphics.fillOval(470, 285, 80, 80);
-            graphics.drawLine(450, 390, 510, 345);
-            graphics.drawLine(575, 390, 520, 345);
+            graphics.draw(new Ellipse2D.Double(330, 365, 360, 360));
+            graphics.setColor(gem);
+            graphics.setStroke(new BasicStroke(30, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            int[] xs = {510, 590, 640, 580, 500, 430, 470};
+            int[] ys = {205, 205, 285, 355, 355, 285, 205};
+            graphics.drawPolygon(xs, ys, xs.length);
+            graphics.setColor(fine);
+            graphics.drawLine(430, 285, 640, 285);
             return;
         }
         if (normalized.contains("lip") || normalized.contains("cosmetic") || normalized.contains("makeup")
                 || normalized.contains("beauty") || normalized.contains("skin") || normalized.contains("kajal")) {
-            graphics.drawRoundRect(410, 300, 210, 430, 70, 70);
-            graphics.drawLine(430, 470, 600, 470);
-            graphics.fillRoundRect(458, 230, 110, 120, 50, 50);
+            graphics.drawRoundRect(390, 330, 240, 410, 76, 76);
+            graphics.setColor(fine);
+            graphics.setStroke(new BasicStroke(24, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            graphics.drawLine(420, 495, 600, 495);
+            graphics.setColor(gem);
+            graphics.drawRoundRect(455, 210, 110, 150, 52, 52);
             return;
         }
-        graphics.drawArc(260, 220, 500, 540, 200, 140);
-        graphics.fillOval(470, 640, 84, 84);
-        graphics.drawLine(510, 638, 510, 575);
-        graphics.fillOval(305, 515, 44, 44);
-        graphics.fillOval(676, 515, 44, 44);
+        graphics.drawArc(240, 190, 540, 600, 210, 120);
+        graphics.setColor(gem);
+        graphics.setStroke(new BasicStroke(30, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        graphics.draw(new Ellipse2D.Double(445, 585, 130, 165));
+        graphics.setColor(fine);
+        graphics.setStroke(new BasicStroke(22, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        graphics.drawLine(510, 585, 510, 505);
+        graphics.draw(new Ellipse2D.Double(285, 470, 55, 55));
+        graphics.draw(new Ellipse2D.Double(680, 470, 55, 55));
     }
 
     private String buildCategoryIconPrompt(String categoryName, String seed, String primaryColor, String accentColor, String detailColor) {
@@ -396,10 +412,10 @@ public class ProductCategoryOptionServiceImpl implements ProductCategoryOptionSe
                 Create one premium ecommerce category icon for KRISHNAI Pearl Shopee.
                 Category: %s.
                 Depict: %s.
-                Style: luxury Indian boutique, elegant jewelry-and-beauty retail, clean vector-like product silhouette, refined circular medallion composition, mobile app icon readability at 48px.
+                Style: simple jewellery line-art icon like a premium ecommerce category glyph, thin outline drawing, no shading, no photo realism, no 3D, mobile readability at 48px.
                 Palette: primary stroke %s, gem/accent %s, dark detail %s.
                 Composition: centered single object or simple paired objects, no hands, no people, no model, no background scene.
-                Technical: square PNG, fully transparent background, no filled square or filled circle background, no text, no letters, no logo, no watermark, no price tags, no extra decorative clutter.
+                Technical: square PNG, fully transparent background, only clean strokes and tiny gem accents, no enclosing circle unless the product itself is circular, no filled square or filled circle background, no text, no letters, no logo, no watermark, no price tags, no extra decorative clutter.
                 Seed/context: %s.
                 """.formatted(categoryName, subject, primaryColor, accentColor, detailColor, seed);
     }
@@ -442,7 +458,6 @@ public class ProductCategoryOptionServiceImpl implements ProductCategoryOptionSe
         Graphics2D graphics = output.createGraphics();
         try {
             graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            graphics.setClip(new Ellipse2D.Double(0, 0, size, size));
             graphics.drawImage(source, 0, 0, size, size, sourceX, sourceY, sourceX + size, sourceY + size, null);
         } finally {
             graphics.dispose();

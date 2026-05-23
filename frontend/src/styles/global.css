@@ -6096,6 +6096,31 @@ th {
   box-shadow: 0 14px 28px rgba(139, 93, 50, 0.12);
 }
 
+.account-luxury-page .account-profile-wizard {
+  max-width: 100%;
+}
+
+.account-luxury-page .account-wizard-steps button {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+  font: inherit;
+  outline: none;
+}
+
+.account-luxury-page .account-wizard-steps button:focus-visible {
+  box-shadow: 0 0 0 3px rgba(185, 137, 82, 0.22);
+}
+
+.account-wizard-panel {
+  display: none !important;
+}
+
+.account-wizard-panel.is-active,
+.customer-mobile-verification.account-wizard-panel.is-active {
+  display: grid !important;
+}
+
 .account-dashboard-grid {
   display: grid;
   grid-template-columns: 250px minmax(0, 1fr);

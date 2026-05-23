@@ -466,27 +466,6 @@ export default function ProductsPage({
       setCategoryError('Enter category name before generating icons.');
       return;
     }
-    if (editingCategoryId) {
-      const replace = Boolean(categoryForm.iconImageUrl);
-      if (replace && !window.confirm('Regenerate this category icon and replace the existing one?')) {
-        return;
-      }
-      setCategoryError('');
-      setCategorySuccess('');
-      setIconGenerating(true);
-      try {
-        const updated = await retailService.generateProductCategoryIcon(editingCategoryId, replace);
-        setCategoryForm((current) => ({ ...current, iconImageUrl: updated.iconImageUrl || '' }));
-        setIconOptions([]);
-        setCategorySuccess(replace ? 'Category icon regenerated.' : 'Category icon generated.');
-        await loadCategories(categoriesPage.page || 0);
-      } catch (requestError) {
-        setCategoryError(getApiErrorMessage(requestError, 'Unable to generate category icon.'));
-      } finally {
-        setIconGenerating(false);
-      }
-      return;
-    }
     setCategoryError('');
     setIconGenerating(true);
     try {
@@ -499,7 +478,7 @@ export default function ProductsPage({
       if (Array.isArray(options) && options.length) {
         setCategoryForm((current) => ({ ...current, iconImageUrl: options[0].imageUrl }));
         setIconOptions([]);
-        setCategorySuccess('Category icon generated. Save the category to keep it.');
+        setCategorySuccess(editingCategoryId ? 'Category icon generated. Save the category to apply it.' : 'Category icon generated. Save the category to keep it.');
       } else {
         setCategoryError('OpenAI returned no category icon. Please try again.');
       }
