@@ -9267,6 +9267,36 @@ th {
   gap: 0.8rem;
 }
 
+@media (max-width: 900px) {
+  .billing-page .two-column {
+    display: flex;
+    flex-direction: column;
+    grid-template-columns: 1fr;
+  }
+
+  .billing-page .inventory-stack {
+    order: 1;
+    width: 100%;
+  }
+
+  .billing-page .two-column > .panel {
+    order: 2;
+    width: 100%;
+  }
+
+  .billing-page .product-grid,
+  .billing-page .product-grid.compact-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .billing-page .product-grid,
+  .billing-page .product-grid.compact-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .site-interaction-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
