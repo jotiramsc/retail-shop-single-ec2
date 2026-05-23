@@ -9,6 +9,8 @@ const isExpiredSession = (session) => {
 
 export const storeAuthSession = (session) => {
   window.localStorage.removeItem(AUTH_STORAGE_KEY);
+  window.localStorage.removeItem(CUSTOMER_AUTH_STORAGE_KEY);
+  window.localStorage.removeItem(CHECKOUT_COUPON_KEY);
   window.sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session));
 };
 
@@ -39,6 +41,8 @@ export const clearAuthSession = () => {
 };
 
 export const storeCustomerSession = (session) => {
+  window.localStorage.removeItem(AUTH_STORAGE_KEY);
+  window.sessionStorage.removeItem(AUTH_STORAGE_KEY);
   window.localStorage.setItem(CUSTOMER_AUTH_STORAGE_KEY, JSON.stringify(session));
 };
 

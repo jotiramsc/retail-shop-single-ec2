@@ -19,7 +19,7 @@ public class ImageUploadController {
     private final ImageUploadService imageUploadService;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasAnyAuthority('PERM_PRODUCTS', 'PERM_OFFERS', 'PERM_RECEIPT_SETTINGS')")
+    @PreAuthorize("hasAnyAuthority('PERM_PRODUCTS', 'PERM_OFFERS', 'PERM_RECEIPT_SETTINGS', 'PERM_MARKETING_AUTOMATION', 'PERM_CAMPAIGNS', 'PERM_CAMPAIGNS_CREATE', 'PERM_CAMPAIGNS_LIST')")
     public ImageUploadResponse uploadImage(@RequestParam("image") MultipartFile image,
                                            @RequestParam("category") String category) {
         return imageUploadService.uploadImage(image, category);

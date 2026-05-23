@@ -135,6 +135,51 @@ export function promptAction({
   });
 }
 
+export function promptDateTimeAction({
+  title = 'Schedule',
+  message = '',
+  confirmText = 'Schedule',
+  cancelText = 'Cancel',
+  min = ''
+} = {}) {
+  if (!canUseDom()) return Promise.resolve('');
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'kps-modal-overlay';
+    overlay.innerHTML = `
+      <section class="kps-swal is-info" role="dialog" aria-modal="true" aria-labelledby="kps-datetime-title">
+        <span class="kps-swal-icon"><i class="bx bx-calendar-event"></i></span>
+        <h3 id="kps-datetime-title">${escapeHtml(title)}</h3>
+        ${message ? `<p>${escapeHtml(message)}</p>` : ''}
+        <input class="kps-swal-input" type="datetime-local" ${min ? `min="${escapeHtml(min)}"` : ''} />
+        <div class="kps-swal-actions">
+          <button type="button" class="ghost-btn compact-btn" data-action="cancel">${escapeHtml(cancelText)}</button>
+          <button type="button" class="primary-btn compact-btn" data-action="confirm">${escapeHtml(confirmText)}</button>
+        </div>
+      </section>
+    `;
+    document.body.appendChild(overlay);
+    const input = overlay.querySelector('.kps-swal-input');
+    input?.focus();
+    const cleanup = (result) => {
+      overlay.classList.add('is-leaving');
+      window.setTimeout(() => overlay.remove(), 160);
+      resolve(result);
+    };
+    overlay.addEventListener('click', (event) => {
+      if (event.target === overlay || event.target?.dataset?.action === 'cancel') cleanup('');
+      if (event.target?.dataset?.action === 'confirm') {
+        const value = input?.value || '';
+        if (!value) {
+          input?.classList.add('is-invalid');
+          return;
+        }
+        cleanup(value);
+      }
+    });
+  });
+}
+
 function escapeHtml(value) {
   return String(value || '')
     .replace(/&/g, '&amp;')

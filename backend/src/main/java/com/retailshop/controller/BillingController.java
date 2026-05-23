@@ -26,7 +26,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/billing")
 @RequiredArgsConstructor
-@PreAuthorize("hasAuthority('PERM_BILLING')")
+@PreAuthorize("hasAnyAuthority('PERM_BILLING', 'PERM_BILLING_CHECKOUT', 'PERM_BILLING_INVOICES', 'PERM_BILLING_ORDERS')")
 public class BillingController {
 
     private final BillingService billingService;

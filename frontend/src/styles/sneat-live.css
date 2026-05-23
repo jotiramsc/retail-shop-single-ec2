@@ -707,6 +707,8 @@ body {
 }
 
 .dashboard-search-strip {
+  position: relative;
+  z-index: 20;
   display: grid;
   grid-template-columns: minmax(0, 0.75fr) minmax(22rem, 1.25fr);
   gap: 1.25rem;

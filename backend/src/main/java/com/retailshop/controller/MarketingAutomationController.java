@@ -52,20 +52,20 @@ public class MarketingAutomationController {
     @PostMapping("/campaigns")
     @ResponseStatus(HttpStatus.CREATED)
     public MarketingCampaignResponse createCampaign(@Valid @RequestBody MarketingCampaignRequest request) {
-        requireAdminOrOwner();
+        requireMarketingAccess();
         return marketingAutomationService.createCampaign(request, currentUsername());
     }
 
     @PostMapping("/campaigns/{campaignId}/generate")
     public MarketingCampaignResponse generateCampaign(@PathVariable UUID campaignId) {
-        requireAdminOrOwner();
+        requireMarketingAccess();
         return marketingAutomationService.generateCampaign(campaignId, currentUsername());
     }
 
     @PostMapping("/campaigns/{campaignId}/generate-async")
     @ResponseStatus(HttpStatus.ACCEPTED)
     public MarketingCampaignResponse generateCampaignAsync(@PathVariable UUID campaignId) {
-        requireAdminOrOwner();
+        requireMarketingAccess();
         String actor = currentUsername();
         MarketingCampaignResponse response = marketingAutomationService.startCampaignGeneration(campaignId);
         applicationTaskExecutor.execute(() -> {
@@ -118,7 +118,7 @@ public class MarketingAutomationController {
     @PutMapping("/content/{contentId}")
     public MarketingContentResponse updateContent(@PathVariable UUID contentId,
                                                   @Valid @RequestBody MarketingContentUpdateRequest request) {
-        requireAdminOrOwner();
+        requireMarketingAccess();
         return marketingAutomationService.updateContent(contentId, request, currentUsername(), isOwner());
     }
 
@@ -139,19 +139,19 @@ public class MarketingAutomationController {
     @PostMapping("/content/{contentId}/schedule")
     public MarketingContentResponse scheduleContent(@PathVariable UUID contentId,
                                                     @Valid @RequestBody MarketingScheduleRequest request) {
-        requireAdminOrOwner();
+        requireMarketingAccess();
         return marketingAutomationService.scheduleContent(contentId, request, currentUsername());
     }
 
     @PostMapping("/content/{contentId}/publish-now")
     public MarketingContentResponse publishNow(@PathVariable UUID contentId) {
-        requireAdminOrOwner();
+        requireMarketingAccess();
         return marketingAutomationService.publishNow(contentId, currentUsername());
     }
 
     @GetMapping("/approval-queue")
     public List<MarketingApprovalQueueItemResponse> approvalQueue() {
-        requireAdminOrOwner();
+        requireMarketingAccess();
         return marketingAutomationService.getApprovalQueue();
     }
 
@@ -170,6 +170,13 @@ public class MarketingAutomationController {
                 "ROLE_ADMIN".equals(authority.getAuthority())
                         || "ROLE_OWNER".equals(authority.getAuthority())
                         || "PERM_CAMPAIGNS".equals(authority.getAuthority())
+                        || "PERM_CAMPAIGNS_DASHBOARD".equals(authority.getAuthority())
+                        || "PERM_CAMPAIGNS_LIST".equals(authority.getAuthority())
+                        || "PERM_CAMPAIGNS_CREATE".equals(authority.getAuthority())
+                        || "PERM_CAMPAIGNS_TEMPLATES".equals(authority.getAuthority())
+                        || "PERM_CAMPAIGNS_AUDIENCE".equals(authority.getAuthority())
+                        || "PERM_CAMPAIGNS_OFFERS".equals(authority.getAuthority())
+                        || "PERM_CAMPAIGNS_APPROVAL".equals(authority.getAuthority())
                         || "PERM_OFFERS".equals(authority.getAuthority())
                         || "PERM_MARKETING_AUTOMATION".equals(authority.getAuthority()))) {
             throw new org.springframework.security.access.AccessDeniedException("Marketing access is required");

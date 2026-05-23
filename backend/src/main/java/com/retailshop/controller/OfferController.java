@@ -48,14 +48,14 @@ public class OfferController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAuthority('PERM_OFFERS')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('OWNER')")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteOffer(@PathVariable UUID id) {
         offerService.deleteOffer(id);
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyAuthority('PERM_OFFERS', 'PERM_BILLING', 'PERM_MARKETING_AUTOMATION', 'PERM_CAMPAIGNS')")
+    @PreAuthorize("hasAnyAuthority('PERM_OFFERS', 'PERM_BILLING', 'PERM_BILLING_CHECKOUT', 'PERM_MARKETING_AUTOMATION', 'PERM_CAMPAIGNS', 'PERM_CAMPAIGNS_OFFERS')")
     public PaginatedResponse<OfferResponse> getOffers(@RequestParam(defaultValue = "0") int page,
                                                       @RequestParam(defaultValue = "10") int size) {
         Pageable pageable = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 100));
@@ -63,7 +63,7 @@ public class OfferController {
     }
 
     @GetMapping("/suggested")
-    @PreAuthorize("hasAnyAuthority('PERM_OFFERS', 'PERM_MARKETING_AUTOMATION', 'PERM_CAMPAIGNS')")
+    @PreAuthorize("hasAnyAuthority('PERM_OFFERS', 'PERM_MARKETING_AUTOMATION', 'PERM_CAMPAIGNS', 'PERM_CAMPAIGNS_OFFERS')")
     public List<OfferSuggestionResponse> getSuggestedOffers() {
         return automationService.suggestOffersForSlowMovingProducts();
     }

@@ -76,14 +76,14 @@ function StatCard({ icon, label, value, note, tone = 'primary' }) {
 
 function CampaignRow({ campaign }) {
   return (
-    <div className="sneat-list-row">
+    <Link className="sneat-list-row campaign-work-link" to={`/app/campaigns/list?campaignId=${encodeURIComponent(campaign.id)}`}>
       <span className="sneat-stat-icon mini"><i className="bx bx-broadcast" /></span>
       <div>
         <strong>{campaign.campaignName || campaign.name || 'Untitled campaign'}</strong>
         <small>{campaign.campaignType || 'Campaign'} · {campaign.status || 'DRAFT'}</small>
       </div>
       <span className="badge bg-label-primary">{campaign.targetPlatforms?.[0] || campaign.platform || 'SOCIAL'}</span>
-    </div>
+    </Link>
   );
 }
 

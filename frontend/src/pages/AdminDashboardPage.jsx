@@ -162,6 +162,10 @@ export default function AdminDashboardPage({ branding, auth }) {
       })
       .catch((requestError) => {
         if (cancelled) return;
+        if ([401, 403].includes(Number(requestError?.response?.status || 0))) {
+          setError('');
+          return;
+        }
         setError(getApiErrorMessage(requestError, 'Unable to load dashboard analytics.'));
       })
       .finally(() => {
@@ -283,7 +287,7 @@ export default function AdminDashboardPage({ branding, auth }) {
               icon: 'bx-broadcast',
               title: campaign.campaignName || 'Campaign',
               subtitle: `${campaign.status || 'Draft'} · ${campaign.campaignType || 'Marketing'}`,
-              to: '/app/campaigns/list'
+              to: `/app/campaigns/list?campaignId=${encodeURIComponent(campaign.id)}`
             }));
         }
         if (orders.status === 'fulfilled') {

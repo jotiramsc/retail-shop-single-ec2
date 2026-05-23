@@ -18,6 +18,8 @@ public class MarketingAnalyticsResponse {
     private long clicks;
     private long conversions;
     private long leadVisits;
+    private long whatsappDelivered;
+    private long whatsappFailed;
     private List<PlatformAnalyticsRow> byPlatform;
     private List<SourceAnalyticsRow> bySource;
     private List<CampaignAnalyticsRow> byCampaign;

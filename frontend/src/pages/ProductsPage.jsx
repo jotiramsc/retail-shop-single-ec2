@@ -7,6 +7,7 @@ import { retailService } from '../services/retailService';
 import { currency } from '../utils/format';
 import { getApiErrorMessage } from '../utils/validation';
 import { confirmAction, showError, showSuccess, showToast } from '../utils/notifications';
+import { getStoredAuthSession } from '../utils/auth';
 
 const createBlankProduct = (defaultCategory = '') => ({
   name: '',
@@ -86,6 +87,8 @@ export default function ProductsPage({
   hidePageHeader = false,
   hideTabs = false
 }) {
+  const auth = getStoredAuthSession() || {};
+  const isAdminUser = auth.role === 'ADMIN' || auth.role === 'OWNER';
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = searchParams.get('tab');
   const [productsPage, setProductsPage] = useState({ items: [], page: 0, totalPages: 0, totalItems: 0, hasNext: false, hasPrevious: false });
@@ -1032,13 +1035,15 @@ export default function ProductsPage({
                       <a className="ghost-btn compact-btn table-action-btn" href={`/product/${row.id}`} target="_blank" rel="noreferrer">
                         Preview
                       </a>
-                      <button
-                        type="button"
-                        className="ghost-btn compact-btn table-action-btn danger-btn"
-                        onClick={() => handleDeleteProduct(row)}
-                      >
-                        Delete
-                      </button>
+                      {isAdminUser ? (
+                        <button
+                          type="button"
+                          className="ghost-btn compact-btn table-action-btn danger-btn"
+                          onClick={() => handleDeleteProduct(row)}
+                        >
+                          Delete
+                        </button>
+                      ) : null}
                     </div>
                   )
                 }

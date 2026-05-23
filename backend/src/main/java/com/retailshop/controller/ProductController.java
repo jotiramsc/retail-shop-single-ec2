@@ -40,7 +40,7 @@ public class ProductController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyAuthority('PERM_PRODUCTS', 'PERM_BILLING')")
+    @PreAuthorize("hasAnyAuthority('PERM_PRODUCTS', 'PERM_PRODUCTS_LIST', 'PERM_BILLING', 'PERM_BILLING_CHECKOUT')")
     public PaginatedResponse<ProductResponse> getAllProducts(@RequestParam(defaultValue = "0") int page,
                                                              @RequestParam(defaultValue = "10") int size) {
         Pageable pageable = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 250));
@@ -73,7 +73,7 @@ public class ProductController {
     }
 
     @GetMapping("/trending")
-    @PreAuthorize("hasAnyAuthority('PERM_PRODUCTS', 'PERM_BILLING')")
+    @PreAuthorize("hasAnyAuthority('PERM_PRODUCTS', 'PERM_PRODUCTS_LIST', 'PERM_BILLING', 'PERM_BILLING_CHECKOUT')")
     public List<ProductResponse> getTrendingProducts() {
         return productService.getTrendingProducts(10);
     }
@@ -85,7 +85,7 @@ public class ProductController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAuthority('PERM_PRODUCTS')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('OWNER')")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteProduct(@PathVariable UUID id) {
         productService.deleteProduct(id);

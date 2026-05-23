@@ -306,11 +306,11 @@ public class MarketingAutomationServiceImpl implements MarketingAutomationServic
     @Transactional
     public MarketingContentResponse scheduleContent(UUID contentId, MarketingScheduleRequest request, String actor) {
         CampaignContent content = getContentEntity(contentId);
-        if (content.getStatus() == MarketingContentStatus.REJECTED || content.getStatus() == MarketingContentStatus.GENERATED) {
-            throw new BusinessException("Rejected or unapproved content cannot be scheduled");
+        if (content.getStatus() == MarketingContentStatus.REJECTED) {
+            throw new BusinessException("Rejected content cannot be scheduled");
         }
-        if (content.getStatus() != MarketingContentStatus.APPROVED) {
-            throw new BusinessException("Only approved content can be scheduled");
+        if (content.getCaptionText() == null || content.getCaptionText().isBlank()) {
+            throw new BusinessException("Caption cannot be empty before scheduling");
         }
         if (!request.getScheduledAt().isAfter(LocalDateTime.now())) {
             throw new BusinessException("Scheduled time must be in the future");
@@ -326,8 +326,11 @@ public class MarketingAutomationServiceImpl implements MarketingAutomationServic
     @Transactional
     public MarketingContentResponse publishNow(UUID contentId, String actor) {
         CampaignContent content = getContentEntity(contentId);
-        if (content.getStatus() != MarketingContentStatus.APPROVED && content.getStatus() != MarketingContentStatus.SCHEDULED) {
-            throw new BusinessException("Only approved content can be published");
+        if (content.getStatus() == MarketingContentStatus.REJECTED) {
+            throw new BusinessException("Rejected content cannot be published");
+        }
+        if (content.getCaptionText() == null || content.getCaptionText().isBlank()) {
+            throw new BusinessException("Caption cannot be empty before publishing");
         }
         CampaignContent saved = publishContent(content, actor);
         return mapContentResponse(saved);
@@ -409,6 +412,9 @@ public class MarketingAutomationServiceImpl implements MarketingAutomationServic
                         .fetchedAt(row.getFetchedAt())
                         .build())
                 .toList();
+        long whatsappDelivered = publishLogRepository.countByPlatformAndStatusBetween(MarketingPlatform.WHATSAPP, "PUBLISHED", start, end)
+                + publishLogRepository.countByPlatformAndStatusBetween(MarketingPlatform.WHATSAPP, "SENT", start, end);
+        long whatsappFailed = publishLogRepository.countByPlatformAndStatusBetween(MarketingPlatform.WHATSAPP, "FAILED", start, end);
 
         return MarketingAnalyticsResponse.builder()
                 .impressions(impressions)
@@ -418,6 +424,8 @@ public class MarketingAutomationServiceImpl implements MarketingAutomationServic
                 .clicks(clicks)
                 .conversions(conversions)
                 .leadVisits(leadVisits)
+                .whatsappDelivered(whatsappDelivered)
+                .whatsappFailed(whatsappFailed)
                 .byPlatform(platformRows)
                 .bySource(sourceRows)
                 .byCampaign(campaignRows)

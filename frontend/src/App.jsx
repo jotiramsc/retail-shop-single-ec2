@@ -322,12 +322,6 @@ function ProtectedApp({ auth, onLogout, branding }) {
               </button>
             </div>
             <div className="navbar-nav-right d-flex align-items-center w-100">
-              <div className="navbar-nav align-items-center me-auto">
-                <div className="nav-item d-flex align-items-center kps-navbar-title">
-                  <i className="bx bx-grid-alt fs-4 lh-0" />
-                  <span>Admin Workspace</span>
-                </div>
-              </div>
               <div className="kps-header-account ms-auto">
                 <div className="kps-avatar-button" aria-label="Signed in user">
                   <span className="kps-avatar-initial">{String(auth.displayName || 'K').slice(0, 1).toUpperCase()}</span>

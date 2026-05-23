@@ -5,6 +5,8 @@ import PageHeader from '../components/PageHeader';
 import Panel from '../components/Panel';
 import { retailService } from '../services/retailService';
 import { getApiErrorMessage } from '../utils/validation';
+import { getStoredAuthSession } from '../utils/auth';
+import { confirmAction, showError, showSuccess } from '../utils/notifications';
 
 const formatDateInput = (date) => {
   const year = date.getFullYear();
@@ -71,6 +73,8 @@ const WEEKDAYS = [
 ];
 
 export default function OffersPage({ embedded = false }) {
+  const auth = getStoredAuthSession() || {};
+  const isAdminUser = auth.role === 'ADMIN' || auth.role === 'OWNER';
   const [searchParams] = useSearchParams();
   const requestedCoupon = searchParams.get('coupon');
   const [products, setProducts] = useState([]);
@@ -270,6 +274,13 @@ export default function OffersPage({ embedded = false }) {
   };
 
   const removeOffer = async (offer) => {
+    const confirmed = await confirmAction({
+      title: 'Delete offer?',
+      message: `Delete "${offer.name}"? Billing and campaign history will remain preserved.`,
+      confirmText: 'Delete',
+      tone: 'danger'
+    });
+    if (!confirmed) return;
     setError('');
     setSuccess('');
     try {
@@ -278,9 +289,12 @@ export default function OffersPage({ embedded = false }) {
         cancelEdit();
       }
       setSuccess(`Offer ${offer.name} deleted.`);
+      showSuccess(`Offer ${offer.name} deleted.`);
       await load(offersPage.page || 0);
     } catch (requestError) {
-      setError(getApiErrorMessage(requestError, 'Unable to delete offer.'));
+      const message = getApiErrorMessage(requestError, 'Unable to delete offer.');
+      setError(message);
+      showError(message);
     }
   };
 
@@ -558,7 +572,7 @@ export default function OffersPage({ embedded = false }) {
               render: (row) => (
                 <div className="table-actions">
                   <button className="ghost-btn compact-btn" type="button" onClick={() => beginEdit(row)}>Edit</button>
-                  <button className="ghost-btn compact-btn danger-btn" type="button" onClick={() => removeOffer(row)}>Delete</button>
+                  {isAdminUser ? <button className="ghost-btn compact-btn danger-btn" type="button" onClick={() => removeOffer(row)}>Delete</button> : null}
                 </div>
               )
             }

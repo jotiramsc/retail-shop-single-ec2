@@ -40,7 +40,7 @@ public class StaffUserController {
     }
 
     @GetMapping("/salespeople")
-    @PreAuthorize("hasAnyAuthority('PERM_BILLING', 'PERM_REPORTS', 'PERM_USER_MANAGEMENT')")
+    @PreAuthorize("hasAnyAuthority('PERM_BILLING', 'PERM_BILLING_CHECKOUT', 'PERM_REPORTS', 'PERM_USER_MANAGEMENT')")
     public List<SalesPersonOptionResponse> getSalesPeople() {
         return staffUserService.getActiveSalesPeople();
     }

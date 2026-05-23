@@ -8,7 +8,7 @@ import { retailService } from '../services/retailService';
 import { currency, formatDate } from '../utils/format';
 import { getStoredAuthSession } from '../utils/auth';
 import { getApiErrorMessage } from '../utils/validation';
-import { confirmAction, promptAction, showError, showSuccess, showToast } from '../utils/notifications';
+import { confirmAction, promptDateTimeAction, showError, showSuccess, showToast } from '../utils/notifications';
 
 const TABS = [
   { value: 'campaigns', label: 'Campaigns' },
@@ -265,8 +265,11 @@ export default function CampaignsPage({
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const requestedTab = searchParams.get('tab');
+  const requestedCampaignId = searchParams.get('campaignId');
   const auth = getStoredAuthSession() || {};
-  const canApprove = auth.role === 'ADMIN' || auth.role === 'OWNER';
+  const isAdminUser = auth.role === 'ADMIN' || auth.role === 'OWNER';
+  const authPermissions = Array.isArray(auth.permissions) ? auth.permissions : [];
+  const canManageCampaigns = isAdminUser || ['MARKETING_AUTOMATION', 'CAMPAIGNS', 'CAMPAIGNS_CREATE', 'CAMPAIGNS_LIST', 'CAMPAIGNS_APPROVAL'].some((permission) => authPermissions.includes(permission));
   const defaultTab = TABS.some((tab) => tab.value === initialTab) ? initialTab : 'campaigns';
   const [activeTab, setActiveTab] = useState(TABS.some((tab) => tab.value === requestedTab) && !hideTabs ? requestedTab : defaultTab);
   const [filters, setFilters] = useState(blankFilters);
@@ -320,6 +323,13 @@ export default function CampaignsPage({
       setError('Unable to load the selected template. Please choose it again.');
     }
   }, [activeTab]);
+
+  useEffect(() => {
+    if (!requestedCampaignId || activeTab !== 'campaigns') return;
+    loadCampaignDetails(requestedCampaignId).catch((requestError) => {
+      setError(getApiErrorMessage(requestError, 'Unable to open campaign.'));
+    });
+  }, [requestedCampaignId, activeTab]);
 
   const selectTab = (tab) => {
     setActiveTab(tab);
@@ -532,7 +542,11 @@ export default function CampaignsPage({
           ...current,
           items: [optimisticCampaign, ...(current.items || []).filter((item) => item.id !== created.id)]
         }));
-        selectTab('campaigns');
+        if (hideTabs) {
+          navigate(`/app/campaigns/list?campaignId=${encodeURIComponent(created.id)}`);
+        } else {
+          selectTab('campaigns');
+        }
         setSuccess('Campaign saved. AI draft generation has started in the background.');
         response = await retailService.generateMarketingCampaignAsync(created.id);
         scheduleGenerationRefresh(created.id);
@@ -546,7 +560,11 @@ export default function CampaignsPage({
       retailService.getOffers({ page: 0, size: 100 }).then((offersPage) => setActiveOffers(offersPage.items || [])).catch(() => {});
       if (response?.id) {
         await loadCampaignDetails(response.id);
-        selectTab('campaigns');
+        if (hideTabs) {
+          navigate(`/app/campaigns/list?campaignId=${encodeURIComponent(response.id)}`);
+        } else {
+          selectTab('campaigns');
+        }
       }
     } catch (requestError) {
       showCreateError(getApiErrorMessage(requestError, 'Unable to create campaign.'));
@@ -701,41 +719,23 @@ export default function CampaignsPage({
     }
   };
 
-  const rejectContent = async (contentId) => {
-    const reason = await promptAction({
-      title: 'Reject content',
-      message: 'Add a short reason so the team knows what needs to change.',
-      placeholder: 'Reason for rejection',
-      confirmText: 'Reject'
-    });
-    if (!reason) {
-      return;
-    }
-    resetNotices();
-    try {
-      await retailService.rejectMarketingContent(contentId, { reason });
-      setSuccess('Content rejected.');
-      showToast({ title: 'Rejected', message: 'Content rejected.', tone: 'warning' });
-      if (selectedCampaign?.id) {
-        await loadCampaignDetails(selectedCampaign.id);
-      }
-      await loadApprovalQueue();
-      await loadCampaigns(campaignsPage.page || 0);
-    } catch (requestError) {
-      const message = getApiErrorMessage(requestError, 'Unable to reject content.');
-      setError(message);
-      showError(message);
-    }
-  };
-
   const scheduleContent = async (contentId) => {
-    const scheduledAt = contentDrafts[contentId]?.scheduledAt;
+    const scheduledAt = await promptDateTimeAction({
+      title: 'Schedule campaign',
+      message: 'Choose the date and time this campaign should publish.',
+      confirmText: 'Schedule',
+      min: toDatetimeLocal(new Date(Date.now() + 5 * 60 * 1000).toISOString())
+    });
     if (!scheduledAt) {
-      setError('Choose a future schedule time before scheduling this content.');
       return;
     }
     resetNotices();
     try {
+      try {
+        await retailService.approveMarketingContent(contentId, { comment: 'Auto-approved while scheduling' });
+      } catch {
+        // Already approved/scheduled/published content can continue to the schedule call.
+      }
       await retailService.scheduleMarketingContent(contentId, { scheduledAt });
       setSuccess('Content scheduled.');
       showSuccess('Content scheduled.');
@@ -763,6 +763,11 @@ export default function CampaignsPage({
     }
     resetNotices();
     try {
+      try {
+        await retailService.approveMarketingContent(contentId, { comment: 'Auto-approved for immediate publish' });
+      } catch {
+        // Already approved/scheduled/published content can continue to publish.
+      }
       await retailService.publishMarketingContentNow(contentId);
       setSuccess('Content published.');
       showSuccess('Content published.');
@@ -787,9 +792,9 @@ export default function CampaignsPage({
     }
     const label = platform ? platform : 'all platforms';
     const confirmed = await confirmAction({
-      title: 'Approve and publish?',
-      message: `Approve and publish ${contents.length} draft${contents.length === 1 ? '' : 's'} for ${label}?`,
-      confirmText: 'Approve & publish',
+      title: 'Publish now?',
+      message: `Publish ${contents.length} draft${contents.length === 1 ? '' : 's'} for ${label} immediately?`,
+      confirmText: 'Publish now',
       tone: 'info'
     });
     if (!confirmed) {
@@ -806,8 +811,8 @@ export default function CampaignsPage({
           await retailService.publishMarketingContentNow(content.id);
         }
       }
-      setSuccess(`Approved and published ${label}.`);
-      showSuccess(`Approved and published ${label}.`);
+      setSuccess(`Published ${label}.`);
+      showSuccess(`Published ${label}.`);
       if (selectedCampaign?.id) {
         await loadCampaignDetails(selectedCampaign.id);
       }
@@ -1012,15 +1017,8 @@ export default function CampaignsPage({
               Image URL / preview URL
               <input
                 value={draft.imageUrl ?? content.imageUrl ?? ''}
-                onChange={(event) => updateDraft(content.id, 'imageUrl', event.target.value)}
-              />
-            </label>
-            <label>
-              Schedule time
-              <input
-                type="datetime-local"
-                value={draft.scheduledAt ?? ''}
-                onChange={(event) => updateDraft(content.id, 'scheduledAt', event.target.value)}
+                readOnly
+                aria-readonly="true"
               />
             </label>
           </div>
@@ -1037,18 +1035,12 @@ export default function CampaignsPage({
           <button type="button" className="ghost-btn compact-btn" onClick={() => saveContentDraft(content.id)}>
             Save edits
           </button>
-          {canApprove ? (
+          {canManageCampaigns ? (
             <>
-              <button type="button" className="primary-btn compact-btn" onClick={() => approveContent(content.id)}>
-                Approve
-              </button>
-              <button type="button" className="ghost-btn compact-btn" onClick={() => rejectContent(content.id)}>
-                Reject
-              </button>
               <button type="button" className="ghost-btn compact-btn" onClick={() => scheduleContent(content.id)}>
                 Schedule
               </button>
-              <button type="button" className="ghost-btn compact-btn" onClick={() => publishContentNow(content.id)}>
+              <button type="button" className="primary-btn compact-btn" onClick={() => publishContentNow(content.id)}>
                 Publish now
               </button>
             </>
@@ -1157,7 +1149,7 @@ export default function CampaignsPage({
                       <button type="button" className="ghost-btn compact-btn" disabled={loading || row.status === 'GENERATING'} onClick={() => handleGenerate(row.id)}>
                         {row.status === 'GENERATING' ? 'Generating...' : 'Generate'}
                       </button>
-                      {canApprove ? (
+                      {isAdminUser ? (
                         <button type="button" className="ghost-btn compact-btn is-danger" disabled={loading} onClick={() => handleDeleteCampaign(row.id, row.campaignName)}>
                           Delete
                         </button>
@@ -1185,19 +1177,19 @@ export default function CampaignsPage({
                 <div><span>Language</span><strong>{selectedCampaign.language}</strong></div>
                 <div><span>Tone</span><strong>{selectedCampaign.tone}</strong></div>
               </div>
-              {canApprove ? (
+              {canManageCampaigns ? (
                 <div className="marketing-selected-actions">
                   <button type="button" className="primary-btn compact-btn" disabled={loading} onClick={() => approveAndPublishCampaign()}>
-                    Approve & Publish All
+                    Publish all now
                   </button>
                   {PLATFORMS.map((platform) => (
                     <button key={platform} type="button" className="ghost-btn compact-btn" disabled={loading} onClick={() => approveAndPublishCampaign(platform)}>
                       {platform}
                     </button>
                   ))}
-                  <button type="button" className="ghost-btn compact-btn is-danger" disabled={loading} onClick={() => handleDeleteCampaign(selectedCampaign.id, selectedCampaign.campaignName)}>
+                  {isAdminUser ? <button type="button" className="ghost-btn compact-btn is-danger" disabled={loading} onClick={() => handleDeleteCampaign(selectedCampaign.id, selectedCampaign.campaignName)}>
                     Delete campaign
-                  </button>
+                  </button> : null}
                 </div>
               ) : null}
               <div className="marketing-content-list">
@@ -1485,7 +1477,7 @@ export default function CampaignsPage({
 
       {activeTab === 'approval' ? (
         <div className="marketing-automation-stack">
-          <Panel title="Approval queue" subtitle="Owner and admin users can review, edit, approve, or reject pending content here.">
+          <Panel title="Publishing queue" subtitle="Owner and admin users can review pending content, then schedule it or publish immediately.">
             <div className="marketing-content-list">
               {approvalQueue.length === 0 ? (
                 <p className="page-description">Nothing is waiting for approval right now.</p>
@@ -1504,13 +1496,13 @@ export default function CampaignsPage({
                         <button type="button" className="ghost-btn compact-btn" onClick={() => loadCampaignDetails(entry.campaignId).then(() => setActiveTab('campaigns'))}>
                           Open campaign
                         </button>
-                        {canApprove ? (
+                        {canManageCampaigns ? (
                           <>
-                            <button type="button" className="primary-btn compact-btn" onClick={() => approveContent(entry.contentId)}>
-                              Approve
+                            <button type="button" className="ghost-btn compact-btn" onClick={() => loadCampaignDetails(entry.campaignId).then(() => scheduleContent(entry.contentId))}>
+                              Schedule
                             </button>
-                            <button type="button" className="ghost-btn compact-btn" onClick={() => rejectContent(entry.contentId)}>
-                              Reject
+                            <button type="button" className="primary-btn compact-btn" onClick={() => loadCampaignDetails(entry.campaignId).then(() => publishContentNow(entry.contentId))}>
+                              Publish now
                             </button>
                           </>
                         ) : null}
@@ -1605,6 +1597,8 @@ export default function CampaignsPage({
               <article className="metric-card"><span>Shares</span><strong>{analytics?.shares ?? 0}</strong></article>
               <article className="metric-card"><span>Conversions</span><strong>{analytics?.conversions ?? 0}</strong></article>
               <article className="metric-card tone-accent"><span>Lead visits</span><strong>{analytics?.leadVisits ?? 0}</strong></article>
+              <article className="metric-card tone-accent"><span>WhatsApp delivered</span><strong>{analytics?.whatsappDelivered ?? 0}</strong></article>
+              <article className="metric-card"><span>WhatsApp failed</span><strong>{analytics?.whatsappFailed ?? 0}</strong></article>
             </div>
 
             <div className="marketing-analytics-grid">
