@@ -9,4 +9,8 @@ import lombok.Setter;
 public class CategoryIconGenerationRequest {
     @NotBlank
     private String categoryName;
+
+    private String primaryColor;
+    private String accentColor;
+    private String detailColor;
 }

@@ -45,8 +45,14 @@ public interface InvoiceRepository extends JpaRepository<Invoice, UUID> {
     @Query("select coalesce(sum(i.finalAmount), 0) from Invoice i where i.createdAt between :start and :end")
     java.math.BigDecimal sumFinalAmountBetween(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 
+    @Query("select coalesce(sum(i.finalAmount), 0) from Invoice i")
+    java.math.BigDecimal sumFinalAmount();
+
     @Query("select coalesce(sum(i.discount), 0) from Invoice i where i.createdAt between :start and :end")
     java.math.BigDecimal sumDiscountBetween(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 
     long countByCreatedAtBetween(LocalDateTime start, LocalDateTime end);
+
+    @EntityGraph(attributePaths = {"customer"})
+    List<Invoice> findTop10ByOrderByCreatedAtDesc();
 }

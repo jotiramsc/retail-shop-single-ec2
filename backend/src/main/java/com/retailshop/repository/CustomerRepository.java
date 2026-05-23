@@ -9,12 +9,15 @@ import org.springframework.data.jpa.repository.Query;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.time.LocalDateTime;
 
 public interface CustomerRepository extends JpaRepository<Customer, UUID> {
     Optional<Customer> findByMobile(String mobile);
     Optional<Customer> findByEmailIgnoreCase(String email);
     Optional<Customer> findByGoogleSubject(String googleSubject);
     Page<Customer> findAllByOrderByCreatedAtDesc(Pageable pageable);
+
+    long countByCreatedAtBetween(LocalDateTime start, LocalDateTime end);
 
     @Query(value = """
             select *

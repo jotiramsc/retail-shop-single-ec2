@@ -133,7 +133,7 @@ public class ProductCategoryOptionServiceImpl implements ProductCategoryOptionSe
 
     @Override
     @Transactional
-    public java.util.List<CategoryIconOptionResponse> generateIconOptions(String categoryName) {
+    public java.util.List<CategoryIconOptionResponse> generateIconOptions(String categoryName, String primaryColor, String accentColor, String detailColor) {
         String displayName = normalizeDisplayName(categoryName);
         if (displayName.isBlank()) {
             throw new BusinessException("Category name is required");
@@ -141,7 +141,10 @@ public class ProductCategoryOptionServiceImpl implements ProductCategoryOptionSe
         try {
             return List.of(generateCategoryIcon(
                     displayName,
-                    "preview"
+                    "preview",
+                    normalizeHexColor(primaryColor, "#C97D3A"),
+                    normalizeHexColor(accentColor, "#E8A44A"),
+                    normalizeHexColor(detailColor, "#4A2C1A")
             ));
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
@@ -163,7 +166,7 @@ public class ProductCategoryOptionServiceImpl implements ProductCategoryOptionSe
         String displayName = normalizeDisplayName(category.getDisplayName());
         CategoryIconOptionResponse generated;
         try {
-            generated = generateCategoryIcon(displayName, "category-" + category.getId());
+            generated = generateCategoryIcon(displayName, "category-" + category.getId(), "#C97D3A", "#E8A44A", "#4A2C1A");
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             throw new BusinessException("Category icon generation was interrupted");
@@ -247,27 +250,38 @@ public class ProductCategoryOptionServiceImpl implements ProductCategoryOptionSe
         return normalized == null || normalized.isBlank() ? null : normalized;
     }
 
+    private String normalizeHexColor(String value, String fallback) {
+        String normalized = value == null ? "" : value.trim();
+        return normalized.matches("^#[0-9A-Fa-f]{6}$") ? normalized.toUpperCase(Locale.ROOT) : fallback;
+    }
+
     private CategoryIconOptionResponse generateCategoryIcon(String categoryName,
-                                                            String seed) throws IOException, InterruptedException {
+                                                            String seed,
+                                                            String primaryColor,
+                                                            String accentColor,
+                                                            String detailColor) throws IOException, InterruptedException {
         if (!isOpenAiImageConfigured()) {
             throw new IOException("OpenAI category icon generation is not configured. Configure marketing AI image settings before generating category icons.");
         }
         IOException lastFailure = null;
         for (int attempt = 1; attempt <= 2; attempt++) {
             try {
-                return generateOpenAiCategoryIcon(categoryName, seed);
+                return generateOpenAiCategoryIcon(categoryName, seed, primaryColor, accentColor, detailColor);
             } catch (IOException exception) {
                 lastFailure = exception;
                 log.warn("OpenAI category icon generation attempt {} failed for {}: {}", attempt, categoryName, exception.getMessage());
             }
         }
         log.warn("OpenAI category icon generation failed after retries for {}. Using local fallback icon.", categoryName, lastFailure);
-        return generateFallbackCategoryIcon(categoryName, seed);
+        return generateFallbackCategoryIcon(categoryName, seed, primaryColor, accentColor, detailColor);
     }
 
     private CategoryIconOptionResponse generateOpenAiCategoryIcon(String categoryName,
-                                                                  String seed) throws IOException, InterruptedException {
-        String prompt = buildCategoryIconPrompt(categoryName, seed);
+                                                                  String seed,
+                                                                  String primaryColor,
+                                                                  String accentColor,
+                                                                  String detailColor) throws IOException, InterruptedException {
+        String prompt = buildCategoryIconPrompt(categoryName, seed, primaryColor, accentColor, detailColor);
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("model", defaultString(marketingProperties.getAi().getImageModel(), "gpt-image-1"));
         payload.put("prompt", prompt);
@@ -298,8 +312,8 @@ public class ProductCategoryOptionServiceImpl implements ProductCategoryOptionSe
                 .build();
     }
 
-    private CategoryIconOptionResponse generateFallbackCategoryIcon(String categoryName, String seed) throws IOException {
-        byte[] imageBytes = createLocalCategoryIconPng(categoryName, seed);
+    private CategoryIconOptionResponse generateFallbackCategoryIcon(String categoryName, String seed, String primaryColor, String accentColor, String detailColor) throws IOException {
+        byte[] imageBytes = createLocalCategoryIconPng(categoryName, seed, primaryColor, accentColor, detailColor);
         ImageUploadResponse uploadResponse = imageUploadService.uploadImageBytes(imageBytes, "image/png", "category-icons");
         if (uploadResponse == null || isBlank(uploadResponse.getCloudfrontUrl())) {
             throw new IOException("fallback category icon could not be uploaded");
@@ -310,24 +324,25 @@ public class ProductCategoryOptionServiceImpl implements ProductCategoryOptionSe
                 .build();
     }
 
-    private byte[] createLocalCategoryIconPng(String categoryName, String seed) throws IOException {
+    private byte[] createLocalCategoryIconPng(String categoryName, String seed, String primaryColor, String accentColor, String detailColor) throws IOException {
         int size = 1024;
         BufferedImage output = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
         Graphics2D graphics = output.createGraphics();
         try {
             graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             graphics.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
-            graphics.setPaint(new GradientPaint(0, 0, new Color(9, 96, 82), size, size, new Color(45, 212, 191)));
-            graphics.fill(new Ellipse2D.Double(64, 64, size - 128, size - 128));
-            graphics.setColor(new Color(236, 253, 245, 210));
-            graphics.setStroke(new BasicStroke(26, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-            graphics.draw(new Ellipse2D.Double(88, 88, size - 176, size - 176));
+            Color primary = Color.decode(primaryColor);
+            Color accent = Color.decode(accentColor);
+            Color detail = Color.decode(detailColor);
+            graphics.setColor(new Color(primary.getRed(), primary.getGreen(), primary.getBlue(), 235));
+            graphics.setStroke(new BasicStroke(30, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            graphics.draw(new Ellipse2D.Double(104, 104, size - 208, size - 208));
 
-            graphics.setColor(new Color(255, 255, 255, 236));
+            graphics.setColor(new Color(accent.getRed(), accent.getGreen(), accent.getBlue(), 226));
             graphics.setStroke(new BasicStroke(34, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
             drawFallbackSymbol(graphics, categoryName, size);
 
-            graphics.setColor(new Color(204, 251, 241, 180));
+            graphics.setColor(new Color(detail.getRed(), detail.getGreen(), detail.getBlue(), 210));
             graphics.setStroke(new BasicStroke(12, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
             graphics.draw(new Ellipse2D.Double(190, 190, size - 380, size - 380));
         } finally {
@@ -375,17 +390,18 @@ public class ProductCategoryOptionServiceImpl implements ProductCategoryOptionSe
         graphics.fillOval(676, 515, 44, 44);
     }
 
-    private String buildCategoryIconPrompt(String categoryName, String seed) {
+    private String buildCategoryIconPrompt(String categoryName, String seed, String primaryColor, String accentColor, String detailColor) {
         String subject = productSymbolFor(categoryName);
         return """
                 Create one premium ecommerce category icon for KRISHNAI Pearl Shopee.
                 Category: %s.
                 Depict: %s.
-                Style: luxury Indian boutique, elegant jewelry-and-beauty retail, clean vector-like product silhouette, polished emerald and teal linework with subtle pearl/ivory highlights, refined circular medallion composition, mobile app icon readability at 48px.
+                Style: luxury Indian boutique, elegant jewelry-and-beauty retail, clean vector-like product silhouette, refined circular medallion composition, mobile app icon readability at 48px.
+                Palette: primary stroke %s, gem/accent %s, dark detail %s.
                 Composition: centered single object or simple paired objects, no hands, no people, no model, no background scene.
-                Technical: square PNG, transparent background outside the circular medallion, no text, no letters, no logo, no watermark, no price tags, no extra decorative clutter.
+                Technical: square PNG, fully transparent background, no filled square or filled circle background, no text, no letters, no logo, no watermark, no price tags, no extra decorative clutter.
                 Seed/context: %s.
-                """.formatted(categoryName, subject, seed);
+                """.formatted(categoryName, subject, primaryColor, accentColor, detailColor, seed);
     }
 
     private String productSymbolFor(String categoryName) {

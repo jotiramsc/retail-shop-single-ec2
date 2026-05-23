@@ -14,7 +14,10 @@ public interface ProductCategoryOptionService {
     List<ProductCategoryOptionResponse> getActiveCategories();
     ProductCategoryOptionResponse createCategory(ProductCategoryOptionRequest request);
     ProductCategoryOptionResponse updateCategory(UUID id, ProductCategoryOptionRequest request);
-    List<CategoryIconOptionResponse> generateIconOptions(String categoryName);
+    default List<CategoryIconOptionResponse> generateIconOptions(String categoryName) {
+        return generateIconOptions(categoryName, null, null, null);
+    }
+    List<CategoryIconOptionResponse> generateIconOptions(String categoryName, String primaryColor, String accentColor, String detailColor);
     ProductCategoryOptionResponse generateIcon(UUID id, boolean replaceExisting);
     void validateCategoryCode(String code);
 }

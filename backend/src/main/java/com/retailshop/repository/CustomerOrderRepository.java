@@ -2,11 +2,16 @@ package com.retailshop.repository;
 
 import com.retailshop.entity.CustomerOrder;
 import com.retailshop.enums.OrderSource;
+import com.retailshop.enums.OrderStatus;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -45,4 +50,20 @@ public interface CustomerOrderRepository extends JpaRepository<CustomerOrder, UU
             LocalDateTime end,
             String customerName
     );
+
+    long countByCreatedAtBetween(LocalDateTime start, LocalDateTime end);
+
+    long countByStatusIn(Collection<OrderStatus> statuses);
+
+    @Query("select coalesce(sum(o.finalAmount), 0) from CustomerOrder o where o.createdAt between :start and :end")
+    BigDecimal sumFinalAmountBetween(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+
+    @Query("select coalesce(sum(o.finalAmount), 0) from CustomerOrder o")
+    BigDecimal sumFinalAmount();
+
+    @EntityGraph(attributePaths = {"customer"})
+    List<CustomerOrder> findTop10ByOrderByCreatedAtDesc();
+
+    @EntityGraph(attributePaths = {"customer"})
+    List<CustomerOrder> findAllByOrderByCreatedAtDesc(Pageable pageable);
 }

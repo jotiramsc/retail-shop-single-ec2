@@ -41,6 +41,9 @@ const createBlankProduct = (defaultCategory = '') => ({
 const blankCategoryForm = {
   displayName: '',
   iconImageUrl: '',
+  iconPrimaryColor: '#C97D3A',
+  iconAccentColor: '#E8A44A',
+  iconDetailColor: '#4A2C1A',
   facebookSyncEnabled: true,
   facebookCategory: '',
   facebookCollectionName: '',
@@ -109,6 +112,7 @@ export default function ProductsPage({
   const [categorySubmitting, setCategorySubmitting] = useState(false);
   const [iconGenerating, setIconGenerating] = useState(false);
   const [iconOptions, setIconOptions] = useState([]);
+  const [categoryDrawerOpen, setCategoryDrawerOpen] = useState(false);
 
   const defaultCategoryCode = categoryOptions[0]?.code || '';
 
@@ -247,6 +251,7 @@ export default function ProductsPage({
   const resetCategoryForm = () => {
     setCategoryForm(blankCategoryForm);
     setEditingCategoryId(null);
+    setIconOptions([]);
   };
 
   const applyProductToForm = (product, mode = 'edit') => {
@@ -411,16 +416,25 @@ export default function ProductsPage({
       return;
     }
     setCategorySubmitting(true);
+    const categoryPayload = {
+      displayName: categoryForm.displayName.trim(),
+      iconImageUrl: categoryForm.iconImageUrl || '',
+      facebookSyncEnabled: categoryForm.facebookSyncEnabled !== false,
+      facebookCategory: categoryForm.facebookCategory || defaultFacebookCategoryFor(categoryForm.displayName),
+      facebookCollectionName: categoryForm.facebookCollectionName || defaultFacebookCollectionFor(categoryForm.displayName),
+      active: Boolean(categoryForm.active)
+    };
     try {
       if (editingCategoryId) {
-        await retailService.updateProductCategory(editingCategoryId, categoryForm);
+        await retailService.updateProductCategory(editingCategoryId, categoryPayload);
         setCategorySuccess('Category updated successfully.');
       } else {
-        await retailService.createProductCategory(categoryForm);
+        await retailService.createProductCategory(categoryPayload);
         setCategorySuccess('Category created successfully.');
       }
       resetCategoryForm();
       setIconOptions([]);
+      setCategoryDrawerOpen(false);
       await loadCategories(categoriesPage.page || 0);
     } catch (requestError) {
       setCategoryError(getApiErrorMessage(requestError, 'Unable to save category.'));
@@ -434,12 +448,16 @@ export default function ProductsPage({
     setCategoryForm({
       displayName: category.displayName,
       iconImageUrl: category.iconImageUrl || '',
+      iconPrimaryColor: '#C97D3A',
+      iconAccentColor: '#E8A44A',
+      iconDetailColor: '#4A2C1A',
       facebookSyncEnabled: category.facebookSyncEnabled !== false,
       facebookCategory: category.facebookCategory || defaultFacebookCategoryFor(category.displayName),
       facebookCollectionName: category.facebookCollectionName || defaultFacebookCollectionFor(category.displayName),
       active: Boolean(category.active)
     });
     setIconOptions([]);
+    setCategoryDrawerOpen(true);
   };
 
   const generateCategoryIcons = async () => {
@@ -472,7 +490,12 @@ export default function ProductsPage({
     setCategoryError('');
     setIconGenerating(true);
     try {
-      const options = await retailService.generateProductCategoryIcons({ categoryName });
+      const options = await retailService.generateProductCategoryIcons({
+        categoryName,
+        primaryColor: categoryForm.iconPrimaryColor || '#C97D3A',
+        accentColor: categoryForm.iconAccentColor || '#E8A44A',
+        detailColor: categoryForm.iconDetailColor || '#4A2C1A'
+      });
       if (Array.isArray(options) && options.length) {
         setCategoryForm((current) => ({ ...current, iconImageUrl: options[0].imageUrl }));
         setIconOptions([]);
@@ -667,7 +690,7 @@ export default function ProductsPage({
           title={formMode === 'restock' ? 'Add inventory' : editingId ? 'Edit product' : 'Add product'}
           subtitle="Search an existing product to restock it quickly, or enter a brand-new product from scratch."
         >
-          <form className="form-grid" onSubmit={submit}>
+          <form className="form-grid product-add-form" onSubmit={submit}>
             <div className="search-box-wrap">
               <input
                 placeholder="Search existing product to restock or edit"
@@ -1023,119 +1046,207 @@ export default function ProductsPage({
 
         {activeInventoryTab === 'categories' ? (
         <Panel title="Product categories" subtitle="Add categories like Jewellery or Cosmetics and use them immediately while creating products.">
-            <form className="form-grid compact-form" onSubmit={submitCategory}>
-              <input
-                placeholder="Category name"
-                value={categoryForm.displayName}
-                onChange={(e) => handleCategoryNameChange(e.target.value)}
-                required
-              />
-              <div className="category-icon-builder">
-                <div className="category-icon-preview">
-                  {categoryForm.iconImageUrl ? <img src={categoryForm.iconImageUrl} alt="Selected category icon" /> : <span>No icon selected</span>}
-                </div>
-                <button type="button" className="ghost-btn compact-btn" onClick={generateCategoryIcons} disabled={iconGenerating}>
-                  {iconGenerating ? 'Generating...' : categoryForm.iconImageUrl ? 'Regenerate Icon' : 'Generate Icon'}
-                </button>
+            <div className="category-list-toolbar">
+              <div>
+                <strong>{categoriesPage.totalItems || categoryTableRows.length} categories</strong>
+                <span>Transparent icons, catalog sync, and product form visibility.</span>
               </div>
-              {iconOptions.length ? (
-                <div className="category-icon-options">
-                  {iconOptions.map((option) => (
-                    <button
-                      key={option.label}
-                      type="button"
-                      className={categoryForm.iconImageUrl === option.imageUrl ? 'is-selected' : ''}
-                      onClick={() => setCategoryForm({ ...categoryForm, iconImageUrl: option.imageUrl })}
-                    >
-                      <img src={option.imageUrl} alt={option.label} />
-                      <span>{option.label}</span>
-                    </button>
+              <button
+                type="button"
+                className="primary-btn compact-btn"
+                onClick={() => {
+                  resetCategoryForm();
+                  setCategoryDrawerOpen(true);
+                }}
+              >
+                Add Category
+              </button>
+            </div>
+
+            <div className="category-table-card">
+              <DataTable
+                columns={[
+                  {
+                    key: 'iconImageUrl',
+                    label: 'Category',
+                    render: (row) => (
+                      <div className="category-cell">
+                        <span className="category-cell-icon">
+                          {row.iconImageUrl ? <img src={row.iconImageUrl} alt={row.displayName} /> : <i className="bx bx-category" />}
+                        </span>
+                        <span>
+                          <strong>{row.displayName}</strong>
+                          <small>{row.code}</small>
+                        </span>
+                      </div>
+                    )
+                  },
+                  {
+                    key: 'productCount',
+                    label: 'Products',
+                    render: (row) => products.filter((product) => product.category === row.code).length
+                  },
+                  {
+                    key: 'facebookSyncEnabled',
+                    label: 'Catalog',
+                    render: (row) => row.facebookSyncEnabled ? 'Synced' : 'Off'
+                  },
+                  { key: 'active', label: 'Status', render: (row) => row.active ? 'Active' : 'Hidden' },
+                  {
+                    key: 'actions',
+                    label: 'Actions',
+                    render: (row) => (
+                      <button type="button" className="ghost-btn compact-btn table-action-btn" onClick={() => startEditCategory(row)}>
+                        Edit
+                      </button>
+                    )
+                  }
+                ]}
+                rows={categoryTableRows}
+                pagination={categoriesPage}
+                onPageChange={loadCategories}
+              />
+            </div>
+
+            {categoryDrawerOpen ? <button type="button" className="category-drawer-backdrop" aria-label="Close category drawer" onClick={() => setCategoryDrawerOpen(false)} /> : null}
+            <aside className={`category-drawer ${categoryDrawerOpen ? 'is-open' : ''}`} aria-hidden={!categoryDrawerOpen}>
+              <form className="category-drawer-form" onSubmit={submitCategory}>
+                <div className="category-drawer-head">
+                  <div>
+                    <h3>{editingCategoryId ? 'Edit Category' : 'Add Category'}</h3>
+                    <span>Use transparent jewellery-style icons with your brand colors.</span>
+                  </div>
+                  <button type="button" className="ghost-btn compact-btn" onClick={() => setCategoryDrawerOpen(false)}>Close</button>
+                </div>
+
+                <label>
+                  <span>Title</span>
+                  <input
+                    placeholder="Enter category title"
+                    value={categoryForm.displayName}
+                    onChange={(e) => handleCategoryNameChange(e.target.value)}
+                    required
+                  />
+                </label>
+                <label>
+                  <span>Slug</span>
+                  <input
+                    placeholder="Auto generated"
+                    value={String(categoryForm.displayName || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}
+                    readOnly
+                  />
+                </label>
+                <label>
+                  <span>Attachment / icon URL</span>
+                  <input
+                    placeholder="Generated icon URL or uploaded image URL"
+                    value={categoryForm.iconImageUrl}
+                    onChange={(e) => setCategoryForm({ ...categoryForm, iconImageUrl: e.target.value })}
+                  />
+                </label>
+                <div className="category-icon-builder">
+                  <div className="category-icon-preview">
+                    {categoryForm.iconImageUrl ? <img src={categoryForm.iconImageUrl} alt="Selected category icon" /> : <span>Transparent icon</span>}
+                  </div>
+                  <button type="button" className="ghost-btn compact-btn" onClick={generateCategoryIcons} disabled={iconGenerating}>
+                    {iconGenerating ? 'Generating...' : categoryForm.iconImageUrl ? 'Regenerate Icon' : 'Generate Icon'}
+                  </button>
+                </div>
+                <div className="category-color-grid">
+                  {[
+                    ['iconPrimaryColor', 'Primary gold'],
+                    ['iconAccentColor', 'Gem light'],
+                    ['iconDetailColor', 'Dark detail']
+                  ].map(([field, label]) => (
+                    <label key={field}>
+                      <span>{label}</span>
+                      <input
+                        type="color"
+                        value={categoryForm[field]}
+                        onChange={(e) => setCategoryForm({ ...categoryForm, [field]: e.target.value })}
+                      />
+                    </label>
                   ))}
                 </div>
-              ) : null}
-              <label className="toggle-field">
-                <input
-                  type="checkbox"
-                  checked={Boolean(categoryForm.active)}
-                  onChange={(e) => setCategoryForm({ ...categoryForm, active: e.target.checked })}
-                />
-                <span>Available in product forms</span>
-              </label>
-              <div className="facebook-catalog-box">
-                <label className="toggle-field">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(categoryForm.facebookSyncEnabled)}
-                    onChange={(e) => setCategoryForm((current) => ({
-                      ...current,
-                      facebookSyncEnabled: e.target.checked,
-                      facebookCategory: e.target.checked && !current.facebookCategory ? defaultFacebookCategoryFor(current.displayName) : current.facebookCategory,
-                      facebookCollectionName: e.target.checked && !current.facebookCollectionName ? defaultFacebookCollectionFor(current.displayName) : current.facebookCollectionName
-                    }))}
-                  />
-                  <span>Sync this category to Facebook</span>
-                </label>
-                {categoryForm.facebookSyncEnabled ? (
-                  <div className="settings-two-column">
-                    <input
-                      placeholder="Facebook Product Category"
-                      value={categoryForm.facebookCategory || ''}
-                      onChange={(e) => setCategoryForm({ ...categoryForm, facebookCategory: e.target.value })}
-                    />
-                    <input
-                      placeholder="Facebook Collection Name"
-                      value={categoryForm.facebookCollectionName || ''}
-                      onChange={(e) => setCategoryForm({ ...categoryForm, facebookCollectionName: e.target.value })}
-                    />
+                {iconOptions.length ? (
+                  <div className="category-icon-options">
+                    {iconOptions.map((option) => (
+                      <button
+                        key={option.label}
+                        type="button"
+                        className={categoryForm.iconImageUrl === option.imageUrl ? 'is-selected' : ''}
+                        onClick={() => setCategoryForm({ ...categoryForm, iconImageUrl: option.imageUrl })}
+                      >
+                        <img src={option.imageUrl} alt={option.label} />
+                        <span>{option.label}</span>
+                      </button>
+                    ))}
                   </div>
                 ) : null}
-              </div>
-              {categoryError ? <p className="error-text">{categoryError}</p> : null}
-              {categorySuccess ? <p className="success-text">{categorySuccess}</p> : null}
-              <div className="table-action-group">
-                <button className="primary-btn" type="submit" disabled={categorySubmitting}>
-                  {categorySubmitting ? 'Saving...' : editingCategoryId ? 'Update Category' : 'Add Category'}
-                </button>
-                {editingCategoryId ? (
-                  <button type="button" className="ghost-btn" onClick={resetCategoryForm}>Cancel</button>
-                ) : null}
-              </div>
-            </form>
-
-            <DataTable
-              columns={[
-                {
-                  key: 'iconImageUrl',
-                  label: 'Icon',
-                  render: (row) => row.iconImageUrl ? <img src={row.iconImageUrl} alt={row.displayName} className="table-thumb" /> : '—'
-                },
-                { key: 'displayName', label: 'Name' },
-                {
-                  key: 'productCount',
-                  label: 'Products',
-                  render: (row) => products.filter((product) => product.category === row.code).length
-                },
-                {
-                  key: 'facebookSyncEnabled',
-                  label: 'Facebook',
-                  render: (row) => row.facebookSyncEnabled ? 'Synced' : 'Off'
-                },
-                { key: 'code', label: 'Code' },
-                { key: 'active', label: 'Status', render: (row) => row.active ? 'Active' : 'Hidden' },
-                {
-                  key: 'actions',
-                  label: 'Actions',
-                  render: (row) => (
-                    <button type="button" className="ghost-btn compact-btn table-action-btn" onClick={() => startEditCategory(row)}>
-                      Edit
-                    </button>
-                  )
-                }
-              ]}
-              rows={categoryTableRows}
-              pagination={categoriesPage}
-              onPageChange={loadCategories}
-            />
+                <label>
+                  <span>Parent category</span>
+                  <select value="" disabled>
+                    <option>Select parent category</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Description</span>
+                  <textarea placeholder="Optional category notes for store team" rows={4} disabled />
+                </label>
+                <label>
+                  <span>Select category status</span>
+                  <select
+                    value={categoryForm.active ? 'active' : 'hidden'}
+                    onChange={(e) => setCategoryForm({ ...categoryForm, active: e.target.value === 'active' })}
+                  >
+                    <option value="active">Active</option>
+                    <option value="hidden">Hidden</option>
+                  </select>
+                </label>
+                <div className="facebook-catalog-box">
+                  <label className="toggle-field">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(categoryForm.facebookSyncEnabled)}
+                      onChange={(e) => setCategoryForm((current) => ({
+                        ...current,
+                        facebookSyncEnabled: e.target.checked,
+                        facebookCategory: e.target.checked && !current.facebookCategory ? defaultFacebookCategoryFor(current.displayName) : current.facebookCategory,
+                        facebookCollectionName: e.target.checked && !current.facebookCollectionName ? defaultFacebookCollectionFor(current.displayName) : current.facebookCollectionName
+                      }))}
+                    />
+                    <span>Sync this category to Facebook</span>
+                  </label>
+                  {categoryForm.facebookSyncEnabled ? (
+                    <div className="settings-two-column">
+                      <input
+                        placeholder="Facebook Product Category"
+                        value={categoryForm.facebookCategory || ''}
+                        onChange={(e) => setCategoryForm({ ...categoryForm, facebookCategory: e.target.value })}
+                      />
+                      <input
+                        placeholder="Facebook Collection Name"
+                        value={categoryForm.facebookCollectionName || ''}
+                        onChange={(e) => setCategoryForm({ ...categoryForm, facebookCollectionName: e.target.value })}
+                      />
+                    </div>
+                  ) : null}
+                </div>
+                {categoryError ? <p className="error-text">{categoryError}</p> : null}
+                {categorySuccess ? <p className="success-text">{categorySuccess}</p> : null}
+                <div className="table-action-group">
+                  <button className="primary-btn" type="submit" disabled={categorySubmitting}>
+                    {categorySubmitting ? 'Saving...' : editingCategoryId ? 'Update' : 'Add'}
+                  </button>
+                  <button type="button" className="ghost-btn" onClick={() => {
+                    resetCategoryForm();
+                    setCategoryDrawerOpen(false);
+                  }}>
+                    Discard
+                  </button>
+                </div>
+              </form>
+            </aside>
         </Panel>
         ) : null}
         {activeInventoryTab === 'collections' ? (

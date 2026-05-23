@@ -600,12 +600,15 @@ body {
 .kps-avatar-button {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  min-height: 3.6rem;
-  padding: 0.35rem 0.85rem;
-  border-radius: 1rem;
-  background: rgba(255, 255, 255, 0.32);
-  box-shadow: 0 0.7rem 1.5rem rgba(18, 60, 50, 0.14);
+  gap: 0.55rem;
+  min-height: 3rem;
+  max-width: min(100%, 14rem);
+  padding: 0.32rem 0.65rem 0.32rem 0.35rem;
+  border: 1px solid rgba(255, 255, 255, 0.66);
+  border-radius: 0.9rem;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 0.45rem 1.1rem rgba(18, 60, 50, 0.16);
+  backdrop-filter: blur(10px);
 }
 
 .kps-avatar-initial {
@@ -623,14 +626,15 @@ body {
 .kps-user-chip {
   display: grid;
   gap: 0.05rem;
-  min-width: 7rem;
+  min-width: 0;
+  max-width: 9rem;
   color: #384551;
   text-align: left;
 }
 
 .kps-user-chip strong {
   overflow: hidden;
-  max-width: 10rem;
+  max-width: 100%;
   font-size: 0.92rem;
   line-height: 1.1;
   text-overflow: ellipsis;
@@ -638,11 +642,24 @@ body {
 }
 
 .kps-user-chip small {
+  overflow: hidden;
   color: #697a8d;
-  font-size: 0.74rem;
-  font-weight: 700;
+  font-size: 0.72rem;
+  font-weight: 800;
   letter-spacing: 0.04em;
+  text-overflow: ellipsis;
   text-transform: uppercase;
+  white-space: nowrap;
+}
+
+@media (max-width: 767px) {
+  .kps-avatar-button {
+    padding: 0.32rem;
+  }
+
+  .kps-user-chip {
+    display: none;
+  }
 }
 
 .kps-skeleton {

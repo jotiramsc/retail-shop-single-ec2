@@ -68,6 +68,7 @@ export const retailService = {
   placeOrder: (payload) => api.post('/order/place', payload).then((res) => res.data),
   getOrders: () => api.get('/orders').then((res) => res.data),
   updateOrderStatus: (orderId, payload) => api.patch(`/admin/orders/${orderId}/status`, payload).then((res) => res.data),
+  getDashboardAnalytics: () => api.get('/admin/dashboard/analytics').then((res) => res.data),
   getProducts: (params) => api.get(`/products?${buildPageParams(params)}`).then((res) => res.data),
   getTrendingProducts: () => api.get('/products/trending').then((res) => res.data),
   createProduct: (payload) => api.post('/products', payload).then((res) => res.data),

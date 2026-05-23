@@ -26,6 +26,14 @@ const screenMeta = {
   }
 };
 
+const customerDetailTabs = [
+  { label: 'Overview', path: 'overview' },
+  { label: 'Search Activity', path: 'search-activity' },
+  { label: 'Login History', path: 'login-history' },
+  { label: 'Support Chat', path: 'support-chat' },
+  { label: 'AI Insights', path: 'ai-insights' }
+];
+
 const previewCustomers = [
   {
     id: 'preview-1',
@@ -485,7 +493,7 @@ function CustomerAccountPanel({ detailTab, customer, loading }) {
 }
 
 function CustomerDirectoryScreen({ detailTab = 'Overview' }) {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const requestedCustomerId = searchParams.get('customerId');
   const requestedMobile = searchParams.get('mobile');
   const [customersPage, setCustomersPage] = useState({ items: [], totalItems: 0, page: 0, totalPages: 0 });
@@ -520,6 +528,11 @@ function CustomerDirectoryScreen({ detailTab = 'Overview' }) {
 
   const loadCustomerDetails = async (customer) => {
     setSelectedCustomer(customer);
+    if (customer?.id) {
+      setSearchParams({ customerId: customer.id });
+    } else if (customer?.mobile) {
+      setSearchParams({ mobile: customer.mobile });
+    }
     setLoadingDetails(true);
     setError('');
     try {
@@ -647,6 +660,18 @@ function CustomerDirectoryScreen({ detailTab = 'Overview' }) {
 
       {error ? <div className="alert alert-danger">{error}</div> : null}
 
+      <nav className="crm-detail-tab-row" aria-label="Customer CRM sections">
+        {customerDetailTabs.map((tab) => (
+          <Link
+            key={tab.path}
+            className={detailTab === tab.label ? 'is-active' : ''}
+            to={customerDetailsPath(customerDetails || selectedCustomer, tab.path)}
+          >
+            {tab.label}
+          </Link>
+        ))}
+      </nav>
+
       <section className="sneat-customer-layout">
         <aside className="sneat-card sneat-user-list-card">
           <div className="sneat-card-head">
@@ -678,16 +703,25 @@ function CustomerDirectoryScreen({ detailTab = 'Overview' }) {
   );
 }
 
+function customerDetailsPath(customer, detailPath = 'overview') {
+  const query = customer?.id
+    ? `customerId=${encodeURIComponent(customer.id)}`
+    : customer?.mobile
+      ? `mobile=${encodeURIComponent(customer.mobile)}`
+      : '';
+  return `/app/crm/customers/${detailPath}${query ? `?${query}` : ''}`;
+}
+
 function CustomerRowCompact({ customer }) {
   return (
-    <div className="sneat-list-row">
+    <Link className="sneat-list-row sneat-list-row-link" to={customerDetailsPath(customer)}>
       <span className="sneat-avatar">{customerInitial(customer)}</span>
       <div>
         <strong>{customer.name || 'Unnamed customer'}</strong>
         <small>{customer.mobile || customer.email || 'No contact captured'}</small>
       </div>
       <span className="badge bg-label-primary">{customer.segment || customer.segments?.[0] || 'Customer'}</span>
-    </div>
+    </Link>
   );
 }
 

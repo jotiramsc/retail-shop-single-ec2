@@ -62,7 +62,7 @@ public class ProductCategoryOptionController {
     @PostMapping("/icon-options")
     @PreAuthorize("hasAuthority('PERM_PRODUCTS')")
     public List<CategoryIconOptionResponse> generateIconOptions(@Valid @RequestBody CategoryIconGenerationRequest request) {
-        return productCategoryOptionService.generateIconOptions(request.getCategoryName());
+        return productCategoryOptionService.generateIconOptions(request.getCategoryName(), request.getPrimaryColor(), request.getAccentColor(), request.getDetailColor());
     }
 
     @PostMapping("/{id}/icon")

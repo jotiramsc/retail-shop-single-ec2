@@ -236,7 +236,7 @@ export default function UsersPage() {
   };
 
   return (
-    <div className="page">
+    <div className="page users-admin-page">
       <PageHeader
         eyebrow="Users"
         title="Team Accounts"
@@ -248,7 +248,7 @@ export default function UsersPage() {
           title={editingId ? 'Edit user' : 'Create user'}
           subtitle="Admins keep full access. Staff accounts can be limited to only the sections they need."
         >
-          <form className="form-grid" onSubmit={submit}>
+          <form className="form-grid users-account-form" onSubmit={submit}>
             <input
               placeholder="Display name"
               value={form.displayName}

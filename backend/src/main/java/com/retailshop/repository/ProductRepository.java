@@ -17,4 +17,7 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
 
     @Query("select p from Product p where p.active = true and p.quantity <= p.lowStockThreshold")
     Page<Product> findLowStockProducts(Pageable pageable);
+
+    @Query("select count(p) from Product p where p.active = true and p.quantity <= p.lowStockThreshold")
+    long countLowStockProducts();
 }

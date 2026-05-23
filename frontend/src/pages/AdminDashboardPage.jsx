@@ -1,9 +1,12 @@
 import { Link } from 'react-router-dom';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { retailService } from '../services/retailService';
 import { currency } from '../utils/format';
+import { getApiErrorMessage } from '../utils/validation';
 
 function DashboardMetric({ icon, label, value, note, tone = 'primary', trend }) {
+  const trendValue = trend?.percentage ?? trend;
+  const direction = trend?.direction || (String(trendValue || '').startsWith('-') ? 'down' : 'up');
   return (
     <article className={`sneat-stat-card is-${tone}`}>
       <span className="sneat-stat-icon"><i className={`bx ${icon}`} /></span>
@@ -11,7 +14,11 @@ function DashboardMetric({ icon, label, value, note, tone = 'primary', trend }) 
         <small>{label}</small>
         <strong>{value}</strong>
         {note ? <span>{note}</span> : null}
-        {trend ? <em className={trend.startsWith('+') ? 'text-success' : 'text-danger'}>{trend}</em> : null}
+        {trendValue !== undefined && trendValue !== null ? (
+          <em className={direction === 'down' ? 'text-danger' : direction === 'flat' ? 'text-muted' : 'text-success'}>
+            {direction === 'down' ? '' : direction === 'flat' ? '' : '+'}{trendValue}%
+          </em>
+        ) : null}
       </div>
     </article>
   );
@@ -84,60 +91,59 @@ function DashboardListRow({ avatar, title, subtitle, badge, tone = 'primary' }) 
   );
 }
 
+function AnalyticsSkeleton() {
+  return (
+    <section className="sneat-stat-grid dashboard-skeleton-grid" aria-label="Loading analytics">
+      {Array.from({ length: 12 }).map((_, index) => <span key={index} className="dashboard-skeleton-card" />)}
+    </section>
+  );
+}
+
+function analyticsValue(value, fallback = 0) {
+  return value === undefined || value === null ? fallback : value;
+}
+
+function formatOrderDate(value) {
+  if (!value) return 'No date';
+  return new Intl.DateTimeFormat('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(value));
+}
+
 export default function AdminDashboardPage({ branding, auth }) {
-  const [daily, setDaily] = useState(null);
-  const [productsPage, setProductsPage] = useState({ items: [], totalItems: 0 });
-  const [customersPage, setCustomersPage] = useState({ items: [], totalItems: 0 });
-  const [supportSummary, setSupportSummary] = useState({ openCount: 0, unreadCount: 0 });
-  const [campaignsPage, setCampaignsPage] = useState({ items: [], totalItems: 0 });
-  const [usersPage, setUsersPage] = useState({ items: [], totalItems: 0 });
+  const [analytics, setAnalytics] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    const today = new Date().toISOString().slice(0, 10);
-    Promise.allSettled([
-      retailService.getDailyReport({ fromDate: today, toDate: today }),
-      retailService.getProducts({ page: 0, size: 6 }),
-      retailService.getCustomers({ page: 0, size: 6 }),
-      retailService.getSupportSummary(),
-      retailService.getMarketingCampaigns({ page: 0, size: 6 }),
-      retailService.getUsers({ page: 0, size: 5 })
-    ]).then(([dailyResult, productsResult, customersResult, supportResult, campaignsResult, usersResult]) => {
-      if (dailyResult.status === 'fulfilled') setDaily(dailyResult.value);
-      if (productsResult.status === 'fulfilled') setProductsPage(productsResult.value || { items: [], totalItems: 0 });
-      if (customersResult.status === 'fulfilled') setCustomersPage(customersResult.value || { items: [], totalItems: 0 });
-      if (supportResult.status === 'fulfilled') setSupportSummary(supportResult.value || { openCount: 0, unreadCount: 0 });
-      if (campaignsResult.status === 'fulfilled') setCampaignsPage(campaignsResult.value || { items: [], totalItems: 0 });
-      if (usersResult.status === 'fulfilled') setUsersPage(usersResult.value || { items: [], totalItems: 0 });
-    });
+    let cancelled = false;
+    setLoading(true);
+    retailService.getDashboardAnalytics()
+      .then((data) => {
+        if (cancelled) return;
+        setAnalytics(data || {});
+        setError('');
+      })
+      .catch((requestError) => {
+        if (cancelled) return;
+        setError(getApiErrorMessage(requestError, 'Unable to load dashboard analytics.'));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const lowStockCount = useMemo(
-    () => (productsPage.items || []).filter((product) => Number(product.quantity || 0) <= Number(product.lowStockThreshold || 0)).length,
-    [productsPage.items]
-  );
-  const stockValue = useMemo(
-    () => (productsPage.items || []).reduce((total, product) => total + (Number(product.sellingPrice || product.price || 0) * Number(product.quantity || 0)), 0),
-    [productsPage.items]
-  );
-  const newCustomers = useMemo(
-    () => (customersPage.items || []).filter((customer) => String(customer.segment || customer.customerType || '').toLowerCase().includes('new')).length,
-    [customersPage.items]
-  );
-  const activeCampaigns = useMemo(
-    () => (campaignsPage.items || []).filter((campaign) => String(campaign.status || '').toUpperCase() !== 'ARCHIVED').length,
-    [campaignsPage.items]
-  );
-  const topProducts = (productsPage.items || []).slice(0, 5);
-  const recentCustomers = (customersPage.items || []).slice(0, 5);
-  const team = (usersPage.items || []).slice(0, 4);
+  const topProducts = analytics?.topSellingProducts || [];
+  const recentOrders = analytics?.recentOrders || [];
   const weeklyBars = [
-    Number(daily?.ordersInRange || daily?.invoiceCount || 1) * 12,
-    Number(productsPage.totalItems || productsPage.items?.length || 1),
-    Number(customersPage.totalItems || customersPage.items?.length || 1),
-    Number(supportSummary.openCount || 1) * 18,
-    Number(activeCampaigns || 1) * 22,
-    Math.max(30, Math.min(96, Number(daily?.salesTotal || daily?.totalSales || 0) / 100)),
-    Math.max(22, lowStockCount * 18)
+    Number(analytics?.totalOrders || 1),
+    Number(analytics?.customerVisits || 1),
+    Number(analytics?.totalCustomers || 1),
+    Number(analytics?.completedOrders || 1),
+    Number(analytics?.pendingOrders || 1),
+    Math.max(30, Math.min(96, Number(analytics?.revenueToday || 0) / 100)),
+    Math.max(22, Number(analytics?.lowStockProducts || 1) * 18)
   ];
 
   return (
@@ -158,7 +164,7 @@ export default function AdminDashboardPage({ branding, auth }) {
           <div>
             <span className="sneat-eyebrow">Central Dashboard</span>
             <h1>Congratulations {auth?.displayName || 'Admin'}!</h1>
-            <p>Your Sneat admin workspace is connected to live KPS APIs for sales, products, customers, support, and campaigns.</p>
+            <p>Your Sneat admin workspace is connected to protected KPS analytics for customers, visits, orders, revenue, and stock signals.</p>
             <div className="sneat-hero-actions">
               <Link className="btn btn-primary" to="/app/billing"><i className="bx bx-receipt me-1" /> New sale</Link>
               <Link className="btn btn-outline-primary" to="/app/crm/dashboard"><i className="bx bx-user-voice me-1" /> Open CRM</Link>
@@ -168,26 +174,37 @@ export default function AdminDashboardPage({ branding, auth }) {
         </article>
         <article className="sneat-card sneat-activity-card">
           <div className="sneat-card-head">
-            <div><small>New Visitors</small><h3>{customersPage.totalItems || customersPage.items?.length || 0}</h3></div>
-            <span className="text-muted">This week</span>
+            <div><small>Customer Visits</small><h3>{analyticsValue(analytics?.customerVisits)}</h3></div>
+            <span className="text-muted">This month</span>
           </div>
           <MiniBars values={weeklyBars} />
         </article>
         <article className="sneat-card sneat-activity-card">
           <div className="sneat-card-head">
-            <div><small>Activity</small><h3>{Math.min(98, 60 + Number(activeCampaigns || 0) + Number(supportSummary.openCount || 0))}%</h3></div>
+            <div><small>Order Health</small><h3>{analyticsValue(analytics?.completedOrders)}/{analyticsValue(analytics?.totalOrders)}</h3></div>
             <span className="text-muted">Live</span>
           </div>
           <Sparkline />
         </article>
       </section>
 
-      <section className="sneat-stat-grid">
-        <DashboardMetric icon="bx-rupee" label="Sales today" value={currency(daily?.salesTotal || daily?.totalSales || 0)} note={`${daily?.ordersInRange || daily?.invoiceCount || 0} orders`} trend="+ live" />
-        <DashboardMetric icon="bx-package" label="Inventory value" value={currency(stockValue)} note={`${productsPage.totalItems || productsPage.items?.length || 0} products`} tone="warning" />
-        <DashboardMetric icon="bx-group" label="Customers" value={customersPage.totalItems || customersPage.items?.length || 0} note={`${newCustomers} new loaded`} tone="info" />
-        <DashboardMetric icon="bx-conversation" label="Support" value={supportSummary.openCount || 0} note={`${supportSummary.unreadCount || 0} unread`} tone="success" />
+      {loading ? <AnalyticsSkeleton /> : null}
+      {error ? <div className="sneat-card dashboard-error-state"><i className="bx bx-error-circle" /><div><strong>Analytics unavailable</strong><span>{error}</span></div></div> : null}
+
+      {!loading && !error ? (
+      <section className="sneat-stat-grid dashboard-analytics-grid">
+        <DashboardMetric icon="bx-group" label="Total customers" value={analyticsValue(analytics?.totalCustomers)} note="Live customer records" trend={analytics?.customerGrowth} tone="info" />
+        <DashboardMetric icon="bx-show" label="Customer visits" value={analyticsValue(analytics?.customerVisits)} note="Current month visits" trend={analytics?.visitGrowth} />
+        <DashboardMetric icon="bx-rupee" label="Total sales" value={currency(analyticsValue(analytics?.totalSales))} note="All captured revenue" trend={analytics?.salesGrowth} tone="success" />
+        <DashboardMetric icon="bx-cart" label="Total orders" value={analyticsValue(analytics?.totalOrders)} note="Shop and website" trend={analytics?.orderGrowth} tone="warning" />
+        <DashboardMetric icon="bx-time-five" label="Pending orders" value={analyticsValue(analytics?.pendingOrders)} note="Need action" tone="warning" />
+        <DashboardMetric icon="bx-check-circle" label="Completed orders" value={analyticsValue(analytics?.completedOrders)} note="Fulfilled/sold" tone="success" />
+        <DashboardMetric icon="bx-x-circle" label="Cancelled orders" value={analyticsValue(analytics?.cancelledOrders)} note="Cancelled/failed" tone="danger" />
+        <DashboardMetric icon="bx-wallet" label="Revenue today" value={currency(analyticsValue(analytics?.revenueToday))} note="Compared with yesterday" trend={analytics?.todayRevenueGrowth} tone="success" />
+        <DashboardMetric icon="bx-calendar-star" label="Revenue this month" value={currency(analyticsValue(analytics?.revenueThisMonth))} note="Compared with last month" trend={analytics?.monthRevenueGrowth} />
+        <DashboardMetric icon="bx-error" label="Low-stock products" value={analyticsValue(analytics?.lowStockProducts)} note="At or below alert" tone="danger" />
       </section>
+      ) : null}
 
       <section className="sneat-crm-dashboard-grid">
         <article className="sneat-card span-2">
@@ -204,46 +221,46 @@ export default function AdminDashboardPage({ branding, auth }) {
         <article className="sneat-card">
           <div className="sneat-card-head">
             <div><small>Growth</small><h3>Campaign pulse</h3></div>
-            <span className="badge bg-label-primary">{campaignsPage.totalItems || campaignsPage.items?.length || 0} campaigns</span>
+            <span className="badge bg-label-primary">{analyticsValue(analytics?.totalOrders)} orders</span>
           </div>
-          <div className="sneat-score-ring">{activeCampaigns}</div>
-          <ProgressRow label="Audience readiness" value={Math.min(100, 48 + newCustomers * 8)} />
-          <ProgressRow label="Automation coverage" value={Math.min(100, 55 + activeCampaigns * 10)} tone="success" />
+          <div className="sneat-score-ring">{analyticsValue(analytics?.totalCustomers)}</div>
+          <ProgressRow label="Completed orders" value={Math.min(100, Math.round((analyticsValue(analytics?.completedOrders) / Math.max(analyticsValue(analytics?.totalOrders), 1)) * 100))} />
+          <ProgressRow label="Stock readiness" value={Math.max(0, 100 - Number(analytics?.lowStockProducts || 0) * 8)} tone="success" />
         </article>
         <article className="sneat-card">
           <div className="sneat-card-head">
-            <div><small>Inventory</small><h3>Top stock signals</h3></div>
+            <div><small>Sales</small><h3>Top-selling products</h3></div>
             <Link to="/app/inventory/products" className="btn btn-sm btn-outline-primary">View all</Link>
           </div>
           <div className="sneat-list">
             {topProducts.length ? topProducts.map((product) => (
               <DashboardListRow
-                key={product.id || product.sku || product.name}
+                key={product.productId || product.sku || product.name}
                 avatar={String(product.name || 'P').slice(0, 1).toUpperCase()}
                 title={product.name || 'Unnamed product'}
-                subtitle={`${Number(product.quantity || 0)} in stock - ${currency(product.sellingPrice || product.price || 0)}`}
-                badge={Number(product.quantity || 0) <= Number(product.lowStockThreshold || 0) ? 'Low stock' : 'Active'}
-                tone={Number(product.quantity || 0) <= Number(product.lowStockThreshold || 0) ? 'warning' : 'primary'}
+                subtitle={`${Number(product.quantitySold || 0)} sold - ${currency(product.revenue || 0)}`}
+                badge={product.sku || product.category || 'Product'}
+                tone="primary"
               />
-            )) : <p className="text-muted mb-0">No product records loaded yet.</p>}
+            )) : <p className="dashboard-empty-state">No top-selling product data yet.</p>}
           </div>
         </article>
         <article className="sneat-card">
           <div className="sneat-card-head">
-            <div><small>Customers</small><h3>Recent CRM records</h3></div>
-            <Link to="/app/crm/customers" className="btn btn-sm btn-outline-primary">Open CRM</Link>
+            <div><small>Orders</small><h3>Recent orders</h3></div>
+            <Link to="/app/billing/orders" className="btn btn-sm btn-outline-primary">Open orders</Link>
           </div>
           <div className="sneat-list">
-            {recentCustomers.length ? recentCustomers.map((customer) => (
+            {recentOrders.length ? recentOrders.map((order) => (
               <DashboardListRow
-                key={customer.id || customer.mobile || customer.name}
-                avatar={String(customer.name || customer.mobile || 'C').slice(0, 1).toUpperCase()}
-                title={customer.name || 'Customer'}
-                subtitle={`${customer.mobile || 'No mobile'} - ${customer.segment || customer.customerType || 'Retail customer'}`}
-                badge={customer.city || 'CRM'}
-                tone="info"
+                key={`${order.source}-${order.id}`}
+                avatar={String(order.customerName || order.referenceNumber || 'O').slice(0, 1).toUpperCase()}
+                title={order.referenceNumber || 'Order'}
+                subtitle={`${order.customerName || order.customerMobile || 'Customer'} - ${formatOrderDate(order.createdAt)}`}
+                badge={currency(order.finalAmount || 0)}
+                tone={order.status === 'CANCELLED' || order.status === 'PAYMENT_FAILED' ? 'warning' : 'info'}
               />
-            )) : <p className="text-muted mb-0">No customer records loaded yet.</p>}
+            )) : <p className="dashboard-empty-state">No recent orders yet.</p>}
           </div>
         </article>
         <article className="sneat-card">
@@ -251,9 +268,9 @@ export default function AdminDashboardPage({ branding, auth }) {
             <div><small>Reports</small><h3>Business health</h3></div>
             <Link to="/app/reports/dashboard" className="btn btn-sm btn-outline-primary">Reports</Link>
           </div>
-          <ProgressRow label="Sales capture" value={Math.min(100, Number(daily?.ordersInRange || daily?.invoiceCount || 0) * 12)} />
-          <ProgressRow label="Stock readiness" value={Math.max(0, 100 - lowStockCount * 12)} tone="warning" />
-          <ProgressRow label="Support response" value={Math.max(15, 100 - Number(supportSummary.unreadCount || 0) * 10)} tone="success" />
+          <ProgressRow label="Sales capture" value={Math.min(100, Number(analytics?.totalOrders || 0) * 4)} />
+          <ProgressRow label="Stock readiness" value={Math.max(0, 100 - Number(analytics?.lowStockProducts || 0) * 12)} tone="warning" />
+          <ProgressRow label="Revenue momentum" value={Math.max(15, Math.min(100, 50 + Number(analytics?.monthRevenueGrowth?.percentage || 0)))} tone="success" />
         </article>
         <article className="sneat-card">
           <div className="sneat-card-head">
@@ -261,24 +278,20 @@ export default function AdminDashboardPage({ branding, auth }) {
             <Link to="/app/users" className="btn btn-sm btn-outline-primary">Users</Link>
           </div>
           <div className="sneat-list">
-            {team.length ? team.map((user) => (
-              <DashboardListRow
-                key={user.id || user.username || user.mobile}
-                avatar={String(user.displayName || user.username || 'U').slice(0, 1).toUpperCase()}
-                title={user.displayName || user.username || 'Team user'}
-                subtitle={user.role || 'Store role'}
-                badge={user.enabled === false ? 'Disabled' : 'Active'}
-                tone={user.enabled === false ? 'warning' : 'success'}
-              />
-            )) : (
-              <DashboardListRow
-                avatar={String(auth?.displayName || 'A').slice(0, 1).toUpperCase()}
-                title={auth?.displayName || 'Signed-in admin'}
-                subtitle={auth?.role || 'Current session'}
-                badge="Online"
-                tone="success"
-              />
-            )}
+            <DashboardListRow
+              avatar={String(auth?.displayName || 'A').slice(0, 1).toUpperCase()}
+              title={auth?.displayName || 'Signed-in admin'}
+              subtitle={auth?.role || 'Current session'}
+              badge="Online"
+              tone="success"
+            />
+            <DashboardListRow
+              avatar="R"
+              title="Reports access"
+              subtitle="Protected by admin/dashboard permissions"
+              badge="Secure"
+              tone="primary"
+            />
           </div>
         </article>
       </section>
