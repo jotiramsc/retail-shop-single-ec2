@@ -301,7 +301,7 @@ public class ProductCategoryOptionServiceImpl implements ProductCategoryOptionSe
         if (response.statusCode() >= 400) {
             throw new IOException(extractApiErrorMessage(response.body()));
         }
-        byte[] imageBytes = makeCircularTransparentPng(extractOpenAiImageBytes(response.body()));
+        byte[] imageBytes = normalizeTransparentIconPng(extractOpenAiImageBytes(response.body()));
         ImageUploadResponse uploadResponse = imageUploadService.uploadImageBytes(imageBytes, "image/png", "category-icons");
         if (uploadResponse == null || isBlank(uploadResponse.getCloudfrontUrl())) {
             throw new IOException("generated icon could not be uploaded");
@@ -415,7 +415,7 @@ public class ProductCategoryOptionServiceImpl implements ProductCategoryOptionSe
                 Style: simple jewellery line-art icon like a premium ecommerce category glyph, thin outline drawing, no shading, no photo realism, no 3D, mobile readability at 48px.
                 Palette: primary stroke %s, gem/accent %s, dark detail %s.
                 Composition: centered single object or simple paired objects, no hands, no people, no model, no background scene.
-                Technical: square PNG, fully transparent background, icon artwork only, no card, no badge, no outer border, no enclosing circular border, no curved decorative border lines, no filled square or filled circle background, no text, no letters, no logo, no watermark, no price tags, no extra decorative clutter.
+                Technical: square PNG with alpha transparency. Empty pixels must be transparent. Return icon artwork only: no card, no badge, no cream/white/gold background, no drop shadow, no outer border, no enclosing circular border, no curved decorative border lines, no filled square or filled circle background, no text, no letters, no logo, no watermark, no price tags, no extra decorative clutter.
                 Seed/context: %s.
                 """.formatted(categoryName, subject, primaryColor, accentColor, detailColor, seed);
     }
@@ -446,7 +446,7 @@ public class ProductCategoryOptionServiceImpl implements ProductCategoryOptionSe
         return "a tasteful symbol combining pearl jewelry and boutique beauty retail";
     }
 
-    private byte[] makeCircularTransparentPng(byte[] sourceBytes) throws IOException {
+    private byte[] normalizeTransparentIconPng(byte[] sourceBytes) throws IOException {
         BufferedImage source = ImageIO.read(new ByteArrayInputStream(sourceBytes));
         if (source == null) {
             throw new IOException("generated icon image could not be decoded");
@@ -462,11 +462,64 @@ public class ProductCategoryOptionServiceImpl implements ProductCategoryOptionSe
         } finally {
             graphics.dispose();
         }
+        removeFlatGeneratedBackground(output);
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         if (!ImageIO.write(output, "png", outputStream)) {
-            throw new IOException("generated circular icon could not be encoded");
+            throw new IOException("generated icon could not be encoded");
         }
         return outputStream.toByteArray();
+    }
+
+    private void removeFlatGeneratedBackground(BufferedImage image) {
+        int width = image.getWidth();
+        int height = image.getHeight();
+        int[] samples = {
+                image.getRGB(0, 0),
+                image.getRGB(width - 1, 0),
+                image.getRGB(0, height - 1),
+                image.getRGB(width - 1, height - 1)
+        };
+        int r = 0;
+        int g = 0;
+        int b = 0;
+        int usableSamples = 0;
+        for (int argb : samples) {
+            int alpha = (argb >>> 24) & 0xFF;
+            if (alpha < 220) {
+                continue;
+            }
+            r += (argb >>> 16) & 0xFF;
+            g += (argb >>> 8) & 0xFF;
+            b += argb & 0xFF;
+            usableSamples++;
+        }
+        if (usableSamples == 0) {
+            return;
+        }
+        r /= usableSamples;
+        g /= usableSamples;
+        b /= usableSamples;
+        int brightness = (r + g + b) / 3;
+        if (brightness < 185) {
+            return;
+        }
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                int argb = image.getRGB(x, y);
+                int alpha = (argb >>> 24) & 0xFF;
+                if (alpha < 16) {
+                    continue;
+                }
+                int pixelR = (argb >>> 16) & 0xFF;
+                int pixelG = (argb >>> 8) & 0xFF;
+                int pixelB = argb & 0xFF;
+                int distance = Math.abs(pixelR - r) + Math.abs(pixelG - g) + Math.abs(pixelB - b);
+                int pixelBrightness = (pixelR + pixelG + pixelB) / 3;
+                if (distance < 58 && pixelBrightness > 170) {
+                    image.setRGB(x, y, argb & 0x00FFFFFF);
+                }
+            }
+        }
     }
 
     private byte[] extractOpenAiImageBytes(String responseBody) throws IOException, InterruptedException {

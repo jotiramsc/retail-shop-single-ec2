@@ -212,8 +212,8 @@ body {
 
 .kps-sneat-navbar {
   width: calc(100% - 1.5rem);
-  min-height: 3.95rem;
-  margin: 0.5rem auto 1.15rem;
+  min-height: 3.1rem;
+  margin: 0.35rem auto 0.85rem;
   border: 1px solid rgba(197, 230, 216, 0.62);
   background:
     linear-gradient(135deg, rgba(23, 92, 73, 0.78), rgba(31, 143, 107, 0.34)),
@@ -225,7 +225,7 @@ body {
 
 .kps-fixed-navbar .kps-sneat-navbar {
   position: sticky;
-  top: 0.5rem;
+  top: 0.35rem;
   z-index: 12;
 }
 

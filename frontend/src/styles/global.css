@@ -2753,8 +2753,8 @@ table {
 }
 
 .kps-sneat-navbar {
-  min-height: 58px;
-  padding-block: 0.4rem;
+  min-height: 48px;
+  padding-block: 0.22rem;
 }
 
 .kps-navbar-title {
@@ -2769,8 +2769,8 @@ table {
   display: inline-flex;
   align-items: center;
   gap: 0.65rem;
-  min-height: 44px;
-  padding: 0.35rem 0.55rem;
+  min-height: 38px;
+  padding: 0.28rem 0.45rem;
   border: 0;
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.86);
@@ -2786,7 +2786,7 @@ table {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  min-height: 42px;
+  min-height: 38px;
   border: 1px solid rgba(255, 62, 29, 0.18);
   border-radius: 12px;
   background: rgba(255, 62, 29, 0.08);
@@ -2801,8 +2801,8 @@ table {
 
 .kps-avatar-initial {
   display: grid;
-  width: 34px;
-  height: 34px;
+  width: 30px;
+  height: 30px;
   place-items: center;
   border-radius: 50%;
   background: rgba(113, 221, 55, 0.16);
@@ -2818,18 +2818,18 @@ table {
 
 .kps-user-chip strong {
   color: #384551;
-  font-size: 0.9rem;
+  font-size: 0.84rem;
 }
 
 .kps-user-chip small {
   color: #697a8d;
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   font-weight: 800;
   text-transform: uppercase;
 }
 
 .users-admin-page .two-column {
-  grid-template-columns: minmax(360px, 0.8fr) minmax(0, 1.2fr);
+  grid-template-columns: minmax(340px, 0.72fr) minmax(0, 1.28fr);
 }
 
 .users-admin-page .panel {
@@ -2842,6 +2842,130 @@ table {
 
 .support-conversation-card {
   padding: 0.95rem;
+}
+
+.team-user-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.team-user-summary-card,
+.team-user-row {
+  border: 1px solid rgba(105, 122, 141, 0.16);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 0.75rem 1.8rem rgba(67, 89, 113, 0.08);
+}
+
+.team-user-summary-card {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 1rem;
+}
+
+.team-user-icon,
+.team-user-avatar {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  background: rgba(47, 191, 143, 0.12);
+  color: #1f9d72;
+  font-weight: 950;
+}
+
+.team-user-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  font-size: 1.2rem;
+}
+
+.team-user-icon.is-gold {
+  background: rgba(255, 171, 0, 0.14);
+  color: #b98900;
+}
+
+.team-user-icon.is-danger {
+  background: rgba(255, 62, 29, 0.1);
+  color: #ff3e1d;
+}
+
+.team-user-summary-card small,
+.team-user-main small {
+  color: #697a8d;
+  font-weight: 700;
+}
+
+.team-user-summary-card strong {
+  display: block;
+  color: #384551;
+  font-size: 1.55rem;
+  line-height: 1;
+}
+
+.team-user-list {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.team-user-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto auto auto;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.85rem;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.team-user-row:hover {
+  transform: translateY(-1px);
+  border-color: rgba(47, 191, 143, 0.3);
+}
+
+.team-user-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+}
+
+.team-user-main {
+  display: grid;
+  min-width: 0;
+  gap: 0.18rem;
+}
+
+.team-user-main strong {
+  overflow: hidden;
+  color: #384551;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.team-role-pill {
+  padding: 0.28rem 0.55rem;
+  border-radius: 999px;
+  background: #f5f5f9;
+  color: #697a8d;
+  font-size: 0.72rem;
+  font-weight: 850;
+}
+
+.team-role-pill.is-active {
+  background: rgba(47, 191, 143, 0.12);
+  color: #1f9d72;
+}
+
+.team-role-pill.is-muted {
+  background: rgba(105, 122, 141, 0.12);
+}
+
+.team-user-pagination {
+  margin-top: 0.9rem;
 }
 
 @media (max-width: 1080px) {
@@ -2881,7 +3005,17 @@ table {
   }
 
   .kps-sneat-navbar {
-    min-height: 50px;
+    min-height: 46px;
+  }
+
+  .team-user-summary-grid,
+  .team-user-layout,
+  .team-user-row {
+    grid-template-columns: 1fr;
+  }
+
+  .team-user-row {
+    justify-items: start;
   }
 }
 
@@ -6510,6 +6644,14 @@ th {
   backdrop-filter: blur(18px);
 }
 
+.account-luxury-page .account-luxury-shell {
+  max-width: 1180px;
+}
+
+.account-luxury-page .account-luxury-head {
+  padding-block: clamp(1.4rem, 4vw, 2.6rem);
+}
+
 .account-profile-wizard-head {
   display: flex;
   justify-content: space-between;
@@ -6553,6 +6695,55 @@ th {
   color: #7c6a5d;
   cursor: pointer;
   text-align: left;
+}
+
+.account-photo-form-row {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  gap: 1rem;
+  align-items: center;
+  padding: 0.9rem;
+  border: 1px dashed rgba(185, 137, 82, 0.28);
+  border-radius: 18px;
+  background: #fffaf5;
+}
+
+.account-photo-preview {
+  display: grid;
+  width: 84px;
+  height: 84px;
+  overflow: hidden;
+  place-items: center;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #fff4df, #d7a76d);
+  color: #5d3a1f;
+  font-size: 1.9rem;
+  font-weight: 950;
+}
+
+.account-photo-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.account-photo-form-row strong {
+  display: block;
+  color: #2b1d16;
+}
+
+.account-photo-form-row p {
+  margin: 0.18rem 0 0.6rem;
+  color: #7c6a5d;
+}
+
+.account-photo-picker {
+  width: fit-content;
+  cursor: pointer;
+}
+
+.account-photo-picker input {
+  display: none;
 }
 
 .account-wizard-steps button > span {
@@ -7631,6 +7822,61 @@ th {
   gap: 0.5rem;
 }
 
+.marketing-template-course-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
+  gap: 1rem;
+}
+
+.marketing-template-course-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.marketing-template-course-card .marketing-suggestion-preview {
+  margin: 0.8rem 0.8rem 0;
+}
+
+.marketing-template-course-card .marketing-suggestion-preview > span {
+  position: absolute;
+  left: 0.75rem;
+  bottom: 0.75rem;
+  z-index: 2;
+  padding: 0.28rem 0.58rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.88);
+  color: #8b5d32;
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.marketing-template-course-body {
+  display: grid;
+  gap: 0.7rem;
+  padding: 0.85rem;
+}
+
+.marketing-template-copy-box {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.65rem;
+  border-radius: 12px;
+  background: rgba(47, 191, 143, 0.08);
+}
+
+.marketing-template-copy-box span {
+  color: #1f9d72;
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.marketing-template-copy-box strong {
+  color: #384551;
+  font-size: 0.9rem;
+}
+
 .marketing-suggestion-actions .primary-btn,
 .marketing-suggestion-actions .ghost-btn {
   min-height: 34px;
@@ -7990,7 +8236,7 @@ th {
 .support-conversation-list,
 .support-product-grid {
   display: grid;
-  gap: 0.75rem;
+  gap: 0.85rem;
 }
 
 .support-conversation-list {
@@ -8006,11 +8252,11 @@ th {
   position: relative;
   width: 100%;
   display: grid;
-  grid-template-columns: 40px minmax(0, 1fr);
-  gap: 0.65rem;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 0.78rem;
   align-items: start;
   text-align: left;
-  padding: 0.68rem;
+  padding: 0.82rem;
   border: 1px solid transparent;
   border-radius: 16px;
   background: rgba(255, 253, 248, 0.72);
@@ -8034,8 +8280,8 @@ th {
 
 .support-avatar {
   position: relative;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -8078,7 +8324,7 @@ th {
 
 .support-conversation-main {
   display: grid;
-  gap: 0.22rem;
+  gap: 0.28rem;
   min-width: 0;
 }
 

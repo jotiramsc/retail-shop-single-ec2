@@ -1229,31 +1229,36 @@ export default function CampaignsPage({
                       <h4>{SUGGESTION_KIND_LABELS[kind] || kind}</h4>
                       <small>{suggestionKindHelp(kind)}</small>
                     </div>
-                    <div className="marketing-suggestion-grid">
+                    <div className="marketing-template-course-grid">
                       {items.map((suggestion) => (
-                        <article key={suggestion.key} className="marketing-suggestion-card">
+                        <article key={suggestion.key} className="marketing-suggestion-card marketing-template-course-card">
                           <div className="marketing-suggestion-preview">
                             <img src={buildSuggestionPreviewDataUrl(suggestion)} alt={`${suggestion.occasionName} preview`} />
+                            <span>{SUGGESTION_KIND_LABELS[suggestion.kind] || suggestion.kind}</span>
                           </div>
-                          <div className="marketing-preview-channels">
-                            <span className="marketing-status-badge is-warm">{SUGGESTION_KIND_LABELS[suggestion.kind] || suggestion.kind}</span>
-                            {suggestion.highlightDate ? (
-                              <span className="marketing-status-badge">{formatLocalDateLabel(suggestion.highlightDate)}</span>
+                          <div className="marketing-template-course-body">
+                            <div className="marketing-preview-channels">
+                              {suggestion.highlightDate ? (
+                                <span className="marketing-status-badge">{formatLocalDateLabel(suggestion.highlightDate)}</span>
+                              ) : null}
+                              <span className="marketing-status-badge is-warm">{suggestion.tone}</span>
+                            </div>
+                            <h4>{suggestion.occasionName}</h4>
+                            <p>{suggestion.description || suggestion.rationale}</p>
+                            <div className="marketing-template-copy-box">
+                              <span>Ready text</span>
+                              <strong>{suggestion.offerTitle || suggestion.rationale || 'Greeting campaign ready'}</strong>
+                            </div>
+                            {suggestion.imagePrompt ? (
+                              <details className="marketing-template-prompt">
+                                <summary>Image prompt ready</summary>
+                                <span>{suggestion.imagePrompt}</span>
+                              </details>
                             ) : null}
-                          </div>
-                          <h4>{suggestion.occasionName}</h4>
-                          <p>{suggestion.description || suggestion.rationale}</p>
-                          {suggestion.imagePrompt ? (
-                            <details className="marketing-template-prompt">
-                              <summary>Image prompt ready</summary>
-                              <span>{suggestion.imagePrompt}</span>
-                            </details>
-                          ) : null}
-                          <div className="marketing-suggestion-meta">
-                            <div><span>Offer</span><strong>{suggestion.offerTitle || '—'}</strong></div>
-                            <div><span>Window</span><strong>{suggestion.windowLabel || '—'}</strong></div>
-                            <div><span>Tone</span><strong>{suggestion.tone}</strong></div>
-                            <div><span>Platforms</span><strong>{(suggestion.targetPlatforms || []).join(', ')}</strong></div>
+                            <div className="marketing-suggestion-meta">
+                              <div><span>Window</span><strong>{suggestion.windowLabel || 'Ready anytime'}</strong></div>
+                              <div><span>Platforms</span><strong>{(suggestion.targetPlatforms || []).join(', ')}</strong></div>
+                            </div>
                           </div>
                           <div className="marketing-suggestion-actions">
                             <button type="button" className="ghost-btn compact-btn" onClick={() => useSuggestion(suggestion, 'GREETING')}>

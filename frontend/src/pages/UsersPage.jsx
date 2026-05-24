@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import DataTable from '../components/DataTable';
 import PageHeader from '../components/PageHeader';
 import Panel from '../components/Panel';
 import { retailService } from '../services/retailService';
@@ -235,6 +234,10 @@ export default function UsersPage() {
     });
   };
 
+  const activeUsers = (usersPage.items || []).filter((user) => user.enabled).length;
+  const salesUsers = (usersPage.items || []).filter((user) => user.salesPerson).length;
+  const adminUsers = (usersPage.items || []).filter((user) => ['ADMIN', 'OWNER'].includes(user.role)).length;
+
   return (
     <div className="page users-admin-page">
       <PageHeader
@@ -243,7 +246,22 @@ export default function UsersPage() {
         description="Create staff logins, choose billing visibility, and assign the admin sections each person can open."
       />
 
-      <div className="two-column">
+      <div className="team-user-summary-grid">
+        <div className="team-user-summary-card">
+          <span className="team-user-icon"><i className="bx bx-user-check" /></span>
+          <div><small>Active users</small><strong>{activeUsers}</strong></div>
+        </div>
+        <div className="team-user-summary-card">
+          <span className="team-user-icon is-gold"><i className="bx bx-receipt" /></span>
+          <div><small>Billing staff</small><strong>{salesUsers}</strong></div>
+        </div>
+        <div className="team-user-summary-card">
+          <span className="team-user-icon is-danger"><i className="bx bx-shield-quarter" /></span>
+          <div><small>Admins</small><strong>{adminUsers}</strong></div>
+        </div>
+      </div>
+
+      <div className="two-column team-user-layout">
         <Panel
           title={editingId ? 'Edit user' : 'Create user'}
           subtitle="Admins keep full access. Staff accounts can be limited to only the sections they need."
@@ -347,38 +365,29 @@ export default function UsersPage() {
         </Panel>
 
         <Panel title="Team Accounts" subtitle="Click edit to change access, password, billing visibility, or enabled status.">
-          <DataTable
-            columns={[
-              { key: 'displayName', label: 'Name' },
-              { key: 'username', label: 'Username' },
-              { key: 'role', label: 'Role' },
-              { key: 'enabled', label: 'Status', render: (row) => row.enabled ? 'Active' : 'Disabled' },
-              { key: 'salesPerson', label: 'Billing Salesperson', render: (row) => row.salesPerson ? 'Yes' : 'No' },
-              {
-                key: 'permissions',
-                label: 'Menus',
-                render: (row) => (
-                  <div className="permission-chip-row">
-                    {(row.permissions || []).map((permission) => (
-                      <span key={permission} className="trust-chip small-chip">{permissionLabel(permission)}</span>
-                    ))}
-                  </div>
-                )
-              },
-              {
-                key: 'actions',
-                label: 'Actions',
-                render: (row) => (
-                  <button type="button" className="ghost-btn compact-btn table-action-btn" onClick={() => startEdit(row)}>
-                    Edit
-                  </button>
-                )
-              }
-            ]}
-            rows={usersPage.items || []}
-            pagination={usersPage}
-            onPageChange={loadUsers}
-          />
+          <div className="team-user-list">
+            {(usersPage.items || []).map((user) => (
+              <button key={user.id} type="button" className="team-user-row" onClick={() => startEdit(user)}>
+                <span className="team-user-avatar">{String(user.displayName || user.username || '?').slice(0, 1).toUpperCase()}</span>
+                <span className="team-user-main">
+                  <strong>{user.displayName || user.username}</strong>
+                  <small>{user.username} · {user.salesPerson ? 'Billing salesperson' : 'Back-office user'}</small>
+                </span>
+                <span className={`team-role-pill ${user.enabled ? 'is-active' : 'is-muted'}`}>{user.enabled ? 'Active' : 'Disabled'}</span>
+                <span className="team-role-pill">{user.role}</span>
+                <i className="bx bx-edit" />
+              </button>
+            ))}
+          </div>
+          {usersPage.totalPages > 0 ? (
+            <div className="table-pagination team-user-pagination">
+              <span>Page {usersPage.page + 1} of {usersPage.totalPages} <small>({usersPage.totalItems} total)</small></span>
+              <div className="table-pagination-actions">
+                <button type="button" className="ghost-btn compact-btn" onClick={() => loadUsers(usersPage.page - 1)} disabled={!usersPage.hasPrevious}>Previous</button>
+                <button type="button" className="ghost-btn compact-btn" onClick={() => loadUsers(usersPage.page + 1)} disabled={!usersPage.hasNext}>Next</button>
+              </div>
+            </div>
+          ) : null}
         </Panel>
       </div>
     </div>

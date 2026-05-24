@@ -529,6 +529,20 @@ export default function CustomerProfilePage() {
                   </div>
                   <span>{savingProfile ? 'Saving...' : 'Auto-save ready'}</span>
                 </div>
+                <div className="account-photo-form-row">
+                  <div className="account-photo-preview">
+                    {profileImageUrl ? <img src={profileImageUrl} alt={profileName || 'Customer'} /> : <span>{String(profileName || 'K').slice(0, 1).toUpperCase()}</span>}
+                  </div>
+                  <div>
+                    <strong>Profile photo</strong>
+                    <p>{profile?.authProvider === 'GOOGLE' ? 'Google photo is used automatically. You can upload a new one anytime.' : 'Upload a clear customer photo for faster profile recognition.'}</p>
+                    <label className="ghost-btn compact-btn account-photo-picker">
+                      <input type="file" accept="image/*" onChange={uploadProfileImage} disabled={uploadingProfileImage} />
+                      <i className="bx bx-upload" />
+                      {uploadingProfileImage ? 'Uploading...' : 'Upload image'}
+                    </label>
+                  </div>
+                </div>
                 <div className="account-form-grid account-profile-form-grid">
                   <label>Full name<input value={profileName} onChange={(event) => setProfileName(event.target.value)} placeholder="Full name" /></label>
                   <label>Email<input value={profileEmail} onChange={(event) => setProfileEmail(event.target.value)} placeholder="Email address" type="email" /></label>
@@ -539,7 +553,6 @@ export default function CustomerProfilePage() {
                   <label>Gender<select value={profileGender} onChange={(event) => setProfileGender(event.target.value)}><option value="">Select gender</option><option value="Female">Female</option><option value="Male">Male</option><option value="Other">Other</option><option value="Prefer not to say">Prefer not to say</option></select></label>
                   <label>Preferred language<select value={preferredLanguage} onChange={(event) => setPreferredLanguage(event.target.value)}><option>Marathi</option><option>Hindi</option><option>English</option></select></label>
                   <label>Instagram ID<input value={instagramId} onChange={(event) => setInstagramId(event.target.value)} placeholder="@username" /></label>
-                  <label>Profile image URL<input value={profileImageUrl} onChange={(event) => setProfileImageUrl(event.target.value)} placeholder="Google photo or uploaded image URL" /></label>
                   <label className="is-wide">Notes/preferences<textarea value={customerNotes} onChange={(event) => setCustomerNotes(event.target.value)} placeholder="Sizing, gifting notes, preferred designs, or delivery context" /></label>
                 </div>
                 <div className="account-sticky-actions">
