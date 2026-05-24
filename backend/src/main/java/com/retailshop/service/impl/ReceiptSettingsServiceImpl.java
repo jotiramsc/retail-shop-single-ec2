@@ -35,6 +35,19 @@ public class ReceiptSettingsServiceImpl implements ReceiptSettingsService {
                         .deliveryFee(BigDecimal.ZERO)
                         .freeDeliveryThreshold(BigDecimal.ZERO)
                         .facebookCatalogEnabled(false)
+                        .websitePrimaryColor("#2fbf91")
+                        .websiteAccentColor("#c97d3a")
+                        .websiteSurfaceColor("#ffffff")
+                        .websiteTextColor("#2f3a4a")
+                        .websiteCornerRadius("soft")
+                        .websiteButtonStyle("filled")
+                        .websiteDensity("comfortable")
+                        .adminPrimaryColor("#2fbf91")
+                        .adminAccentColor("#7367f0")
+                        .adminSurfaceColor("#ffffff")
+                        .adminTextColor("#2f3a4a")
+                        .adminSidebarStyle("jewellery")
+                        .adminHeaderCompact(true)
                         .build());
     }
 
@@ -57,6 +70,19 @@ public class ReceiptSettingsServiceImpl implements ReceiptSettingsService {
         settings.setTrustBadgeTwo(request.getTrustBadgeTwo());
         settings.setTrustBadgeThree(request.getTrustBadgeThree());
         settings.setTrustBadgeFour(request.getTrustBadgeFour());
+        settings.setWebsitePrimaryColor(normalizeColor(request.getWebsitePrimaryColor(), "#2fbf91"));
+        settings.setWebsiteAccentColor(normalizeColor(request.getWebsiteAccentColor(), "#c97d3a"));
+        settings.setWebsiteSurfaceColor(normalizeColor(request.getWebsiteSurfaceColor(), "#ffffff"));
+        settings.setWebsiteTextColor(normalizeColor(request.getWebsiteTextColor(), "#2f3a4a"));
+        settings.setWebsiteCornerRadius(normalizeChoice(request.getWebsiteCornerRadius(), "soft"));
+        settings.setWebsiteButtonStyle(normalizeChoice(request.getWebsiteButtonStyle(), "filled"));
+        settings.setWebsiteDensity(normalizeChoice(request.getWebsiteDensity(), "comfortable"));
+        settings.setAdminPrimaryColor(normalizeColor(request.getAdminPrimaryColor(), "#2fbf91"));
+        settings.setAdminAccentColor(normalizeColor(request.getAdminAccentColor(), "#7367f0"));
+        settings.setAdminSurfaceColor(normalizeColor(request.getAdminSurfaceColor(), "#ffffff"));
+        settings.setAdminTextColor(normalizeColor(request.getAdminTextColor(), "#2f3a4a"));
+        settings.setAdminSidebarStyle(normalizeChoice(request.getAdminSidebarStyle(), "jewellery"));
+        settings.setAdminHeaderCompact(!Boolean.FALSE.equals(request.getAdminHeaderCompact()));
         settings.setAddress(request.getAddress());
         settings.setPhoneNumber(request.getPhoneNumber());
         settings.setGstNumber(request.getGstNumber());
@@ -91,6 +117,19 @@ public class ReceiptSettingsServiceImpl implements ReceiptSettingsService {
                 .trustBadgeTwo(settings.getTrustBadgeTwo())
                 .trustBadgeThree(settings.getTrustBadgeThree())
                 .trustBadgeFour(settings.getTrustBadgeFour())
+                .websitePrimaryColor(normalizeColor(settings.getWebsitePrimaryColor(), "#2fbf91"))
+                .websiteAccentColor(normalizeColor(settings.getWebsiteAccentColor(), "#c97d3a"))
+                .websiteSurfaceColor(normalizeColor(settings.getWebsiteSurfaceColor(), "#ffffff"))
+                .websiteTextColor(normalizeColor(settings.getWebsiteTextColor(), "#2f3a4a"))
+                .websiteCornerRadius(normalizeChoice(settings.getWebsiteCornerRadius(), "soft"))
+                .websiteButtonStyle(normalizeChoice(settings.getWebsiteButtonStyle(), "filled"))
+                .websiteDensity(normalizeChoice(settings.getWebsiteDensity(), "comfortable"))
+                .adminPrimaryColor(normalizeColor(settings.getAdminPrimaryColor(), "#2fbf91"))
+                .adminAccentColor(normalizeColor(settings.getAdminAccentColor(), "#7367f0"))
+                .adminSurfaceColor(normalizeColor(settings.getAdminSurfaceColor(), "#ffffff"))
+                .adminTextColor(normalizeColor(settings.getAdminTextColor(), "#2f3a4a"))
+                .adminSidebarStyle(normalizeChoice(settings.getAdminSidebarStyle(), "jewellery"))
+                .adminHeaderCompact(!Boolean.FALSE.equals(settings.getAdminHeaderCompact()))
                 .address(settings.getAddress())
                 .phoneNumber(settings.getPhoneNumber())
                 .gstNumber(settings.getGstNumber())
@@ -121,5 +160,15 @@ public class ReceiptSettingsServiceImpl implements ReceiptSettingsService {
     private String normalizeOptionalText(String value) {
         String normalized = value == null ? null : value.trim();
         return normalized == null || normalized.isBlank() ? null : normalized;
+    }
+
+    private String normalizeColor(String value, String fallback) {
+        String normalized = normalizeOptionalText(value);
+        return normalized != null && normalized.matches("^#[0-9a-fA-F]{6}$") ? normalized : fallback;
+    }
+
+    private String normalizeChoice(String value, String fallback) {
+        String normalized = normalizeOptionalText(value);
+        return normalized == null ? fallback : normalized;
     }
 }

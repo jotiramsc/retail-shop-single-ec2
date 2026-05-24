@@ -30,4 +30,5 @@ public interface CustomerService {
     void recordActivity(UUID customerId, CustomerActivityTrackRequest request);
     void recordLocation(UUID customerId, CustomerLocationUpdateRequest request);
     CustomerSupportChatResponse startSupportChat(UUID customerId);
+    void deleteCustomer(UUID customerId);
 }

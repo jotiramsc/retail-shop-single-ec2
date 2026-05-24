@@ -63,6 +63,11 @@ export const retailService = {
   addAddress: (payload) => api.post('/address', payload).then((res) => res.data),
   getAddresses: () => api.get('/address').then((res) => res.data),
   deleteAddress: (id) => api.delete(`/address/${id}`).then((res) => res.data),
+  getPublicReviews: ({ page = 0, size = 6 } = {}) => api.get(`/reviews/public?${buildPageParams({ page, size })}`).then((res) => res.data),
+  submitReview: (payload) => api.post('/reviews', payload).then((res) => res.data),
+  getAdminReviews: (params) => api.get(`/reviews/admin?${buildPageParams(params)}`).then((res) => res.data),
+  updateReview: (id, payload) => api.patch(`/reviews/admin/${id}`, payload).then((res) => res.data),
+  deleteReview: (id) => api.delete(`/reviews/admin/${id}`).then((res) => res.data),
   getCustomerProfile: () => api.get('/customer-profile').then((res) => res.data),
   updateCustomerProfile: (payload) => api.put('/customer-profile', payload).then((res) => res.data),
   uploadCustomerProfileImage: ({ file }) => {
@@ -75,6 +80,7 @@ export const retailService = {
   placeOrder: (payload) => api.post('/order/place', payload).then((res) => res.data),
   getOrders: () => api.get('/orders').then((res) => res.data),
   updateOrderStatus: (orderId, payload) => api.patch(`/admin/orders/${orderId}/status`, payload).then((res) => res.data),
+  deleteOrder: (orderId) => api.delete(`/admin/orders/${orderId}`).then((res) => res.data),
   getDashboardAnalytics: () => api.get('/admin/dashboard/analytics').then((res) => res.data),
   getProducts: (params) => api.get(`/products?${buildPageParams(params)}`).then((res) => res.data),
   getTrendingProducts: () => api.get('/products/trending').then((res) => res.data),
@@ -105,6 +111,7 @@ export const retailService = {
   getCustomers: (params) => api.get(`/customers?${buildPageParams(params)}`).then((res) => res.data),
   searchCustomers: (query) => api.get(`/customers/search?q=${encodeURIComponent(query)}`).then((res) => res.data),
   createCustomer: (payload) => api.post('/customers', payload).then((res) => res.data),
+  deleteCustomer: (id) => api.delete(`/customers/${id}`).then((res) => res.data),
   getCustomerDetails: (customerId) => api.get(`/customers/${customerId}/details`).then((res) => res.data),
   updateCustomerDetails: (customerId, payload) => api.patch(`/customers/${customerId}/details`, payload).then((res) => res.data),
   startCustomerSupportChat: (customerId) => api.post(`/customers/${customerId}/support-chat/start`).then((res) => res.data),
@@ -113,9 +120,12 @@ export const retailService = {
   lookupCustomer: (mobile) => api.get(`/customers/lookup?mobile=${mobile}`).then((res) => res.data),
   getCustomerHistory: (mobile) => api.get(`/customers/history?mobile=${mobile}`).then((res) => res.data),
   previewInvoice: (payload) => api.post('/billing/preview', payload).then((res) => res.data),
+  createBillingPaymentOrder: (payload) => api.post('/billing/payment-order', payload).then((res) => res.data),
+  getBillingPaymentStatus: (merchantOrderId) => api.get(`/billing/payment-status?merchantOrderId=${encodeURIComponent(merchantOrderId)}`).then((res) => res.data),
   createInvoice: (payload) => api.post('/billing/create', payload).then((res) => res.data),
   getInvoice: (id) => api.get(`/billing/${id}`).then((res) => res.data),
   updateInvoice: (id, payload) => api.put(`/billing/${id}`, payload).then((res) => res.data),
+  deleteInvoice: (id) => api.delete(`/billing/${id}`).then((res) => res.data),
   searchInvoices: ({ fromDate, toDate, customerName, page = 0, size = 10 }) => {
     const params = new URLSearchParams();
     params.set('page', page);

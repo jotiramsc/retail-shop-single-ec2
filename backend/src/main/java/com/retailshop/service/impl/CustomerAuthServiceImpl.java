@@ -17,6 +17,7 @@ import com.retailshop.security.CustomerJwtService;
 import com.retailshop.service.CustomerAuthService;
 import com.retailshop.service.MarketingChannelResult;
 import com.retailshop.service.OtpDeliveryService;
+import com.retailshop.util.MobileNumberUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -45,6 +46,21 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class CustomerAuthServiceImpl implements CustomerAuthService {
 
+    private static final String SOURCE_WEBSITE_SIGNUP = "WEBSITE_SIGNUP";
+    private static final String SOURCE_BILLING = "BILLING";
+    private static final String STATUS_VERIFIED = "VERIFIED";
+    private static final String STATUS_UNVERIFIED = "UNVERIFIED";
+    private static final String SIGNUP_BILLING_UNVERIFIED_MESSAGE =
+            "An account already exists with this mobile number from your previous purchase. Please verify using OTP to activate your account.";
+    private static final String SIGNUP_VERIFIED_MESSAGE =
+            "An account already exists with this mobile number. Please login using OTP.";
+    private static final String LOGIN_NOT_FOUND_MESSAGE =
+            "No account found with this mobile number. Please sign up first.";
+    private static final String OTP_EXPIRED_MESSAGE =
+            "OTP has expired. Please request a new OTP.";
+    private static final String OTP_INVALID_MESSAGE =
+            "Invalid OTP. Please try again.";
+
     private final AppProperties appProperties;
     private final CustomerJwtService customerJwtService;
     private final CustomerRepository customerRepository;
@@ -70,19 +86,25 @@ public class CustomerAuthServiceImpl implements CustomerAuthService {
                     .channel(channel)
                     .maskedMobile(maskMobile(mobile))
                     .nextStep("SIGNUP_REQUIRED")
-                    .message("No customer account was found for this mobile number. Please sign up to continue.")
+                    .message(LOGIN_NOT_FOUND_MESSAGE)
                     .build();
         }
 
-        if ("SIGNUP".equals(purpose) && customerExists) {
+        if ("SIGNUP".equals(purpose) && customerExists && isVerified(existingCustomer.get())) {
             return CustomerOtpSendResponse.builder()
                     .otpRequired(false)
                     .customerExists(true)
                     .channel(channel)
                     .maskedMobile(maskMobile(mobile))
                     .nextStep("LOGIN_REQUIRED")
-                    .message("An account already exists for this mobile number. Please login with OTP.")
+                    .message(SIGNUP_VERIFIED_MESSAGE)
                     .build();
+        }
+
+        if ("SIGNUP".equals(purpose) && !customerExists) {
+            Customer created = createOtpCustomer(mobile);
+            existingCustomer = Optional.of(created);
+            customerExists = false;
         }
 
         if ("GOOGLE".equals(purpose) && hasText(request.getCustomerId())) {
@@ -127,7 +149,7 @@ public class CustomerAuthServiceImpl implements CustomerAuthService {
                         .externalProviderConfigured(true)
                         .otpRequired(true)
                         .customerExists(customerExists)
-                        .message("OTP sent on WhatsApp.")
+                        .message(otpSentMessage(purpose, existingCustomer))
                         .channel(channel)
                         .maskedMobile(maskMobile(mobile))
                         .nextStep("VERIFY_OTP")
@@ -150,18 +172,20 @@ public class CustomerAuthServiceImpl implements CustomerAuthService {
         Optional<Customer> existingCustomer = findExistingCustomer(mobile);
 
         if ("LOGIN".equals(purpose) && existingCustomer.isEmpty()) {
-            throw new BusinessException("No customer account was found for this mobile number. Please sign up to continue.");
+            throw new BusinessException(LOGIN_NOT_FOUND_MESSAGE);
         }
-        if ("SIGNUP".equals(purpose) && existingCustomer.isPresent()) {
-            throw new BusinessException("An account already exists for this mobile number. Please login with OTP.");
+        if ("SIGNUP".equals(purpose) && existingCustomer.filter(this::isVerified).isPresent()) {
+            throw new BusinessException(SIGNUP_VERIFIED_MESSAGE);
         }
 
         validateOtpAndDelete(mobile, request.getOtp());
 
         Customer customer = existingCustomer.orElseGet(() -> createOtpCustomer(mobile));
         customer.setMobile(formatDisplayMobile(mobile));
-        customer.setMobileVerified(true);
-        customer.setCustomerSource(mergeCustomerSource(customer.getCustomerSource(), "WEBSITE"));
+        activateCustomer(customer);
+        if (!hasText(customer.getCustomerSource())) {
+            customer.setCustomerSource(SOURCE_WEBSITE_SIGNUP);
+        }
         if (!hasText(customer.getAuthProvider())) {
             customer.setAuthProvider("OTP");
         }
@@ -187,9 +211,11 @@ public class CustomerAuthServiceImpl implements CustomerAuthService {
                 });
 
         customer.setMobile(formatDisplayMobile(mobile));
-        customer.setMobileVerified(true);
+        activateCustomer(customer);
         customer.setAuthProvider("GOOGLE");
-        customer.setCustomerSource(mergeCustomerSource(customer.getCustomerSource(), "WEBSITE"));
+        if (!hasText(customer.getCustomerSource())) {
+            customer.setCustomerSource(SOURCE_WEBSITE_SIGNUP);
+        }
         applyProfileCompletion(customer);
         return mapAuthResponse(customerRepository.save(customer));
     }
@@ -209,8 +235,10 @@ public class CustomerAuthServiceImpl implements CustomerAuthService {
                 });
 
         customer.setMobile(formatDisplayMobile(mobile));
-        customer.setMobileVerified(true);
-        customer.setCustomerSource(mergeCustomerSource(customer.getCustomerSource(), "WEBSITE"));
+        activateCustomer(customer);
+        if (!hasText(customer.getCustomerSource())) {
+            customer.setCustomerSource(SOURCE_WEBSITE_SIGNUP);
+        }
         applyProfileCompletion(customer);
         return mapAuthResponse(customerRepository.save(customer));
     }
@@ -243,7 +271,9 @@ public class CustomerAuthServiceImpl implements CustomerAuthService {
         customer.setEmail(email);
         customer.setEmailVerified(true);
         customer.setAuthProvider("GOOGLE");
-        customer.setCustomerSource(mergeCustomerSource(customer.getCustomerSource(), "WEBSITE"));
+        if (!hasText(customer.getCustomerSource())) {
+            customer.setCustomerSource(SOURCE_WEBSITE_SIGNUP);
+        }
         if (hasText(name) && !hasText(customer.getName())) {
             customer.setName(name);
         }
@@ -254,6 +284,11 @@ public class CustomerAuthServiceImpl implements CustomerAuthService {
 
         Customer savedCustomer = customerRepository.save(customer);
         boolean mobileReady = hasText(savedCustomer.getMobile()) && savedCustomer.isMobileVerified();
+        if (mobileReady && (!savedCustomer.isLoginEnabled()
+                || !STATUS_VERIFIED.equalsIgnoreCase(normalizeText(savedCustomer.getVerificationStatus())))) {
+            activateCustomer(savedCustomer);
+            savedCustomer = customerRepository.save(savedCustomer);
+        }
         return mapAuthResponse(savedCustomer, !mobileReady, mobileReady);
     }
 
@@ -268,22 +303,25 @@ public class CustomerAuthServiceImpl implements CustomerAuthService {
     private Customer createOtpCustomer(String mobile) {
         Customer created = new Customer();
         created.setMobile(formatDisplayMobile(mobile));
-        created.setCustomerSource("WEBSITE");
+        created.setCustomerSource(SOURCE_WEBSITE_SIGNUP);
+        created.setVerificationStatus(STATUS_UNVERIFIED);
+        created.setLoginEnabled(false);
+        created.setMobileVerified(false);
         try {
             return customerRepository.saveAndFlush(created);
         } catch (DataIntegrityViolationException exception) {
-            throw new BusinessException("An account already exists for this mobile number. Please login with OTP.");
+            throw new BusinessException(SIGNUP_VERIFIED_MESSAGE);
         }
     }
 
     private void validateOtpAndDelete(String mobile, String otp) {
         CustomerOtp otpRecord = customerOtpRepository.findById(mobile)
-                .orElseThrow(() -> new BusinessException("OTP expired. Please request a new OTP."));
+                .orElseThrow(() -> new BusinessException(OTP_EXPIRED_MESSAGE));
 
         LocalDateTime now = LocalDateTime.now();
         if (otpRecord.getExpiry() == null || now.isAfter(otpRecord.getExpiry())) {
             customerOtpRepository.delete(otpRecord);
-            throw new BusinessException("OTP expired. Please request a new OTP.");
+            throw new BusinessException(OTP_EXPIRED_MESSAGE);
         }
 
         int maxAttempts = Math.max(1, appProperties.getCustomerAuth().getOtpMaxAttempts());
@@ -299,7 +337,7 @@ public class CustomerAuthServiceImpl implements CustomerAuthService {
                 customerOtpRepository.delete(otpRecord);
                 throw new BusinessException("Too many invalid attempts. Please request a new OTP.");
             }
-            throw new BusinessException("Invalid OTP");
+            throw new BusinessException(OTP_INVALID_MESSAGE);
         }
 
         customerOtpRepository.delete(otpRecord);
@@ -353,6 +391,9 @@ public class CustomerAuthServiceImpl implements CustomerAuthService {
                 .authProvider(customer.getAuthProvider())
                 .mobileVerified(customer.isMobileVerified())
                 .emailVerified(customer.isEmailVerified())
+                .verificationStatus(verificationStatus(customer))
+                .loginEnabled(customer.isLoginEnabled())
+                .otpVerifiedAt(customer.getOtpVerifiedAt())
                 .profileComplete(missingFields.isEmpty())
                 .requiresMobileOtp(requiresMobileOtp)
                 .missingFields(missingFields)
@@ -378,7 +419,38 @@ public class CustomerAuthServiceImpl implements CustomerAuthService {
         if (!customer.isMobileVerified()) {
             missing.add("mobile OTP verification");
         }
+        if (!customer.isLoginEnabled() || !isVerified(customer)) {
+            missing.add("account activation");
+        }
         return missing;
+    }
+
+    private String otpSentMessage(String purpose, Optional<Customer> existingCustomer) {
+        if ("SIGNUP".equals(purpose)
+                && existingCustomer.isPresent()
+                && !isVerified(existingCustomer.get())
+                && SOURCE_BILLING.equalsIgnoreCase(normalizeText(existingCustomer.get().getCustomerSource()))) {
+            return SIGNUP_BILLING_UNVERIFIED_MESSAGE;
+        }
+        return "OTP sent on WhatsApp.";
+    }
+
+    private void activateCustomer(Customer customer) {
+        customer.setMobileVerified(true);
+        customer.setVerificationStatus(STATUS_VERIFIED);
+        customer.setLoginEnabled(true);
+        customer.setOtpVerifiedAt(LocalDateTime.now());
+    }
+
+    private boolean isVerified(Customer customer) {
+        if (customer == null) {
+            return false;
+        }
+        return customer.isMobileVerified() || STATUS_VERIFIED.equalsIgnoreCase(normalizeText(customer.getVerificationStatus()));
+    }
+
+    private String verificationStatus(Customer customer) {
+        return isVerified(customer) ? STATUS_VERIFIED : STATUS_UNVERIFIED;
     }
 
     private String normalizePurpose(String purpose, String fallback) {
@@ -402,11 +474,8 @@ public class CustomerAuthServiceImpl implements CustomerAuthService {
     }
 
     private String normalizeLocalMobile(String mobile) {
-        String digits = mobile == null ? "" : mobile.replaceAll("[^0-9]", "");
-        if (digits.startsWith("91") && digits.length() > 10) {
-            digits = digits.substring(digits.length() - 10);
-        }
-        if (digits.length() != 10) {
+        String digits = MobileNumberUtils.normalizeIndianMobile(mobile);
+        if (digits.isBlank()) {
             throw new BusinessException("Valid mobile number is required");
         }
         return digits;

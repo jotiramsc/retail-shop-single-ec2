@@ -33,6 +33,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -120,6 +121,8 @@ public class OrderServiceImpl implements OrderService {
         }
         productRepository.saveAll(order.getItems().stream().map(OrderItem::getProduct).toList());
         CustomerOrder saved = orderRepository.save(order);
+        customer.setLastOrderAt(LocalDateTime.now());
+        customerRepository.save(customer);
         paymentTransactionService.linkOrder(paymentOrderId, saved.getId(), saved.getOrderNumber(), customer.getId());
         cartService.clearCart(customerId);
         MarketingChannelResult confirmationResult = whatsAppMessageService.sendOrderConfirmation(saved);
@@ -160,6 +163,18 @@ public class OrderServiceImpl implements OrderService {
         return map(saved);
     }
 
+    @Override
+    @Transactional
+    public void deleteOrder(UUID orderId) {
+        CustomerOrder order = orderRepository.findDetailedById(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+        if (order.getSource() == OrderSource.BILLING && order.getInvoiceId() != null) {
+            throw new BusinessException("Delete the linked invoice to remove this billing order");
+        }
+        restoreOrderStock(order);
+        orderRepository.delete(order);
+    }
+
     private void sendStatusNotification(CustomerOrder order, OrderStatusUpdateRequest request) {
         try {
             MarketingChannelResult result;
@@ -187,6 +202,16 @@ public class OrderServiceImpl implements OrderService {
             log.warn("WhatsApp order status notification threw exception for order {} status {}",
                     order.getOrderNumber(), request.getStatus(), exception);
         }
+    }
+
+    private void restoreOrderStock(CustomerOrder order) {
+        order.getItems().forEach(item -> {
+            Product product = item.getProduct();
+            if (product != null && item.getQuantity() != null) {
+                product.setQuantity(product.getQuantity() + item.getQuantity());
+                productRepository.save(product);
+            }
+        });
     }
 
     private OrderResponse map(CustomerOrder order) {

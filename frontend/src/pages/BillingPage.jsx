@@ -3,9 +3,11 @@ import { useSearchParams } from 'react-router-dom';
 import DataTable from '../components/DataTable';
 import MetricCard from '../components/MetricCard';
 import Panel from '../components/Panel';
+import { showToast } from '../components/ToastHost';
 import { retailService } from '../services/retailService';
 import { getStoredAuthSession } from '../utils/auth';
 import { currency, formatDate } from '../utils/format';
+import { normalizeIndianMobile } from '../utils/mobile';
 import { getApiErrorMessage, isValidMobile } from '../utils/validation';
 
 const initialForm = {
@@ -19,6 +21,48 @@ const initialForm = {
 };
 
 const today = new Date().toISOString().slice(0, 10);
+
+const loadRazorpayCheckout = () => new Promise((resolve) => {
+  if (window.Razorpay) {
+    resolve(true);
+    return;
+  }
+  const existing = document.querySelector('script[data-razorpay-checkout="true"]');
+  if (existing) {
+    existing.addEventListener('load', () => resolve(true), { once: true });
+    existing.addEventListener('error', () => resolve(false), { once: true });
+    return;
+  }
+  const script = document.createElement('script');
+  script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+  script.async = true;
+  script.dataset.razorpayCheckout = 'true';
+  script.onload = () => resolve(true);
+  script.onerror = () => resolve(false);
+  document.body.appendChild(script);
+});
+
+function billingCustomerStatus(snapshot, mobile) {
+  const normalizedMobile = normalizeIndianMobile(mobile);
+  if (!normalizedMobile || normalizedMobile.length !== 10) {
+    return null;
+  }
+  if (!snapshot) {
+    return {
+      title: 'New customer',
+      tone: 'bg-label-info',
+      description: 'A billing-created customer will be saved as unverified and login disabled until OTP verification.'
+    };
+  }
+  const verified = snapshot.mobileVerified === true || String(snapshot.verificationStatus || '').toUpperCase() === 'VERIFIED';
+  return {
+    title: verified ? 'Existing verified customer' : 'Existing unverified customer',
+    tone: verified ? 'bg-label-success' : 'bg-label-warning',
+    description: verified
+      ? 'This bill will be linked to the verified customer account.'
+      : 'This bill will be linked to the existing customer. Website login stays disabled until OTP activation.'
+  };
+}
 
 export default function BillingPage() {
   const latestInvoiceRef = useRef(null);
@@ -49,6 +93,15 @@ export default function BillingPage() {
   const [popupMessage, setPopupMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submittingAndPrinting, setSubmittingAndPrinting] = useState(false);
+  const [upiPayment, setUpiPayment] = useState({
+    open: false,
+    status: 'idle',
+    message: '',
+    paymentOrder: null,
+    invoice: null,
+    shouldPrintAfterSave: false
+  });
+  const customerStatus = billingCustomerStatus(customerSnapshot, form.customerMobile);
 
   useEffect(() => {
     if (!popupMessage) {
@@ -156,7 +209,7 @@ export default function BillingPage() {
         const preview = await retailService.previewInvoice({
           salesPersonUserId: form.salesPersonUserId,
           customerName: form.customerName || 'Walk-in Customer',
-          customerMobile: isValidMobile(form.customerMobile) ? form.customerMobile : '9999999999',
+          customerMobile: isValidMobile(form.customerMobile) ? normalizeIndianMobile(form.customerMobile) : '9999999999',
           paymentMode: form.paymentMode,
           couponCode: form.couponCode || null,
           manualDiscount: Number(form.manualDiscount || 0),
@@ -386,11 +439,60 @@ export default function BillingPage() {
     receiptWindow.print();
   };
 
-  const saveInvoice = async (shouldPrintAfterSave = false) => {
+  const downloadInvoice = (invoiceToDownload) => {
+    if (!invoiceToDownload) {
+      return;
+    }
+    const content = [
+      `${receiptSettings?.shopName || 'Store'} Invoice`,
+      `Invoice: ${invoiceToDownload.invoiceNumber}`,
+      `Customer: ${invoiceToDownload.customerName} (${invoiceToDownload.customerMobile})`,
+      `Payment: ${invoiceToDownload.paymentMode}`,
+      `Final Amount: ${currency(invoiceToDownload.finalAmount)}`,
+      '',
+      ...(invoiceToDownload.items || []).map((item) =>
+        `${item.productName} | Qty ${item.quantity} | ${currency(item.lineTotal)}`
+      )
+    ].join('\n');
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${invoiceToDownload.invoiceNumber || 'invoice'}.txt`;
+    link.click();
+    URL.revokeObjectURL(url);
+    showToast({ title: 'Invoice downloaded', message: invoiceToDownload.invoiceNumber });
+  };
+
+  const sendInvoiceWhatsApp = (invoiceToSend) => {
+    if (!invoiceToSend?.customerMobile) {
+      showToast({ title: 'Mobile missing', message: 'Customer mobile is required to send WhatsApp invoice.', tone: 'warning' });
+      return;
+    }
+    const mobile = normalizeIndianMobile(invoiceToSend.customerMobile);
+    const message = encodeURIComponent(
+      `Thank you for shopping with ${receiptSettings?.shopName || 'Krishnai Pearl Shopee'}.\nInvoice ${invoiceToSend.invoiceNumber}\nAmount paid: ${currency(invoiceToSend.finalAmount)}`
+    );
+    window.open(`https://wa.me/91${mobile}?text=${message}`, '_blank', 'noopener,noreferrer');
+    showToast({ title: 'WhatsApp opened', message: 'Invoice message is ready to send.' });
+  };
+
+  const buildInvoicePayload = (extra = {}) => ({
+    ...form,
+    customerMobile: normalizeIndianMobile(form.customerMobile),
+    couponCode: form.couponCode || null,
+    manualDiscount: Number(form.manualDiscount || 0),
+    manualDiscountType: form.manualDiscountType,
+    items: cart.map((item) => ({ productId: item.productId, quantity: Number(item.quantity) })),
+    ...extra
+  });
+
+  const saveInvoice = async (shouldPrintAfterSave = false, paymentResult = null) => {
     setError('');
     setSuccess('');
-    if (!isValidMobile(form.customerMobile)) {
-      setError('Enter a valid mobile number with 10 to 15 digits.');
+    const normalizedCustomerMobile = normalizeIndianMobile(form.customerMobile);
+    if (!isValidMobile(normalizedCustomerMobile)) {
+      setError('Enter a valid 10-digit mobile number.');
       return false;
     }
     if (!form.salesPersonUserId) {
@@ -401,20 +503,26 @@ export default function BillingPage() {
       setError('Add at least one product to the cart.');
       return false;
     }
+    if (form.paymentMode === 'UPI' && !paymentResult?.razorpayOrderId && !editingInvoiceId) {
+      await startUpiPayment(shouldPrintAfterSave);
+      return false;
+    }
     setSubmitting(!shouldPrintAfterSave);
     setSubmittingAndPrinting(shouldPrintAfterSave);
     try {
-      const payload = {
-        ...form,
-        couponCode: form.couponCode || null,
-        manualDiscount: Number(form.manualDiscount || 0),
-        manualDiscountType: form.manualDiscountType,
-        items: cart.map((item) => ({ productId: item.productId, quantity: Number(item.quantity) }))
-      };
+      const payload = buildInvoicePayload(paymentResult || {});
       const response = editingInvoiceId
         ? await retailService.updateInvoice(editingInvoiceId, payload)
         : await retailService.createInvoice(payload);
       setInvoice(response);
+      if (paymentResult?.razorpayOrderId) {
+        setUpiPayment((current) => ({
+          ...current,
+          status: 'success',
+          message: `Payment received. Invoice ${response.invoiceNumber} is finalized.`,
+          invoice: response
+        }));
+      }
       if (shouldPrintAfterSave) {
         window.setTimeout(() => printInvoice(response), 120);
       }
@@ -432,6 +540,10 @@ export default function BillingPage() {
       setSuccess(editingInvoiceId
         ? `Invoice ${response.invoiceNumber} updated successfully.`
         : `Invoice ${response.invoiceNumber} created successfully.`);
+      showToast({
+        title: editingInvoiceId ? 'Invoice updated' : 'Invoice created',
+        message: `${response.invoiceNumber} is finalized.`
+      });
       const [allProducts, trending, offersPage] = await Promise.all([
         retailService.getProducts({ page: 0, size: 250 }),
         retailService.getTrendingProducts(),
@@ -442,11 +554,139 @@ export default function BillingPage() {
       setOffers(offersPage.items || []);
       return true;
     } catch (requestError) {
-      setError(getApiErrorMessage(requestError, 'Unable to generate bill.'));
+      const message = getApiErrorMessage(requestError, 'Unable to generate bill.');
+      setError(message);
+      showToast({ title: 'Billing failed', message, tone: 'error' });
       return false;
     } finally {
       setSubmitting(false);
       setSubmittingAndPrinting(false);
+    }
+  };
+
+  const startUpiPayment = async (shouldPrintAfterSave = false) => {
+    setError('');
+    setSuccess('');
+    setUpiPayment({
+      open: true,
+      status: 'creating',
+      message: 'Creating Razorpay UPI payment...',
+      paymentOrder: null,
+      invoice: null,
+      shouldPrintAfterSave
+    });
+    try {
+      const paymentOrder = await retailService.createBillingPaymentOrder({
+        invoice: buildInvoicePayload(),
+        redirectUrl: typeof window === 'undefined' ? undefined : `${window.location.origin}/app/billing`
+      });
+      setUpiPayment((current) => ({
+        ...current,
+        status: 'waiting',
+        message: 'Waiting for UPI payment confirmation.',
+        paymentOrder
+      }));
+      let pollingStopped = false;
+      const pollForPaymentSuccess = () => {
+        let checks = 0;
+        const intervalId = window.setInterval(async () => {
+          if (pollingStopped || checks >= 30) {
+            window.clearInterval(intervalId);
+            return;
+          }
+          checks += 1;
+          try {
+            const status = await retailService.getBillingPaymentStatus(paymentOrder.orderId);
+            if (status?.success) {
+              pollingStopped = true;
+              window.clearInterval(intervalId);
+              setUpiPayment((current) => ({
+                ...current,
+                status: 'verifying',
+                message: 'Payment confirmed by Razorpay. Finalizing bill...'
+              }));
+              await saveInvoice(shouldPrintAfterSave, {
+                razorpayOrderId: paymentOrder.orderId,
+                razorpayPaymentId: status.transactionId || paymentOrder.orderId
+              });
+            }
+          } catch {
+            // Keep waiting while Razorpay settles or webhook/status catches up.
+          }
+        }, 3000);
+      };
+      pollForPaymentSuccess();
+
+      if (!paymentOrder?.configured) {
+        await saveInvoice(shouldPrintAfterSave, {
+          razorpayOrderId: paymentOrder?.orderId,
+          razorpayPaymentId: `local-${paymentOrder?.orderId}`,
+          razorpaySignature: 'LOCAL_TEST'
+        });
+        return;
+      }
+
+      const ready = await loadRazorpayCheckout();
+      if (!ready || !window.Razorpay) {
+        throw new Error('Unable to load Razorpay checkout.');
+      }
+      const options = {
+        key: paymentOrder.keyId,
+        amount: paymentOrder.amountSubunits,
+        currency: paymentOrder.currency || 'INR',
+        name: receiptSettings?.shopName || 'Krishnai Pearl Shopee',
+        description: 'Shop billing UPI payment',
+        order_id: String(paymentOrder.orderId || '').startsWith('order_') ? paymentOrder.orderId : undefined,
+        prefill: {
+          name: form.customerName,
+          contact: normalizeIndianMobile(form.customerMobile)
+        },
+        method: {
+          upi: true
+        },
+        notes: {
+          source: 'SHOP_BILLING',
+          receipt: paymentOrder.receipt || ''
+        },
+        theme: {
+          color: '#2fbf91'
+        },
+        modal: {
+          ondismiss: () => {
+            setUpiPayment((current) => ({
+              ...current,
+              status: 'closed',
+              message: 'Payment window closed. Waiting briefly for Razorpay confirmation. Retry or change method if it does not complete.'
+            }));
+            showToast({ title: 'UPI payment closed', message: 'The bill will finalize if payment is confirmed.', tone: 'warning' });
+          }
+        },
+        handler: async (response) => {
+          pollingStopped = true;
+          setUpiPayment((current) => ({
+            ...current,
+            status: 'verifying',
+            message: 'Payment received. Verifying and finalizing bill...'
+          }));
+          await saveInvoice(shouldPrintAfterSave, {
+            razorpayOrderId: response.razorpay_order_id || paymentOrder.orderId,
+            razorpayPaymentId: response.razorpay_payment_id,
+            razorpaySignature: response.razorpay_signature
+          });
+        }
+      };
+      const razorpay = new window.Razorpay(options);
+      razorpay.on('payment.failed', (event) => {
+        const message = event?.error?.description || 'UPI payment failed. Retry or change payment method.';
+        setUpiPayment((current) => ({ ...current, status: 'failed', message }));
+        showToast({ title: 'UPI payment failed', message, tone: 'error' });
+      });
+      razorpay.open();
+    } catch (requestError) {
+      const message = requestError?.message || getApiErrorMessage(requestError, 'Unable to start UPI payment.');
+      setUpiPayment((current) => ({ ...current, status: 'failed', message }));
+      setError(message);
+      showToast({ title: 'UPI payment error', message, tone: 'error' });
     }
   };
 
@@ -847,9 +1087,10 @@ export default function BillingPage() {
                   id="billing-customer-mobile"
                   placeholder="Customer mobile"
                   value={form.customerMobile}
-                  onChange={(e) => setForm({ ...form, customerMobile: e.target.value })}
+                  onChange={(e) => setForm({ ...form, customerMobile: normalizeIndianMobile(e.target.value) })}
                   inputMode="numeric"
                   autoComplete="off"
+                  maxLength="13"
                   required
                 />
               </div>
@@ -927,12 +1168,14 @@ export default function BillingPage() {
             ) : null}
 
             {customerSnapshot ? (
-              <div className="customer-card billing-field-wide">
-                <strong>Existing customer found</strong>
-                <span>Name: {customerSnapshot.name}</span>
-                <span>Total visits: {customerSnapshot.totalInvoices}</span>
-                <span>Total spent: {currency(customerSnapshot.totalSpent)}</span>
-                <span>Last purchase: {customerSnapshot.lastPurchaseAt ? formatDate(customerSnapshot.lastPurchaseAt) : 'N/A'}</span>
+              <div className="customer-card billing-field-wide billing-customer-status-card">
+                <span className={`badge ${customerStatus?.tone || 'bg-label-primary'}`}>{customerStatus?.title}</span>
+                <span>This bill will be linked to {customerSnapshot.name || 'the existing customer'}.</span>
+              </div>
+            ) : customerStatus ? (
+              <div className="customer-card billing-field-wide billing-customer-status-card">
+                <span className={`badge ${customerStatus.tone}`}>Billing-created</span>
+                <span>{customerStatus.title}</span>
               </div>
             ) : null}
 
@@ -1062,6 +1305,58 @@ export default function BillingPage() {
       <div className="billing-existing-invoice-panel">
         {invoiceEditPanel}
       </div>
+      {upiPayment.open ? (
+        <div className="modal-backdrop payment-modal-backdrop" role="dialog" aria-modal="true">
+          <div className="payment-modal sneat-card">
+            <div className="sneat-card-head">
+              <div>
+                <small>UPI payment</small>
+                <h3>Razorpay QR / UPI</h3>
+              </div>
+              <button
+                type="button"
+                className="ghost-btn compact-btn"
+                onClick={() => setUpiPayment((current) => ({ ...current, open: false }))}
+              >
+                Close
+              </button>
+            </div>
+            <div className="payment-modal-grid">
+              <div><span>Amount</span><strong>{currency(previewFinalAmount)}</strong></div>
+              <div><span>Customer</span><strong>{form.customerName || 'Walk-in customer'}</strong></div>
+              <div><span>Mobile</span><strong>{normalizeIndianMobile(form.customerMobile) || 'Not set'}</strong></div>
+              <div><span>Status</span><strong>{upiPayment.status.replaceAll('_', ' ')}</strong></div>
+            </div>
+            <p className={upiPayment.status === 'failed' ? 'error-text' : upiPayment.status === 'success' ? 'success-text' : 'field-note'}>
+              {upiPayment.message || 'Open Razorpay to scan QR or pay using UPI.'}
+            </p>
+            {upiPayment.status === 'success' && upiPayment.invoice ? (
+              <div className="checkout-actions">
+                <button type="button" className="primary-btn compact-btn" onClick={() => printInvoice(upiPayment.invoice)}>Print Bill</button>
+                <button type="button" className="ghost-btn compact-btn" onClick={() => downloadInvoice(upiPayment.invoice)}>Download PDF</button>
+                <button type="button" className="ghost-btn compact-btn" onClick={() => sendInvoiceWhatsApp(upiPayment.invoice)}>Send WhatsApp Invoice</button>
+              </div>
+            ) : (
+              <div className="checkout-actions">
+                <button type="button" className="primary-btn compact-btn" onClick={() => startUpiPayment(upiPayment.shouldPrintAfterSave)}>
+                  {upiPayment.status === 'waiting' || upiPayment.status === 'creating' ? 'Regenerate QR' : 'Retry payment'}
+                </button>
+                <button
+                  type="button"
+                  className="ghost-btn compact-btn"
+                  onClick={() => {
+                    setForm((current) => ({ ...current, paymentMode: 'CASH' }));
+                    setUpiPayment((current) => ({ ...current, open: false }));
+                    showToast({ title: 'Payment changed', message: 'Bill payment method changed to Cash.' });
+                  }}
+                >
+                  Change to Cash
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

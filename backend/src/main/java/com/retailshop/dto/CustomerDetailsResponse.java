@@ -30,6 +30,10 @@ public class CustomerDetailsResponse {
     private String shoppingInterests;
     private String customerNotes;
     private String customerTags;
+    private String verificationStatus;
+    private String customerSource;
+    private Boolean loginEnabled;
+    private LocalDateTime otpVerifiedAt;
     private boolean birthdayReminderEnabled;
     private boolean anniversaryReminderEnabled;
     private LocalDateTime lastLoginAt;

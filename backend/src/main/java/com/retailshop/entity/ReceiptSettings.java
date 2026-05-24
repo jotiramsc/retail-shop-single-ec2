@@ -57,6 +57,45 @@ public class ReceiptSettings {
     @Column(name = "trust_badge_four")
     private String trustBadgeFour;
 
+    @Column(name = "website_primary_color", length = 20)
+    private String websitePrimaryColor;
+
+    @Column(name = "website_accent_color", length = 20)
+    private String websiteAccentColor;
+
+    @Column(name = "website_surface_color", length = 20)
+    private String websiteSurfaceColor;
+
+    @Column(name = "website_text_color", length = 20)
+    private String websiteTextColor;
+
+    @Column(name = "website_corner_radius", length = 40)
+    private String websiteCornerRadius;
+
+    @Column(name = "website_button_style", length = 40)
+    private String websiteButtonStyle;
+
+    @Column(name = "website_density", length = 40)
+    private String websiteDensity;
+
+    @Column(name = "admin_primary_color", length = 20)
+    private String adminPrimaryColor;
+
+    @Column(name = "admin_accent_color", length = 20)
+    private String adminAccentColor;
+
+    @Column(name = "admin_surface_color", length = 20)
+    private String adminSurfaceColor;
+
+    @Column(name = "admin_text_color", length = 20)
+    private String adminTextColor;
+
+    @Column(name = "admin_sidebar_style", length = 40)
+    private String adminSidebarStyle;
+
+    @Column(name = "admin_header_compact", nullable = false)
+    private Boolean adminHeaderCompact = Boolean.TRUE;
+
     @Column(nullable = false)
     private String address;
 
@@ -142,6 +181,9 @@ public class ReceiptSettings {
         }
         if (facebookCatalogEnabled == null) {
             facebookCatalogEnabled = Boolean.FALSE;
+        }
+        if (adminHeaderCompact == null) {
+            adminHeaderCompact = Boolean.TRUE;
         }
     }
 }

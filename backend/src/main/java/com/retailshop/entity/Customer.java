@@ -55,6 +55,18 @@ public class Customer {
     @Column(name = "profile_completed_at")
     private LocalDateTime profileCompletedAt;
 
+    @Column(name = "verification_status", nullable = false, length = 30)
+    private String verificationStatus = "UNVERIFIED";
+
+    @Column(name = "login_enabled", nullable = false)
+    private boolean loginEnabled;
+
+    @Column(name = "otp_verified_at")
+    private LocalDateTime otpVerifiedAt;
+
+    @Column(name = "last_order_at")
+    private LocalDateTime lastOrderAt;
+
     @Column(name = "date_of_birth")
     private LocalDate dateOfBirth;
 
@@ -132,10 +144,21 @@ public class Customer {
         if (customerSource == null || customerSource.isBlank()) {
             customerSource = "BOTH";
         }
+        applyVerificationDefaults();
     }
 
     @PreUpdate
     public void preUpdate() {
         updatedAt = LocalDateTime.now();
+        applyVerificationDefaults();
+    }
+
+    private void applyVerificationDefaults() {
+        if (verificationStatus == null || verificationStatus.isBlank()) {
+            verificationStatus = mobileVerified ? "VERIFIED" : "UNVERIFIED";
+        }
+        if (mobileVerified) {
+            verificationStatus = "VERIFIED";
+        }
     }
 }

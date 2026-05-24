@@ -44,4 +44,8 @@ public class InvoiceCreateRequest {
     private DiscountType manualDiscountType;
 
     private String couponCode;
+
+    private String razorpayOrderId;
+    private String razorpayPaymentId;
+    private String razorpaySignature;
 }

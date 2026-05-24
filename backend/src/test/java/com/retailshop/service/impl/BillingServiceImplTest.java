@@ -14,6 +14,8 @@ import com.retailshop.repository.InvoiceItemRepository;
 import com.retailshop.repository.InvoiceRepository;
 import com.retailshop.repository.ProductRepository;
 import com.retailshop.service.CustomerService;
+import com.retailshop.service.PaymentService;
+import com.retailshop.service.PaymentTransactionService;
 import com.retailshop.service.StaffUserService;
 import com.retailshop.service.pricing.OrderPricingItem;
 import com.retailshop.service.pricing.OrderPricingResult;
@@ -36,7 +38,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -62,6 +66,12 @@ class BillingServiceImplTest {
 
     @Mock
     private OrderPricingService orderPricingService;
+
+    @Mock
+    private PaymentService paymentService;
+
+    @Mock
+    private PaymentTransactionService paymentTransactionService;
 
     @InjectMocks
     private BillingServiceImpl billingService;
@@ -189,6 +199,70 @@ class BillingServiceImplTest {
         assertEquals(BigDecimal.valueOf(53.91).setScale(2), response.getCgst());
         assertEquals(BigDecimal.valueOf(53.91).setScale(2), response.getSgst());
         assertEquals(BigDecimal.valueOf(1305.82).setScale(2), response.getFinalAmount());
+    }
+
+    @Test
+    void shouldRejectUnverifiedRazorpayUpiBeforeReducingStock() {
+        InvoiceItemRequest line = new InvoiceItemRequest();
+        line.setProductId(product.getId());
+        line.setQuantity(1);
+
+        InvoiceCreateRequest request = new InvoiceCreateRequest();
+        request.setCustomerName(customer.getName());
+        request.setCustomerMobile(customer.getMobile());
+        request.setSalesPersonUserId(salesPerson.getId());
+        request.setItems(List.of(line));
+        request.setPaymentMode(PaymentMode.UPI);
+        request.setManualDiscount(BigDecimal.ZERO);
+        request.setRazorpayOrderId("order_shop_123");
+        request.setRazorpayPaymentId("pay_shop_123");
+        request.setRazorpaySignature("bad-signature");
+
+        when(staffUserService.getActiveSalesPerson(salesPerson.getId())).thenReturn(salesPerson);
+        when(productRepository.findById(product.getId())).thenReturn(Optional.of(product));
+        when(orderPricingService.priceProducts(eq(Map.of(product.getId(), 1)), eq(null))).thenReturn(pricingResult(1, BigDecimal.ZERO));
+        when(paymentService.verifyPayment(any(), eq(BigDecimal.valueOf(599.00).setScale(2)))).thenReturn(false);
+
+        assertThrows(BusinessException.class, () -> billingService.createInvoice(request));
+
+        assertEquals(10, product.getQuantity());
+        verify(invoiceRepository, never()).save(any());
+        verify(invoiceItemRepository, never()).saveAll(any());
+    }
+
+    @Test
+    void shouldLinkRazorpayDiagnosticsAfterSuccessfulShopUpiInvoice() {
+        InvoiceItemRequest line = new InvoiceItemRequest();
+        line.setProductId(product.getId());
+        line.setQuantity(1);
+
+        InvoiceCreateRequest request = new InvoiceCreateRequest();
+        request.setCustomerName(customer.getName());
+        request.setCustomerMobile(customer.getMobile());
+        request.setSalesPersonUserId(salesPerson.getId());
+        request.setItems(List.of(line));
+        request.setPaymentMode(PaymentMode.UPI);
+        request.setManualDiscount(BigDecimal.ZERO);
+        request.setRazorpayOrderId("order_shop_456");
+        request.setRazorpayPaymentId("pay_shop_456");
+        request.setRazorpaySignature("signature");
+
+        when(productRepository.findById(product.getId())).thenReturn(Optional.of(product));
+        when(orderPricingService.priceProducts(eq(Map.of(product.getId(), 1)), eq(null))).thenReturn(pricingResult(1, BigDecimal.ZERO));
+        when(paymentService.verifyPayment(any(), eq(BigDecimal.valueOf(599.00).setScale(2)))).thenReturn(true);
+        when(customerService.findOrCreateCustomer(customer.getName(), customer.getMobile())).thenReturn(customer);
+        when(invoiceRepository.save(any(Invoice.class))).thenAnswer(invocation -> {
+            Invoice invoice = invocation.getArgument(0);
+            invoice.setId(UUID.randomUUID());
+            return invoice;
+        });
+        when(invoiceItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var response = billingService.createInvoice(request);
+
+        assertEquals(PaymentMode.UPI, response.getPaymentMode());
+        assertEquals(9, product.getQuantity());
+        verify(paymentTransactionService).linkOrder(eq("order_shop_456"), eq(response.getId()), eq(response.getInvoiceNumber()), eq(customer.getId()));
     }
 
     private OrderPricingResult pricingResult(int quantity, BigDecimal automaticDiscount) {

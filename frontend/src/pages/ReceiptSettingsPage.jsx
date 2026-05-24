@@ -76,6 +76,19 @@ const blankSettings = {
   trustBadgeTwo: '',
   trustBadgeThree: '',
   trustBadgeFour: '',
+  websitePrimaryColor: '#2fbf91',
+  websiteAccentColor: '#c97d3a',
+  websiteSurfaceColor: '#ffffff',
+  websiteTextColor: '#2f3a4a',
+  websiteCornerRadius: 'soft',
+  websiteButtonStyle: 'filled',
+  websiteDensity: 'comfortable',
+  adminPrimaryColor: '#2fbf91',
+  adminAccentColor: '#7367f0',
+  adminSurfaceColor: '#ffffff',
+  adminTextColor: '#2f3a4a',
+  adminSidebarStyle: 'jewellery',
+  adminHeaderCompact: true,
   address: '',
   phoneNumber: '',
   gstNumber: '',
@@ -191,6 +204,7 @@ export default function ReceiptSettingsPage({
         deliveryFee: Number(form.deliveryFee || 0),
         freeDeliveryThreshold: Number(form.freeDeliveryThreshold || 0),
         facebookCatalogEnabled: Boolean(form.facebookCatalogEnabled),
+        adminHeaderCompact: Boolean(form.adminHeaderCompact),
         metaPixelId: form.metaPixelId || null,
         facebookFeedToken: form.facebookFeedToken || null
       });
@@ -346,6 +360,8 @@ export default function ReceiptSettingsPage({
                   <input value={form.trustBadgeFour || ''} onChange={(e) => setForm({ ...form, trustBadgeFour: e.target.value })} />
                 </LabeledField>
               </div>
+
+              <p className="field-note">Theme color customization is disabled so the storefront and admin keep the approved Krishnai look. Use this page for logo, hero media, badges, and copy only.</p>
             </>
           ) : null}
 

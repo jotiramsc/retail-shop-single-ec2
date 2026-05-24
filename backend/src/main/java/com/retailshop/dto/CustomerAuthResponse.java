@@ -3,6 +3,7 @@ package com.retailshop.dto;
 import lombok.Builder;
 import lombok.Getter;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -16,6 +17,9 @@ public class CustomerAuthResponse {
     private String profileImageUrl;
     private String authProvider;
     private boolean mobileVerified;
+    private String verificationStatus;
+    private boolean loginEnabled;
+    private LocalDateTime otpVerifiedAt;
     private boolean emailVerified;
     private boolean profileComplete;
     private boolean requiresMobileOtp;

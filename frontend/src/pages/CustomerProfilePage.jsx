@@ -9,6 +9,7 @@ import {
 } from '../utils/auth';
 import { currency, formatDate } from '../utils/format';
 import { getApiErrorMessage } from '../utils/validation';
+import { isValidIndianMobile, normalizeIndianMobile as normalizeMobileDigits } from '../utils/mobile';
 
 const initialAddress = {
   label: 'Home',
@@ -23,13 +24,6 @@ const initialAddress = {
   latitude: '',
   longitude: ''
 };
-
-const normalizeMobileDigits = (value) => {
-  const digits = String(value || '').replace(/\D/g, '');
-  return digits.startsWith('91') && digits.length > 10 ? digits.slice(-10) : digits;
-};
-
-const isValidIndianMobile = (value) => normalizeMobileDigits(value).length === 10;
 
 const validateAddressForm = (address) => {
   if (!address.recipientName.trim()) return 'Enter recipient name for delivery.';

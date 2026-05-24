@@ -13,4 +13,6 @@ public interface OrderService {
     List<OrderResponse> getOrders(UUID customerId);
 
     OrderResponse updateOrderStatus(UUID orderId, OrderStatusUpdateRequest request);
+
+    void deleteOrder(UUID orderId);
 }

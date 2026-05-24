@@ -3,6 +3,8 @@ package com.retailshop.service.impl;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.retailshop.config.AppProperties;
 import com.retailshop.dto.CustomerOtpRequest;
+import com.retailshop.dto.CustomerOtpVerifyRequest;
+import com.retailshop.entity.Customer;
 import com.retailshop.entity.CustomerOtp;
 import com.retailshop.exception.BusinessException;
 import com.retailshop.repository.CustomerOtpRepository;
@@ -17,7 +19,10 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.LocalDateTime;
+import java.util.HexFormat;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -69,6 +74,7 @@ class CustomerAuthServiceImplTest {
         request.setPurpose("SIGNUP");
 
         when(customerOtpRepository.findById("9876543210")).thenReturn(Optional.empty());
+        when(customerRepository.saveAndFlush(any(Customer.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(customerOtpRepository.save(any(CustomerOtp.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(otpDeliveryService.isConfigured()).thenReturn(true);
         when(otpDeliveryService.sendOtp(eq("9876543210"), any(), eq(5L))).thenReturn(
@@ -99,6 +105,7 @@ class CustomerAuthServiceImplTest {
         request.setPurpose("SIGNUP");
 
         when(customerOtpRepository.findById("9876543210")).thenReturn(Optional.empty());
+        when(customerRepository.saveAndFlush(any(Customer.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(customerOtpRepository.save(any(CustomerOtp.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(otpDeliveryService.isConfigured()).thenReturn(true);
         when(otpDeliveryService.sendOtp(eq("9876543210"), any(), eq(5L))).thenReturn(
@@ -121,10 +128,166 @@ class CustomerAuthServiceImplTest {
         CustomerOtp existing = new CustomerOtp();
         existing.setMobile("9876543210");
         existing.setResendAllowedAt(LocalDateTime.now().plusSeconds(12));
+        when(customerRepository.saveAndFlush(any(Customer.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(customerOtpRepository.findById("9876543210")).thenReturn(Optional.of(existing));
 
         BusinessException exception = assertThrows(BusinessException.class, () -> customerAuthService.sendOtp(request));
 
         assertTrue(exception.getMessage().contains("Please wait"));
+    }
+
+    @Test
+    void shouldSendSignupOtpForBillingCreatedUnverifiedCustomer() {
+        Customer customer = new Customer();
+        customer.setMobile("9876543210");
+        customer.setCustomerSource("BILLING");
+        customer.setVerificationStatus("UNVERIFIED");
+        customer.setLoginEnabled(false);
+
+        CustomerOtpRequest request = new CustomerOtpRequest();
+        request.setMobile("9876543210");
+        request.setPurpose("SIGNUP");
+
+        when(customerRepository.findByMobile("9876543210")).thenReturn(Optional.of(customer));
+        when(customerOtpRepository.findById("9876543210")).thenReturn(Optional.empty());
+        when(customerOtpRepository.save(any(CustomerOtp.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(otpDeliveryService.isConfigured()).thenReturn(true);
+        when(otpDeliveryService.getChannel()).thenReturn("WHATSAPP");
+        when(otpDeliveryService.sendOtp(eq("9876543210"), any(), eq(5L))).thenReturn(
+                MarketingChannelResult.builder().success(true).build()
+        );
+
+        var response = customerAuthService.sendOtp(request);
+
+        assertTrue(response.isOtpRequired());
+        assertTrue(response.isCustomerExists());
+        assertEquals("VERIFY_OTP", response.getNextStep());
+        assertEquals(
+                "An account already exists with this mobile number from your previous purchase. Please verify using OTP to activate your account.",
+                response.getMessage()
+        );
+    }
+
+    @Test
+    void shouldBlockSignupOtpForVerifiedCustomer() {
+        Customer customer = new Customer();
+        customer.setMobile("9876543210");
+        customer.setVerificationStatus("VERIFIED");
+        customer.setMobileVerified(true);
+        customer.setLoginEnabled(true);
+
+        CustomerOtpRequest request = new CustomerOtpRequest();
+        request.setMobile("9876543210");
+        request.setPurpose("SIGNUP");
+
+        when(customerRepository.findByMobile("9876543210")).thenReturn(Optional.of(customer));
+        when(otpDeliveryService.getChannel()).thenReturn("WHATSAPP");
+
+        var response = customerAuthService.sendOtp(request);
+
+        assertFalse(response.isOtpRequired());
+        assertTrue(response.isCustomerExists());
+        assertEquals("LOGIN_REQUIRED", response.getNextStep());
+        assertEquals("An account already exists with this mobile number. Please login using OTP.", response.getMessage());
+    }
+
+    @Test
+    void shouldActivateBillingCreatedCustomerAfterOtpVerification() {
+        Customer customer = new Customer();
+        customer.setMobile("9876543210");
+        customer.setCustomerSource("BILLING");
+        customer.setVerificationStatus("UNVERIFIED");
+        customer.setLoginEnabled(false);
+
+        CustomerOtp otp = otpRecord("9876543210", "123456", LocalDateTime.now().plusMinutes(5), 0);
+        CustomerOtpVerifyRequest request = new CustomerOtpVerifyRequest();
+        request.setMobile("9876543210");
+        request.setOtp("123456");
+        request.setPurpose("SIGNUP");
+
+        when(customerRepository.findByMobile("9876543210")).thenReturn(Optional.of(customer));
+        when(customerOtpRepository.findById("9876543210")).thenReturn(Optional.of(otp));
+        when(customerRepository.save(any(Customer.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(customerJwtService.issueToken(any(Customer.class))).thenReturn("token");
+
+        var response = customerAuthService.verifyOtp(request);
+
+        assertTrue(customer.isMobileVerified());
+        assertTrue(customer.isLoginEnabled());
+        assertEquals("VERIFIED", customer.getVerificationStatus());
+        assertEquals("BILLING", customer.getCustomerSource());
+        assertTrue(customer.getOtpVerifiedAt() != null);
+        assertEquals("Bearer token", response.getToken());
+        assertEquals("VERIFIED", response.getVerificationStatus());
+        assertTrue(response.isLoginEnabled());
+    }
+
+    @Test
+    void shouldRejectUnknownLoginWithoutCreatingCustomer() {
+        CustomerOtpVerifyRequest request = new CustomerOtpVerifyRequest();
+        request.setMobile("9876543210");
+        request.setOtp("123456");
+        request.setPurpose("LOGIN");
+
+        BusinessException exception = assertThrows(BusinessException.class, () -> customerAuthService.verifyOtp(request));
+
+        assertEquals("No account found with this mobile number. Please sign up first.", exception.getMessage());
+    }
+
+    @Test
+    void shouldRejectExpiredOtpWithUserFacingMessage() {
+        Customer customer = new Customer();
+        customer.setMobile("9876543210");
+        CustomerOtpVerifyRequest request = new CustomerOtpVerifyRequest();
+        request.setMobile("9876543210");
+        request.setOtp("123456");
+        request.setPurpose("LOGIN");
+
+        when(customerRepository.findByMobile("9876543210")).thenReturn(Optional.of(customer));
+        when(customerOtpRepository.findById("9876543210"))
+                .thenReturn(Optional.of(otpRecord("9876543210", "123456", LocalDateTime.now().minusMinutes(1), 0)));
+
+        BusinessException exception = assertThrows(BusinessException.class, () -> customerAuthService.verifyOtp(request));
+
+        assertEquals("OTP has expired. Please request a new OTP.", exception.getMessage());
+    }
+
+    @Test
+    void shouldRejectInvalidOtpWithUserFacingMessage() {
+        Customer customer = new Customer();
+        customer.setMobile("9876543210");
+        CustomerOtpVerifyRequest request = new CustomerOtpVerifyRequest();
+        request.setMobile("9876543210");
+        request.setOtp("000000");
+        request.setPurpose("LOGIN");
+
+        when(customerRepository.findByMobile("9876543210")).thenReturn(Optional.of(customer));
+        when(customerOtpRepository.findById("9876543210"))
+                .thenReturn(Optional.of(otpRecord("9876543210", "123456", LocalDateTime.now().plusMinutes(5), 0)));
+        when(customerOtpRepository.save(any(CustomerOtp.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        BusinessException exception = assertThrows(BusinessException.class, () -> customerAuthService.verifyOtp(request));
+
+        assertEquals("Invalid OTP. Please try again.", exception.getMessage());
+    }
+
+    private CustomerOtp otpRecord(String mobile, String otp, LocalDateTime expiry, int retryCount) {
+        CustomerOtp record = new CustomerOtp();
+        record.setMobile(mobile);
+        record.setOtpHash(hashOtp(mobile, otp));
+        record.setExpiry(expiry);
+        record.setRetryCount(retryCount);
+        return record;
+    }
+
+    private String hashOtp(String mobile, String otp) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest((mobile + ":" + otp + ":local-dev-customer-secret-change-me")
+                    .getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash);
+        } catch (Exception exception) {
+            throw new IllegalStateException(exception);
+        }
     }
 }

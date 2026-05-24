@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import DataTable from '../components/DataTable';
 import { retailService } from '../services/retailService';
+import { getStoredAuthSession } from '../utils/auth';
 import { currency, formatDate } from '../utils/format';
 import { getApiErrorMessage } from '../utils/validation';
 
@@ -341,6 +342,8 @@ export default function AdminOrdersPage({ mode = 'orders' }) {
   const revenue = orders.reduce((sum, invoice) => sum + Number(invoice.finalAmount || 0), 0);
   const discount = orders.reduce((sum, invoice) => sum + Number(invoice.discount || 0), 0);
   const title = mode === 'invoices' ? 'Invoices' : 'Orders';
+  const auth = getStoredAuthSession();
+  const isAdminUser = ['ADMIN', 'OWNER'].includes(auth?.role);
 
   const updateOrderDeliveryStatus = async (row, nextStatus) => {
     const source = normalizeSource(row, mode);
@@ -364,6 +367,23 @@ export default function AdminOrdersPage({ mode = 'orders' }) {
       setError(getApiErrorMessage(requestError, 'Unable to update website order status.'));
     } finally {
       setUpdatingOrderId('');
+    }
+  };
+
+  const deleteRecord = async (row) => {
+    if (!isAdminUser || !row?.id) return;
+    setError('');
+    setSuccess('');
+    try {
+      if (mode === 'invoices') {
+        await retailService.deleteInvoice(row.id);
+      } else {
+        await retailService.deleteOrder(row.id);
+      }
+      setSuccess(`${normalizeReference(row)} deleted.`);
+      await loadOrders(Math.max(ordersPage.page || 0, 0));
+    } catch (requestError) {
+      setError(getApiErrorMessage(requestError, `Unable to delete ${mode === 'invoices' ? 'invoice' : 'order'}.`));
     }
   };
 
@@ -467,6 +487,11 @@ export default function AdminOrdersPage({ mode = 'orders' }) {
                   <Link className="btn btn-sm btn-primary" to={`/app/billing?editInvoiceId=${encodeURIComponent(row.id)}`}>
                     Edit
                   </Link>
+                ) : null}
+                {isAdminUser ? (
+                  <button type="button" className="danger-btn compact-btn" onClick={() => deleteRecord(row)}>
+                    Delete
+                  </button>
                 ) : null}
               </div>
             ) }

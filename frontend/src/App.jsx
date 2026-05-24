@@ -5,6 +5,8 @@ import AdminOrdersPage from './pages/AdminOrdersPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import ProductsPage from './pages/ProductsPage';
 import CustomerCrmModulePage from './pages/CustomerCrmModulePage';
+import CustomerReviewsPage from './pages/CustomerReviewsPage';
+import ToastHost from './components/ToastHost';
 import CampaignStudioModulePage from './pages/CampaignStudioModulePage';
 import ReportsPage from './pages/ReportsPage';
 import SalespersonSalesPage from './pages/SalespersonSalesPage';
@@ -68,6 +70,7 @@ const navGroups = [
         { to: '/app/crm/customers/search-activity', label: 'Search Activity', permission: 'CUSTOMERS_SEARCH_ACTIVITY' },
         { to: '/app/crm/customers/login-history', label: 'Login History', permission: 'CUSTOMERS_LOGIN_HISTORY' },
         { to: '/app/crm/customers/support-chat', label: 'Support Chat', permission: 'CUSTOMERS_SUPPORT_CHAT' },
+        { to: '/app/crm/reviews', label: 'Reviews & Ratings', permission: 'CUSTOMERS' },
         { to: '/app/crm/customers/ai-insights', label: 'AI Insights', permission: 'CUSTOMERS_AI_INSIGHTS' }
       ] },
       { to: '/app/support/active', label: 'Support', icon: 'bx-support', permission: 'CUSTOMERS', badgeKey: 'supportUnread', children: [
@@ -223,11 +226,20 @@ function ProtectedApp({ auth, onLogout, branding }) {
     'layout-wrapper layout-content-navbar kps-sneat-app',
     isMenuCollapsed ? 'kps-menu-collapsed' : '',
     'kps-fixed-navbar kps-rounded kps-menu-animated',
+    branding.theme?.adminHeaderCompact ? 'kps-admin-compact-header' : '',
+    `kps-admin-sidebar-${branding.theme?.adminSidebarStyle || 'jewellery'}`,
     isMobileMenuOpen ? 'layout-menu-expanded' : ''
   ].filter(Boolean).join(' ');
 
+  const adminThemeStyle = {
+    '--kps-admin-primary': '#2fbf91',
+    '--kps-admin-accent': '#7367f0',
+    '--kps-admin-surface': '#ffffff',
+    '--kps-admin-text': '#2f3a4a'
+  };
+
   return (
-    <div className={shellClasses}>
+    <div className={shellClasses} style={adminThemeStyle}>
       <div className="layout-container">
         <aside id="layout-menu" className="layout-menu menu-vertical menu bg-menu-theme kps-sneat-menu">
           <div className="app-brand demo">
@@ -378,6 +390,7 @@ function ProtectedApp({ auth, onLogout, branding }) {
                 <Route path="crm/customers/search-activity" element={canAccessAny('CUSTOMERS', 'CUSTOMERS_SEARCH_ACTIVITY') ? <CustomerCrmModulePage screen="customers" detailTab="Search Activity" /> : <Navigate to={firstAllowedRoute} replace />} />
                 <Route path="crm/customers/login-history" element={canAccessAny('CUSTOMERS', 'CUSTOMERS_LOGIN_HISTORY') ? <CustomerCrmModulePage screen="customers" detailTab="Login History" /> : <Navigate to={firstAllowedRoute} replace />} />
                 <Route path="crm/customers/support-chat" element={canAccessAny('CUSTOMERS', 'CUSTOMERS_SUPPORT_CHAT') ? <CustomerCrmModulePage screen="customers" detailTab="Support Chat" /> : <Navigate to={firstAllowedRoute} replace />} />
+                <Route path="crm/reviews" element={canAccess('CUSTOMERS') ? <CustomerReviewsPage /> : <Navigate to={firstAllowedRoute} replace />} />
                 <Route path="crm/customers/ai-insights" element={canAccessAny('CUSTOMERS', 'CUSTOMERS_AI_INSIGHTS') ? <CustomerCrmModulePage screen="customers" detailTab="AI Insights" /> : <Navigate to={firstAllowedRoute} replace />} />
                 <Route path="crm/leads" element={canAccess('CUSTOMERS') ? <Navigate to="/app/crm/customers/overview" replace /> : <Navigate to={firstAllowedRoute} replace />} />
                 <Route path="crm/opportunities" element={canAccess('CUSTOMERS') ? <Navigate to="/app/crm/customers/overview" replace /> : <Navigate to={firstAllowedRoute} replace />} />
@@ -488,22 +501,25 @@ export default function App() {
   }, [location.pathname, location.search]);
 
   return (
-    <Routes>
-      <Route path="/login" element={auth ? <Navigate to="/app" replace /> : <LoginPage onLogin={setAuth} branding={branding} />} />
-      <Route path="/customer-login" element={<CustomerLoginPage />} />
-      <Route path="/" element={<PublicHomePage branding={branding} siteVisitCount={siteVisitCount} />} />
-      <Route path="/products" element={<PublicProductsPage branding={branding} />} />
-      <Route path="/product/:productId" element={<PublicProductDetailPage branding={branding} />} />
-      <Route path="/products/:productId" element={<PublicProductDetailPage branding={branding} />} />
-      <Route path="/cart/add" element={<CartAddPage />} />
-      <Route path="/cart" element={<CartPage />} />
-      <Route path="/wishlist" element={<WishlistPage />} />
-      <Route path="/checkout" element={<CheckoutPage branding={branding} />} />
-      <Route path="/orders" element={<OrdersPage />} />
-      <Route path="/account" element={<CustomerProfilePage />} />
-      <Route path="/privacy-policy" element={<PrivacyPolicyPage branding={branding} />} />
-      <Route path="/app/*" element={auth ? <ProtectedApp auth={auth} onLogout={handleLogout} branding={branding} /> : <Navigate to="/login" replace />} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <>
+      <ToastHost />
+      <Routes>
+        <Route path="/login" element={auth ? <Navigate to="/app" replace /> : <LoginPage onLogin={setAuth} branding={branding} />} />
+        <Route path="/customer-login" element={<CustomerLoginPage />} />
+        <Route path="/" element={<PublicHomePage branding={branding} siteVisitCount={siteVisitCount} />} />
+        <Route path="/products" element={<PublicProductsPage branding={branding} />} />
+        <Route path="/product/:productId" element={<PublicProductDetailPage branding={branding} />} />
+        <Route path="/products/:productId" element={<PublicProductDetailPage branding={branding} />} />
+        <Route path="/cart/add" element={<CartAddPage />} />
+        <Route path="/cart" element={<CartPage />} />
+        <Route path="/wishlist" element={<WishlistPage />} />
+        <Route path="/checkout" element={<CheckoutPage branding={branding} />} />
+        <Route path="/orders" element={<OrdersPage />} />
+        <Route path="/account" element={<CustomerProfilePage />} />
+        <Route path="/privacy-policy" element={<PrivacyPolicyPage branding={branding} />} />
+        <Route path="/app/*" element={auth ? <ProtectedApp auth={auth} onLogout={handleLogout} branding={branding} /> : <Navigate to="/login" replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </>
   );
 }

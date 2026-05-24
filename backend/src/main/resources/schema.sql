@@ -142,12 +142,41 @@ alter table customers add column if not exists gender varchar(40);
 alter table customers add column if not exists profile_image_url varchar(1000);
 alter table customers add column if not exists alternate_mobile varchar(20);
 alter table customers add column if not exists customer_source varchar(20) not null default 'BOTH';
+alter table customers add column if not exists verification_status varchar(30) not null default 'UNVERIFIED';
+alter table customers add column if not exists login_enabled boolean not null default false;
+alter table customers add column if not exists otp_verified_at timestamp;
+alter table customers add column if not exists last_order_at timestamp;
 update customers set auth_provider = 'OTP' where auth_provider is null or trim(auth_provider) = '';
 update customers set updated_at = created_at where updated_at is null;
 update customers set customer_source = 'BOTH' where customer_source is null or trim(customer_source) = '';
+update customers
+set verification_status = case when mobile_verified = true then 'VERIFIED' else 'UNVERIFIED' end
+where verification_status is null or trim(verification_status) = '';
+update customers
+set login_enabled = true
+where mobile_verified = true and login_enabled = false;
+update customers
+set otp_verified_at = coalesce(otp_verified_at, updated_at, created_at)
+where mobile_verified = true and otp_verified_at is null;
 create unique index if not exists idx_customers_email_unique on customers (lower(email)) where email is not null and trim(email) <> '';
 create unique index if not exists idx_customers_google_subject_unique on customers (google_subject) where google_subject is not null and trim(google_subject) <> '';
 create index if not exists idx_customers_mobile_last10 on customers (right(regexp_replace(coalesce(mobile, ''), '[^0-9]', '', 'g'), 10));
+do $$
+begin
+    if not exists (
+        select 1
+        from customers
+        where mobile is not null and trim(mobile) <> ''
+        group by right(regexp_replace(coalesce(mobile, ''), '[^0-9]', '', 'g'), 10)
+        having count(*) > 1
+    ) then
+        create unique index if not exists idx_customers_normalized_mobile_unique
+            on customers (right(regexp_replace(coalesce(mobile, ''), '[^0-9]', '', 'g'), 10))
+            where mobile is not null and trim(mobile) <> '';
+    else
+        raise notice 'Skipping idx_customers_normalized_mobile_unique because duplicate normalized customer mobiles already exist. Customer services still prevent new duplicates.';
+    end if;
+end $$;
 
 alter table customers add column if not exists anniversary_date date;
 alter table customers add column if not exists spouse_name varchar(255);
@@ -217,6 +246,23 @@ create table if not exists customer_activity_history (
 
 create index if not exists idx_customer_activity_history_customer on customer_activity_history(customer_id, created_at desc);
 create index if not exists idx_customer_activity_history_type on customer_activity_history(activity_type, created_at desc);
+
+create table if not exists customer_reviews (
+    id uuid primary key,
+    customer_name varchar(255) not null,
+    mobile varchar(20),
+    city varchar(160),
+    product varchar(255),
+    rating integer not null,
+    comment text not null,
+    approved boolean not null default false,
+    created_at timestamp not null,
+    updated_at timestamp
+);
+
+alter table customer_reviews add column if not exists mobile varchar(20);
+create index if not exists idx_customer_reviews_public on customer_reviews(approved, created_at desc);
+create index if not exists idx_customer_reviews_created on customer_reviews(created_at desc);
 
 create table if not exists customer_otps (
     mobile varchar(20) primary key,
@@ -831,6 +877,19 @@ alter table receipt_settings add column if not exists facebook_catalog_enabled b
 alter table receipt_settings add column if not exists meta_pixel_id varchar(100);
 alter table receipt_settings add column if not exists facebook_feed_token varchar(255);
 alter table receipt_settings add column if not exists facebook_feed_last_generated_at timestamp;
+alter table receipt_settings add column if not exists website_primary_color varchar(20);
+alter table receipt_settings add column if not exists website_accent_color varchar(20);
+alter table receipt_settings add column if not exists website_surface_color varchar(20);
+alter table receipt_settings add column if not exists website_text_color varchar(20);
+alter table receipt_settings add column if not exists website_corner_radius varchar(40);
+alter table receipt_settings add column if not exists website_button_style varchar(40);
+alter table receipt_settings add column if not exists website_density varchar(40);
+alter table receipt_settings add column if not exists admin_primary_color varchar(20);
+alter table receipt_settings add column if not exists admin_accent_color varchar(20);
+alter table receipt_settings add column if not exists admin_surface_color varchar(20);
+alter table receipt_settings add column if not exists admin_text_color varchar(20);
+alter table receipt_settings add column if not exists admin_sidebar_style varchar(40);
+alter table receipt_settings add column if not exists admin_header_compact boolean not null default true;
 
 alter table receipt_settings alter column logo_url type text;
 alter table receipt_settings alter column hero_primary_image_url type text;

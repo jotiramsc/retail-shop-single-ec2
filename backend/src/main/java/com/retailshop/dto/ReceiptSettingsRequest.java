@@ -36,6 +36,32 @@ public class ReceiptSettingsRequest {
 
     private String trustBadgeFour;
 
+    private String websitePrimaryColor;
+
+    private String websiteAccentColor;
+
+    private String websiteSurfaceColor;
+
+    private String websiteTextColor;
+
+    private String websiteCornerRadius;
+
+    private String websiteButtonStyle;
+
+    private String websiteDensity;
+
+    private String adminPrimaryColor;
+
+    private String adminAccentColor;
+
+    private String adminSurfaceColor;
+
+    private String adminTextColor;
+
+    private String adminSidebarStyle;
+
+    private Boolean adminHeaderCompact;
+
     @NotBlank
     private String address;
 

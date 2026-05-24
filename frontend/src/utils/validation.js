@@ -1,4 +1,6 @@
-export const isValidMobile = (value) => /^[0-9]{10,15}$/.test(String(value || '').trim());
+import { isValidIndianMobile } from './mobile';
+
+export const isValidMobile = (value) => isValidIndianMobile(value);
 
 const fieldLabels = {
   recipientName: 'Recipient name',

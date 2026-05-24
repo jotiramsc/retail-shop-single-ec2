@@ -14,4 +14,5 @@ public interface BillingService {
     InvoiceResponse updateInvoice(UUID id, InvoiceCreateRequest request);
     InvoiceResponse getInvoice(UUID id);
     InvoiceSearchResponse searchInvoices(LocalDate fromDate, LocalDate toDate, String customerName, Pageable pageable);
+    void deleteInvoice(UUID id);
 }

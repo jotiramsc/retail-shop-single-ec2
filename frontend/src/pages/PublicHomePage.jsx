@@ -11,6 +11,8 @@ import { defaultBranding } from '../utils/branding';
 import { getGuestCartCount } from '../utils/cart';
 import { applySeo, preloadImage } from '../utils/seo';
 import StorefrontHeader from '../components/StorefrontHeader';
+import { showToast } from '../components/ToastHost';
+import { normalizeIndianMobile } from '../utils/mobile';
 
 const templateImages = {
   logo: '/assets/glowjewels/app_logo.png',
@@ -207,6 +209,10 @@ export default function PublicHomePage({ branding, siteVisitCount }) {
   const [cartCount, setCartCount] = useState(0);
   const [wishlistCount, setWishlistCount] = useState(0);
   const [customerSession, setCustomerSession] = useState(() => getStoredCustomerSession());
+  const [reviews, setReviews] = useState([]);
+  const [reviewForm, setReviewForm] = useState({ customerName: '', mobile: '', city: '', product: '', rating: 5, comment: '' });
+  const [reviewStatus, setReviewStatus] = useState('');
+  const [reviewError, setReviewError] = useState('');
 
   useEffect(() => {
     retailService.getProductCategoryOptions()
@@ -228,6 +234,9 @@ export default function PublicHomePage({ branding, siteVisitCount }) {
       .catch(() => {
         setError('Unable to load the latest collection right now.');
       });
+    retailService.getPublicReviews({ page: 0, size: 6 })
+      .then((response) => setReviews(response?.items || []))
+      .catch(() => setReviews([]));
   }, []);
 
   useEffect(() => {
@@ -323,6 +332,43 @@ export default function PublicHomePage({ branding, siteVisitCount }) {
     ? branding.trustPoints
     : ['Premium finish', 'Secure checkout', 'Fresh collections', 'Store-published products'];
   const siteClassName = 'glow-site grid-lines glow-motion-ready';
+  const siteThemeStyle = {
+    '--website-primary': branding.theme?.websitePrimaryColor || '#2fbf91',
+    '--website-accent': branding.theme?.websiteAccentColor || '#c97d3a',
+    '--website-surface': branding.theme?.websiteSurfaceColor || '#ffffff',
+    '--website-text': branding.theme?.websiteTextColor || '#2f3a4a',
+    '--website-radius': branding.theme?.websiteCornerRadius === 'round' ? '28px' : branding.theme?.websiteCornerRadius === 'compact' ? '10px' : '18px',
+    '--website-section-space': branding.theme?.websiteDensity === 'spacious' ? '88px' : branding.theme?.websiteDensity === 'compact' ? '42px' : '64px'
+  };
+  const displayReviews = reviews.length ? reviews.map((review) => ({
+    id: review.id,
+    name: review.customerName,
+    location: review.city || 'Customer',
+    quote: review.comment,
+    product: review.product || 'Storefront feedback',
+    rating: review.rating || 5
+  })) : testimonialData;
+
+  const handleReviewSubmit = async (event) => {
+    event.preventDefault();
+    setReviewStatus('');
+    setReviewError('');
+    const mobile = normalizeIndianMobile(reviewForm.mobile);
+    if (!/^[6-9]\d{9}$/.test(mobile)) {
+      setReviewError('Enter a valid 10-digit mobile number.');
+      showToast({ title: 'Mobile required', message: 'Please share a valid 10-digit mobile number for review.', tone: 'warning' });
+      return;
+    }
+    try {
+      await retailService.submitReview({ ...reviewForm, mobile });
+      setReviewForm({ customerName: '', mobile: '', city: '', product: '', rating: 5, comment: '' });
+      setReviewStatus('Thank you. Your review is waiting for approval.');
+      showToast({ title: 'Review submitted', message: 'Thank you. It will appear after approval.' });
+    } catch {
+      setReviewError('Unable to submit review right now.');
+      showToast({ title: 'Review failed', message: 'Unable to submit review right now.', tone: 'error' });
+    }
+  };
 
   const handleHeroMove = (event) => {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -374,7 +420,7 @@ export default function PublicHomePage({ branding, siteVisitCount }) {
   }, [branding.contact?.address, branding.contact?.phoneLabel, heroPrimary, heroSecondary, logo, seoDescription, seoKeywords, shopName]);
 
   return (
-    <main className={siteClassName}>
+    <main className={siteClassName} style={siteThemeStyle}>
       <StorefrontHeader
         logo={logo}
         shopName={shopName}
@@ -546,13 +592,13 @@ export default function PublicHomePage({ branding, siteVisitCount }) {
         </div>
 
         <div className="glow-testimonial-grid">
-          {testimonialData.map((item, index) => (
+          {displayReviews.map((item, index) => (
             <article
               key={item.id}
               className={`glow-testimonial-card glow-reveal ${index === 0 ? 'glow-testimonial-card-wide' : ''}`}
               style={{ transitionDelay: `${Math.min(index * 0.08, 0.35)}s` }}
             >
-              <div className="glow-stars">★★★★★</div>
+              <div className="glow-stars">{'★'.repeat(Math.max(1, Math.min(5, Number(item.rating || 5))))}</div>
               <blockquote>{item.quote}</blockquote>
               <div className="glow-testimonial-tag">{item.product}</div>
               <div className="glow-testimonial-author">
@@ -562,6 +608,7 @@ export default function PublicHomePage({ branding, siteVisitCount }) {
             </article>
           ))}
         </div>
+
       </section>
 
       <section className="glow-brand-story" id="story">
@@ -663,6 +710,36 @@ export default function PublicHomePage({ branding, siteVisitCount }) {
             cleaner online shopping experience with trusted pricing, current stock visibility, and a smoother checkout flow.
           </p>
         </div>
+      </section>
+
+      <section className="glow-review-request" id="write-review">
+        <form className="glow-review-form" onSubmit={handleReviewSubmit}>
+          <div>
+            <span className="glow-kicker">Share Feedback</span>
+            <h3>Write a review</h3>
+            <p className="field-note">Only your mobile number is required. Other details are optional.</p>
+          </div>
+          <div className="glow-review-form-grid">
+            <input
+              value={reviewForm.mobile}
+              onChange={(e) => setReviewForm({ ...reviewForm, mobile: normalizeIndianMobile(e.target.value) })}
+              placeholder="10-digit mobile number"
+              inputMode="numeric"
+              maxLength="10"
+              required
+            />
+            <input value={reviewForm.customerName} onChange={(e) => setReviewForm({ ...reviewForm, customerName: e.target.value })} placeholder="Your name (optional)" />
+            <input value={reviewForm.city} onChange={(e) => setReviewForm({ ...reviewForm, city: e.target.value })} placeholder="City (optional)" />
+            <input value={reviewForm.product} onChange={(e) => setReviewForm({ ...reviewForm, product: e.target.value })} placeholder="Product or category (optional)" />
+            <select value={reviewForm.rating} onChange={(e) => setReviewForm({ ...reviewForm, rating: Number(e.target.value) })}>
+              {[5, 4, 3, 2, 1].map((rating) => <option key={rating} value={rating}>{rating} stars</option>)}
+            </select>
+          </div>
+          <textarea value={reviewForm.comment} onChange={(e) => setReviewForm({ ...reviewForm, comment: e.target.value })} placeholder="Tell us what you liked (optional)" rows="3" />
+          <button type="submit" className="btn-primary glow-pill-btn">Submit review</button>
+          {reviewStatus ? <p className="success-text">{reviewStatus}</p> : null}
+          {reviewError ? <p className="error-text">{reviewError}</p> : null}
+        </form>
       </section>
 
       <footer className="glow-footer">

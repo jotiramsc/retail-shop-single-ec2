@@ -26,6 +26,21 @@ export const defaultBranding = {
     heroPrimary: '',
     heroSecondary: ''
   },
+  theme: {
+    websitePrimaryColor: '#2fbf91',
+    websiteAccentColor: '#c97d3a',
+    websiteSurfaceColor: '#ffffff',
+    websiteTextColor: '#2f3a4a',
+    websiteCornerRadius: 'soft',
+    websiteButtonStyle: 'filled',
+    websiteDensity: 'comfortable',
+    adminPrimaryColor: '#2fbf91',
+    adminAccentColor: '#7367f0',
+    adminSurfaceColor: '#ffffff',
+    adminTextColor: '#2f3a4a',
+    adminSidebarStyle: 'jewellery',
+    adminHeaderCompact: true
+  },
   metaPixelId: ''
 };
 
@@ -78,6 +93,23 @@ export const normalizeBranding = (settings = {}) => {
       logo: media.logo || settings.logoUrl || defaultBranding.media.logo,
       heroPrimary: media.heroPrimary || settings.heroPrimaryImageUrl || defaultBranding.media.heroPrimary,
       heroSecondary: media.heroSecondary || settings.heroSecondaryImageUrl || defaultBranding.media.heroSecondary
+    },
+    theme: {
+      ...defaultBranding.theme,
+      ...(settings.theme || {}),
+      websitePrimaryColor: defaultBranding.theme.websitePrimaryColor,
+      websiteAccentColor: defaultBranding.theme.websiteAccentColor,
+      websiteSurfaceColor: defaultBranding.theme.websiteSurfaceColor,
+      websiteTextColor: defaultBranding.theme.websiteTextColor,
+      websiteCornerRadius: defaultBranding.theme.websiteCornerRadius,
+      websiteButtonStyle: defaultBranding.theme.websiteButtonStyle,
+      websiteDensity: defaultBranding.theme.websiteDensity,
+      adminPrimaryColor: defaultBranding.theme.adminPrimaryColor,
+      adminAccentColor: defaultBranding.theme.adminAccentColor,
+      adminSurfaceColor: defaultBranding.theme.adminSurfaceColor,
+      adminTextColor: defaultBranding.theme.adminTextColor,
+      adminSidebarStyle: defaultBranding.theme.adminSidebarStyle,
+      adminHeaderCompact: defaultBranding.theme.adminHeaderCompact
     },
     metaPixelId: settings.metaPixelId || ''
   };

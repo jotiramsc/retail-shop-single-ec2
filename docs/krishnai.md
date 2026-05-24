@@ -466,6 +466,19 @@ Useful existing references:
 
 ## Current State / In-progress Signals
 
+## Latest Billing UPI / Reviews Update
+
+- Shop billing supports Razorpay UPI payments without duplicating the existing Razorpay website checkout integration.
+- `POST /api/billing/payment-order` creates a payment order from a billing invoice preview for authorized billing users.
+- `GET /api/billing/payment-status` reuses the existing payment status logic so a late webhook/status update can still finalize safely.
+- Billing invoice create/update accepts optional Razorpay order/payment/signature fields. UPI invoices are rejected unless payment is verified by signature or successful payment status.
+- On UPI success, billing links payment diagnostics to the invoice/order, marks the invoice paid through the existing billing save flow, and relies on existing idempotent stock deduction behavior.
+- Billing UI shows a compact UPI modal with payment state, retry/regenerate QR, change-to-cash, and post-success Print/Download/WhatsApp actions.
+- Storefront reviews are collected at the end of the page. Only mobile number is required; name, city, product/category, and comment are optional.
+- Customer review mobile numbers are normalized on the frontend and backend before save.
+- Admin review moderation uses shared Sneat-style toasts for show/hide/delete feedback.
+- Theme color customization UI is disabled so the approved Krishnai storefront/admin styling remains stable.
+
 ## Latest Production Decisions
 
 - Customer mobile is treated as the shared identity for billing and website accounts. Backend lookups compare the last 10 normalized digits so `+91`, `91`, and 10-digit forms resolve to the same customer; billing-created customers remain valid customer profiles and website verification marks them as website/both source without blocking browsing.

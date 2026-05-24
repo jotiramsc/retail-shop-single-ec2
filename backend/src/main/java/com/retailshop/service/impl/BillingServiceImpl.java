@@ -4,6 +4,8 @@ import com.retailshop.dto.InvoiceCreateRequest;
 import com.retailshop.dto.InvoiceItemResponse;
 import com.retailshop.dto.InvoiceResponse;
 import com.retailshop.dto.InvoiceSearchResponse;
+import com.retailshop.dto.PaymentStatusResponse;
+import com.retailshop.dto.PlaceOrderRequest;
 import com.retailshop.entity.Customer;
 import com.retailshop.entity.CustomerOrder;
 import com.retailshop.entity.Invoice;
@@ -21,6 +23,8 @@ import com.retailshop.repository.InvoiceRepository;
 import com.retailshop.repository.ProductRepository;
 import com.retailshop.service.BillingService;
 import com.retailshop.service.CustomerService;
+import com.retailshop.service.PaymentService;
+import com.retailshop.service.PaymentTransactionService;
 import com.retailshop.service.StaffUserService;
 import com.retailshop.service.pricing.OrderPricingResult;
 import com.retailshop.service.pricing.OrderPricingService;
@@ -53,6 +57,8 @@ public class BillingServiceImpl implements BillingService {
     private final CustomerService customerService;
     private final StaffUserService staffUserService;
     private final OrderPricingService orderPricingService;
+    private final PaymentService paymentService;
+    private final PaymentTransactionService paymentTransactionService;
 
     @Override
     @Transactional(readOnly = true)
@@ -63,12 +69,14 @@ public class BillingServiceImpl implements BillingService {
     @Override
     @Transactional
     public InvoiceResponse createInvoice(InvoiceCreateRequest request) {
+        verifyShopPaymentIfPresent(request);
         return buildInvoiceResponse(request, true);
     }
 
     @Override
     @Transactional
     public InvoiceResponse updateInvoice(UUID id, InvoiceCreateRequest request) {
+        verifyShopPaymentIfPresent(request);
         Invoice invoice = invoiceRepository.findDetailedById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Invoice not found"));
 
@@ -134,7 +142,8 @@ public class BillingServiceImpl implements BillingService {
         Invoice savedInvoice = invoiceRepository.save(invoice);
         List<InvoiceItem> savedItems = invoiceItemRepository.saveAll(invoiceItems);
         savedInvoice.setItems(savedItems);
-        upsertBillingOrder(savedInvoice, savedItems);
+        upsertBillingOrder(savedInvoice, savedItems, request);
+        linkShopPayment(request, savedInvoice);
         return mapToResponse(savedInvoice);
     }
 
@@ -144,6 +153,17 @@ public class BillingServiceImpl implements BillingService {
         Invoice invoice = invoiceRepository.findDetailedById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Invoice not found"));
         return mapToResponse(invoice);
+    }
+
+    @Override
+    @Transactional
+    public void deleteInvoice(UUID id) {
+        Invoice invoice = invoiceRepository.findDetailedById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Invoice not found"));
+        restoreInvoiceStock(invoice);
+        invoiceItemRepository.deleteByInvoiceId(invoice.getId());
+        customerOrderRepository.findByInvoiceId(invoice.getId()).ifPresent(customerOrderRepository::delete);
+        invoiceRepository.delete(invoice);
     }
 
     @Override
@@ -279,8 +299,19 @@ public class BillingServiceImpl implements BillingService {
         invoiceItems.forEach(item -> item.setInvoice(savedInvoice));
         List<InvoiceItem> savedItems = invoiceItemRepository.saveAll(invoiceItems);
         savedInvoice.setItems(savedItems);
-        upsertBillingOrder(savedInvoice, savedItems);
+        upsertBillingOrder(savedInvoice, savedItems, request);
+        linkShopPayment(request, savedInvoice);
         return mapToResponse(savedInvoice);
+    }
+
+    private void restoreInvoiceStock(Invoice invoice) {
+        invoice.getItems().forEach(item -> {
+            Product product = item.getProduct();
+            if (product != null && item.getQuantity() != null) {
+                product.setQuantity(product.getQuantity() + item.getQuantity());
+                productRepository.save(product);
+            }
+        });
     }
 
     private Customer buildPreviewCustomer(InvoiceCreateRequest request) {
@@ -314,7 +345,7 @@ public class BillingServiceImpl implements BillingService {
         return manualDiscount;
     }
 
-    private void upsertBillingOrder(Invoice invoice, List<InvoiceItem> invoiceItems) {
+    private void upsertBillingOrder(Invoice invoice, List<InvoiceItem> invoiceItems, InvoiceCreateRequest request) {
         CustomerOrder order = customerOrderRepository.findByInvoiceId(invoice.getId())
                 .orElseGet(CustomerOrder::new);
 
@@ -329,9 +360,10 @@ public class BillingServiceImpl implements BillingService {
         order.setDelivery(invoice.getDelivery());
         order.setFinalAmount(invoice.getFinalAmount());
         order.setCouponCode(invoice.getCouponCode());
-        order.setPaymentGateway(invoice.getPaymentMode().name());
-        order.setPaymentOrderId(invoice.getInvoiceNumber());
-        order.setPaymentId(invoice.getInvoiceNumber());
+        boolean razorpayPayment = hasText(request.getRazorpayOrderId());
+        order.setPaymentGateway(razorpayPayment ? "RAZORPAY" : invoice.getPaymentMode().name());
+        order.setPaymentOrderId(firstNonBlank(request.getRazorpayOrderId(), invoice.getInvoiceNumber()));
+        order.setPaymentId(firstNonBlank(request.getRazorpayPaymentId(), invoice.getInvoiceNumber()));
         order.setPaymentStatus("PAID");
         order.setSource(OrderSource.BILLING);
         order.setInvoiceId(invoice.getId());
@@ -361,11 +393,52 @@ public class BillingServiceImpl implements BillingService {
         customerOrderRepository.save(order);
     }
 
+    private void verifyShopPaymentIfPresent(InvoiceCreateRequest request) {
+        if (request == null || !hasText(request.getRazorpayOrderId())) {
+            return;
+        }
+        PlaceOrderRequest paymentRequest = new PlaceOrderRequest();
+        paymentRequest.setRazorpayOrderId(request.getRazorpayOrderId());
+        paymentRequest.setRazorpayPaymentId(request.getRazorpayPaymentId());
+        paymentRequest.setRazorpaySignature(request.getRazorpaySignature());
+        paymentRequest.setPaymentProvider("RAZORPAY");
+        InvoiceResponse preview = previewInvoice(request);
+        if (!hasText(request.getRazorpayPaymentId()) || !hasText(request.getRazorpaySignature())) {
+            PaymentStatusResponse status = paymentService.getPaymentStatus(request.getRazorpayOrderId());
+            if (status != null && status.isSuccess()) {
+                return;
+            }
+            throw new BusinessException("UPI payment is not confirmed yet. Please retry payment or change payment method.");
+        }
+        if (!paymentService.verifyPayment(paymentRequest, preview.getFinalAmount())) {
+            throw new BusinessException("UPI payment could not be verified. Please retry payment or change payment method.");
+        }
+    }
+
+    private void linkShopPayment(InvoiceCreateRequest request, Invoice invoice) {
+        if (request != null && hasText(request.getRazorpayOrderId())) {
+            paymentTransactionService.linkOrder(
+                    request.getRazorpayOrderId(),
+                    invoice.getId(),
+                    invoice.getInvoiceNumber(),
+                    invoice.getCustomer().getId()
+            );
+        }
+    }
+
     private String normalizeCouponCode(String couponCode) {
         if (couponCode == null || couponCode.isBlank()) {
             return null;
         }
         return couponCode.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+
+    private String firstNonBlank(String first, String fallback) {
+        return hasText(first) ? first.trim() : fallback;
     }
 
     private SalesPersonSelection resolveSalesPerson(UUID salesPersonUserId) {

@@ -1,6 +1,7 @@
 import { Link, useSearchParams } from 'react-router-dom';
 import { useEffect, useMemo, useState } from 'react';
 import { retailService } from '../services/retailService';
+import { getStoredAuthSession } from '../utils/auth';
 import { currency, formatDate } from '../utils/format';
 import { getApiErrorMessage } from '../utils/validation';
 
@@ -11,6 +12,10 @@ const segmentOptions = [
   'High Value Customer',
   'Offer Interested Customer',
   'Cart Abandoned Customer',
+  'Verified customers',
+  'Unverified customers',
+  'Billing-created customers',
+  'Website signup customers',
   'Birthday Upcoming',
   'Anniversary Upcoming',
   'Inactive Customer',
@@ -180,17 +185,26 @@ function EmptyCard({ title, description, icon = 'bx-data' }) {
   );
 }
 
-function CustomerRow({ customer, active, onSelect }) {
+function CustomerRow({ customer, active, onSelect, onDelete, isAdmin }) {
+  const badges = customerVerificationBadges(customer);
   return (
-    <button type="button" className={`sneat-user-row ${active ? 'is-active' : ''}`} onClick={() => onSelect(customer)}>
-      <span className="sneat-avatar">{customerInitial(customer)}</span>
-      <span className="sneat-user-main">
-        <strong>{customer.name || 'Unnamed customer'}</strong>
-        <small>{customer.mobile || customer.email || 'No contact captured'}</small>
-      </span>
-      <span className="badge bg-label-primary">{customer.segment || customer.segments?.[0] || 'Customer'}</span>
-      <i className="bx bx-chevron-right" />
-    </button>
+    <div className={`sneat-user-row ${active ? 'is-active' : ''}`}>
+      <button type="button" className="sneat-user-row-main" onClick={() => onSelect(customer)}>
+        <span className="sneat-avatar">{customerInitial(customer)}</span>
+        <span className="sneat-user-main">
+          <strong>{customer.name || 'Unnamed customer'}</strong>
+          <small>{customer.mobile || customer.email || 'No contact captured'}</small>
+        </span>
+        <span className="sneat-chip-row compact">
+          <span className="badge bg-label-primary">{customer.segment || customer.segments?.[0] || 'Customer'}</span>
+          {badges.slice(0, 2).map((badge) => (
+            <span key={badge.label} className={`badge ${badge.className}`}>{badge.label}</span>
+          ))}
+        </span>
+        <i className="bx bx-chevron-right" />
+      </button>
+      {isAdmin ? <button type="button" className="danger-btn compact-btn" onClick={() => onDelete(customer)}>Delete</button> : null}
+    </div>
   );
 }
 
@@ -234,6 +248,27 @@ function joinValue(value) {
   return value;
 }
 
+function customerVerificationBadges(customer = {}) {
+  const source = String(customer.customerSource || '').toUpperCase();
+  const verified = customer.mobileVerified === true || String(customer.verificationStatus || '').toUpperCase() === 'VERIFIED';
+  return [
+    {
+      label: verified ? 'Verified' : 'Unverified',
+      className: verified ? 'bg-label-success' : 'bg-label-warning'
+    },
+    source.includes('BILLING')
+      ? { label: 'Billing-created', className: 'bg-label-info' }
+      : null,
+    source.includes('WEBSITE')
+      ? { label: 'Website signup', className: 'bg-label-primary' }
+      : null,
+    {
+      label: customer.loginEnabled ? 'Login enabled' : 'Login disabled',
+      className: customer.loginEnabled ? 'bg-label-success' : 'bg-label-secondary'
+    }
+  ].filter(Boolean);
+}
+
 function KeyValueTable({ rows }) {
   return (
     <div className="sneat-table-scroll crm-kv-table-wrap">
@@ -268,6 +303,10 @@ function AccountOverview({ customer, profileCompletion }) {
     { label: 'Name', value: customer.name },
     { label: 'Mobile', value: customer.mobile },
     { label: 'Email', value: customer.email },
+    { label: 'Verification', value: customer.verificationStatus || (customer.mobileVerified ? 'VERIFIED' : 'UNVERIFIED') },
+    { label: 'Source', value: customer.customerSource },
+    { label: 'Login access', value: customer.loginEnabled ? 'Enabled' : 'Disabled' },
+    { label: 'OTP verified at', value: customer.otpVerifiedAt ? formatDate(customer.otpVerifiedAt) : '' },
     { label: 'Gender', value: customer.gender },
     { label: 'DOB', value: customer.dateOfBirth ? formatDate(customer.dateOfBirth) : '' },
     { label: 'Anniversary', value: customer.anniversaryDate ? formatDate(customer.anniversaryDate) : '' },
@@ -298,6 +337,7 @@ function AccountOverview({ customer, profileCompletion }) {
     { label: 'Recommended products', value: joinValue(customer.recommendedProducts) }
   ];
   const activityRows = customer.searchHistory?.length ? customer.searchHistory : customer.activityHistory || [];
+  const badges = customerVerificationBadges(customer);
 
   return (
     <div className="sneat-user-view-grid crm-tabular-overview">
@@ -306,6 +346,11 @@ function AccountOverview({ customer, profileCompletion }) {
         <h3>{customer.name || 'Unnamed customer'}</h3>
         <p>{customer.mobile || customer.email || 'No contact captured'}</p>
         <span className="badge bg-label-success">{customer.highValueBadge || customer.segments?.[0] || 'Customer'}</span>
+        <div className="sneat-chip-row compact">
+          {badges.map((badge) => (
+            <span key={badge.label} className={`badge ${badge.className}`}>{badge.label}</span>
+          ))}
+        </div>
         <div className="sneat-profile-progress">
           <div><span style={{ width: `${profileCompletion}%` }} /></div>
           <strong>{profileCompletion}% profile ready</strong>
@@ -504,6 +549,9 @@ function CustomerDirectoryScreen({ detailTab = 'Overview' }) {
   const [loadingCustomers, setLoadingCustomers] = useState(false);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const auth = getStoredAuthSession();
+  const isAdminUser = ['ADMIN', 'OWNER'].includes(auth?.role);
 
   const loadCustomers = async (page = 0, nextSegment = segment) => {
     setLoadingCustomers(true);
@@ -543,6 +591,21 @@ function CustomerDirectoryScreen({ detailTab = 'Overview' }) {
       setError(isLocalCrmPreviewEnabled() ? '' : getApiErrorMessage(requestError, 'Unable to load customer details.'));
     } finally {
       setLoadingDetails(false);
+    }
+  };
+
+  const deleteCustomer = async (customer) => {
+    if (!isAdminUser || !customer?.id) return;
+    setError('');
+    setSuccess('');
+    try {
+      await retailService.deleteCustomer(customer.id);
+      setSuccess(`${customer.name || 'Customer'} deleted.`);
+      setSelectedCustomer(null);
+      setCustomerDetails(null);
+      await loadCustomers(customersPage.page || 0, segment);
+    } catch (requestError) {
+      setError(getApiErrorMessage(requestError, 'Unable to delete customer.'));
     }
   };
 
@@ -659,6 +722,7 @@ function CustomerDirectoryScreen({ detailTab = 'Overview' }) {
       </section>
 
       {error ? <div className="alert alert-danger">{error}</div> : null}
+      {success ? <div className="alert alert-success">{success}</div> : null}
 
       <nav className="crm-detail-tab-row" aria-label="Customer CRM sections">
         {customerDetailTabs.map((tab) => (
@@ -684,6 +748,8 @@ function CustomerDirectoryScreen({ detailTab = 'Overview' }) {
                 customer={customer}
                 active={selectedCustomer?.id === customer.id}
                 onSelect={loadCustomerDetails}
+                onDelete={deleteCustomer}
+                isAdmin={isAdminUser}
               />
             ))}
             {!filteredCustomers.length ? <EmptyCard title="No customers found" description="Try another search term or segment." icon="bx-search" /> : null}
@@ -713,6 +779,7 @@ function customerDetailsPath(customer, detailPath = 'overview') {
 }
 
 function CustomerRowCompact({ customer }) {
+  const verified = customer.mobileVerified === true || String(customer.verificationStatus || '').toUpperCase() === 'VERIFIED';
   return (
     <Link className="sneat-list-row sneat-list-row-link" to={customerDetailsPath(customer)}>
       <span className="sneat-avatar">{customerInitial(customer)}</span>
@@ -720,7 +787,9 @@ function CustomerRowCompact({ customer }) {
         <strong>{customer.name || 'Unnamed customer'}</strong>
         <small>{customer.mobile || customer.email || 'No contact captured'}</small>
       </div>
-      <span className="badge bg-label-primary">{customer.segment || customer.segments?.[0] || 'Customer'}</span>
+      <span className={`badge ${verified ? 'bg-label-success' : 'bg-label-warning'}`}>
+        {verified ? 'Verified' : 'Unverified'}
+      </span>
     </Link>
   );
 }

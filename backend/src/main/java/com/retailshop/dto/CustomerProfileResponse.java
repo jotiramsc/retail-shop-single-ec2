@@ -21,6 +21,9 @@ public class CustomerProfileResponse {
     private String alternateMobile;
     private String authProvider;
     private boolean mobileVerified;
+    private String verificationStatus;
+    private boolean loginEnabled;
+    private LocalDateTime otpVerifiedAt;
     private boolean emailVerified;
     private boolean profileComplete;
     private List<String> missingFields;

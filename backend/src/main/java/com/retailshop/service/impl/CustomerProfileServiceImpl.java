@@ -9,6 +9,7 @@ import com.retailshop.exception.ResourceNotFoundException;
 import com.retailshop.repository.CustomerRepository;
 import com.retailshop.service.CustomerProfileService;
 import com.retailshop.service.ImageUploadService;
+import com.retailshop.util.MobileNumberUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,14 +25,19 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class CustomerProfileServiceImpl implements CustomerProfileService {
 
+    private static final String STATUS_VERIFIED = "VERIFIED";
+    private static final String STATUS_UNVERIFIED = "UNVERIFIED";
+
     private final CustomerRepository customerRepository;
     private final ImageUploadService imageUploadService;
 
     @Override
     @Transactional(readOnly = true)
     public CustomerProfileResponse getProfile(UUID customerId) {
-        return map(customerRepository.findById(customerId)
-                .orElseThrow(() -> new ResourceNotFoundException("Customer not found")));
+        Customer customer = customerRepository.findById(customerId)
+                .orElseThrow(() -> new ResourceNotFoundException("Customer not found"));
+        ensureActiveCustomer(customer);
+        return map(customer);
     }
 
     @Override
@@ -39,6 +45,7 @@ public class CustomerProfileServiceImpl implements CustomerProfileService {
     public CustomerProfileResponse updateProfile(UUID customerId, CustomerProfileRequest request) {
         Customer customer = customerRepository.findById(customerId)
                 .orElseThrow(() -> new ResourceNotFoundException("Customer not found"));
+        ensureActiveCustomer(customer);
         String nextName = normalizeText(request.getName());
         String nextEmail = normalizeEmail(request.getEmail());
         String nextMobile = normalizeText(request.getMobile());
@@ -70,6 +77,9 @@ public class CustomerProfileServiceImpl implements CustomerProfileService {
             customer.setMobile(formatDisplayMobile(normalizedNextMobile));
             if (mobileChanged) {
                 customer.setMobileVerified(false);
+                customer.setVerificationStatus(STATUS_UNVERIFIED);
+                customer.setLoginEnabled(false);
+                customer.setOtpVerifiedAt(null);
             }
         }
         customer.setDateOfBirth(request.getDateOfBirth());
@@ -88,6 +98,7 @@ public class CustomerProfileServiceImpl implements CustomerProfileService {
         }
         Customer customer = customerRepository.findById(customerId)
                 .orElseThrow(() -> new ResourceNotFoundException("Customer not found"));
+        ensureActiveCustomer(customer);
         ImageUploadResponse upload = imageUploadService.uploadImage(image, "customer-profiles");
         if (upload == null || !hasText(upload.getCloudfrontUrl())) {
             throw new BusinessException("Profile image upload failed");
@@ -102,6 +113,7 @@ public class CustomerProfileServiceImpl implements CustomerProfileService {
     public void ensureCheckoutReady(UUID customerId) {
         Customer customer = customerRepository.findById(customerId)
                 .orElseThrow(() -> new ResourceNotFoundException("Customer not found"));
+        ensureActiveCustomer(customer);
         List<String> missingFields = missingFields(customer);
         if (!missingFields.isEmpty()) {
             throw new BusinessException("Mobile OTP verification is required before payment");
@@ -122,6 +134,9 @@ public class CustomerProfileServiceImpl implements CustomerProfileService {
                 .authProvider(customer.getAuthProvider())
                 .mobileVerified(customer.isMobileVerified())
                 .emailVerified(customer.isEmailVerified())
+                .verificationStatus(verificationStatus(customer))
+                .loginEnabled(customer.isLoginEnabled())
+                .otpVerifiedAt(customer.getOtpVerifiedAt())
                 .profileComplete(missingFields.isEmpty())
                 .missingFields(missingFields)
                 .createdAt(customer.getCreatedAt())
@@ -147,31 +162,30 @@ public class CustomerProfileServiceImpl implements CustomerProfileService {
         if (!customer.isMobileVerified()) {
             missing.add("mobile OTP verification");
         }
+        if (!customer.isLoginEnabled() || !isVerified(customer)) {
+            missing.add("account activation");
+        }
         return missing;
     }
 
     private Optional<Customer> findExistingCustomer(String mobile) {
         String normalized = normalizeLocalMobile(mobile);
-        return customerRepository.findByMobile(normalized);
+        return customerRepository.findByMobile(normalized)
+                .or(() -> customerRepository.findByMobile("+91 " + normalized))
+                .or(() -> customerRepository.findByMobile("91" + normalized))
+                .or(() -> customerRepository.findByNormalizedMobile(normalized));
     }
 
     private String normalizeLocalMobile(String mobile) {
-        String digits = mobile == null ? "" : mobile.replaceAll("[^0-9]", "");
-        if (digits.startsWith("91") && digits.length() > 10) {
-            digits = digits.substring(digits.length() - 10);
-        }
-        if (digits.length() != 10) {
+        String digits = MobileNumberUtils.normalizeIndianMobile(mobile);
+        if (digits.isBlank()) {
             throw new BusinessException("Valid mobile number is required");
         }
         return digits;
     }
 
     private String normalizeLocalMobileOrBlank(String mobile) {
-        String digits = mobile == null ? "" : mobile.replaceAll("[^0-9]", "");
-        if (digits.startsWith("91") && digits.length() > 10) {
-            digits = digits.substring(digits.length() - 10);
-        }
-        return digits.length() == 10 ? digits : "";
+        return MobileNumberUtils.normalizeIndianMobile(mobile);
     }
 
     private String normalizeOptionalMobile(String mobile) {
@@ -200,5 +214,20 @@ public class CustomerProfileServiceImpl implements CustomerProfileService {
 
     private boolean hasText(String value) {
         return value != null && !value.trim().isEmpty();
+    }
+
+    private void ensureActiveCustomer(Customer customer) {
+        if (!customer.isLoginEnabled() || !isVerified(customer)) {
+            throw new BusinessException("Please verify your mobile number with OTP to activate your account.");
+        }
+    }
+
+    private boolean isVerified(Customer customer) {
+        return customer != null && (customer.isMobileVerified()
+                || STATUS_VERIFIED.equalsIgnoreCase(normalizeText(customer.getVerificationStatus())));
+    }
+
+    private String verificationStatus(Customer customer) {
+        return isVerified(customer) ? STATUS_VERIFIED : STATUS_UNVERIFIED;
     }
 }

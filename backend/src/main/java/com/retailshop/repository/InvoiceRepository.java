@@ -40,6 +40,7 @@ public interface InvoiceRepository extends JpaRepository<Invoice, UUID> {
             Pageable pageable
     );
 
+    @EntityGraph(attributePaths = {"customer", "items", "items.product"})
     List<Invoice> findByCustomerIdOrderByCreatedAtDesc(UUID customerId);
 
     @Query("select coalesce(sum(i.finalAmount), 0) from Invoice i where i.createdAt between :start and :end")

@@ -13,6 +13,9 @@ public class CustomerLookupResponse {
     private UUID id;
     private String name;
     private String mobile;
+    private String verificationStatus;
+    private String customerSource;
+    private Boolean loginEnabled;
     private long totalInvoices;
     private BigDecimal totalSpent;
     private LocalDateTime lastPurchaseAt;

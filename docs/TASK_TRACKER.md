@@ -682,3 +682,44 @@
   - SSM command `9fcc1df9-a243-431e-abbb-cb48b6aeb676` completed successfully.
   - Live `https://kpskrishnai.com/actuator/health` returned `{"status":"UP"}`.
   - Live `/app/products`, `/app/billing`, and `/app/reports` returned HTTP 200.
+
+## Latest Billing UPI, Reviews, and Toast Work
+
+- Changed files:
+  - `backend/src/main/java/com/retailshop/controller/BillingController.java`
+  - `backend/src/main/java/com/retailshop/dto/BillingPaymentOrderRequest.java`
+  - `backend/src/main/java/com/retailshop/dto/InvoiceCreateRequest.java`
+  - `backend/src/main/java/com/retailshop/dto/CustomerReviewRequest.java`
+  - `backend/src/main/java/com/retailshop/dto/CustomerReviewResponse.java`
+  - `backend/src/main/java/com/retailshop/entity/CustomerReview.java`
+  - `backend/src/main/java/com/retailshop/service/impl/BillingServiceImpl.java`
+  - `backend/src/main/java/com/retailshop/service/impl/CustomerReviewServiceImpl.java`
+  - `backend/src/main/resources/schema.sql`
+  - `frontend/src/components/ToastHost.jsx`
+  - `frontend/src/pages/BillingPage.jsx`
+  - `frontend/src/pages/CustomerReviewsPage.jsx`
+  - `frontend/src/pages/PublicHomePage.jsx`
+  - `frontend/src/pages/ReceiptSettingsPage.jsx`
+  - `frontend/src/services/retailService.js`
+  - `frontend/src/styles/global.css`
+  - `frontend/src/utils/branding.js`
+  - `docs/CURRENT_TASK.md`
+  - `docs/TASK_TRACKER.md`
+  - `docs/krishnai.md`
+  - `docs/KRISHNAI_APP_CONTEXT.md`
+- Implementation notes:
+  - Shop billing UPI now starts a Razorpay order from the current invoice preview and shows a modal for QR/UPI payment status, retry/regenerate, change-to-cash, and post-success invoice actions.
+  - Billing invoice creation verifies Razorpay UPI details before saving and links Razorpay diagnostics to the generated invoice/order.
+  - Failed, closed, or unverified UPI payments do not finalize the invoice and do not reduce stock.
+  - Website Razorpay checkout remains on the existing flow.
+  - Storefront review submission moved to the end of the page and requires only visitor mobile; optional fields can be left blank.
+  - Review mobile values normalize server-side before saving, so `+91`, `91`, and spaced forms are accepted when they resolve to a valid Indian 10-digit number.
+  - Review moderation and billing feedback use the shared Sneat-style toast host.
+  - Theme color customization controls are disabled to keep the approved Krishnai visual theme stable.
+  - Billing existing-customer status is compact and no longer repeats detailed customer profile information.
+- Local testing:
+  - `frontend npm run build` passed.
+  - `backend ./mvnw -q -DskipTests package` passed.
+  - `backend ./mvnw -q -Dtest=BillingServiceImplTest,CustomerAuthServiceImplTest,CustomerServiceImplTest test` passed.
+- Deployment:
+  - Pending.

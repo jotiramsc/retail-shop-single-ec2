@@ -29,6 +29,10 @@ public interface CustomerOrderRepository extends JpaRepository<CustomerOrder, UU
     @EntityGraph(attributePaths = {"items"})
     Optional<CustomerOrder> findByInvoiceId(UUID invoiceId);
 
+    @EntityGraph(attributePaths = {"customer", "items", "items.product"})
+    @Query("select o from CustomerOrder o where o.id = :id")
+    Optional<CustomerOrder> findDetailedById(@Param("id") UUID id);
+
     @EntityGraph(attributePaths = {"items"})
     Optional<CustomerOrder> findByPaymentOrderId(String paymentOrderId);
 

@@ -111,6 +111,8 @@ public class SecurityConfig {
                         .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/omnichannel/products/**", "/api/omnichannel/leads").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/campaign-leads/visits").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/site-interactions/visit").permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/reviews/public").permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/reviews").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/settings/receipt").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/product-categories/options").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/products/catalog", "/api/products/catalog/home", "/api/products/catalog/trending", "/api/products/catalog/**").permitAll()

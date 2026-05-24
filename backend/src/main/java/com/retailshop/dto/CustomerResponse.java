@@ -18,6 +18,11 @@ public class CustomerResponse {
     private LocalDate dateOfBirth;
     private LocalDate anniversaryDate;
     private String customerTags;
+    private String verificationStatus;
+    private String customerSource;
+    private Boolean loginEnabled;
+    private LocalDateTime otpVerifiedAt;
+    private LocalDateTime lastOrderAt;
     private List<String> segments;
     private LocalDateTime createdAt;
 }

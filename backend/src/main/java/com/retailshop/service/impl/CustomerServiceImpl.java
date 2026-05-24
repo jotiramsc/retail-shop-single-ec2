@@ -18,7 +18,10 @@ import com.retailshop.entity.CustomerLoginHistory;
 import com.retailshop.entity.OmnichannelConversation;
 import com.retailshop.entity.OmnichannelConversationMessage;
 import com.retailshop.entity.OmnichannelLead;
+import com.retailshop.entity.Invoice;
+import com.retailshop.entity.Product;
 import com.retailshop.enums.OrderStatus;
+import com.retailshop.enums.OrderSource;
 import com.retailshop.repository.AddressRepository;
 import com.retailshop.repository.CustomerActivityHistoryRepository;
 import com.retailshop.repository.CustomerLocationHistoryRepository;
@@ -27,11 +30,14 @@ import com.retailshop.repository.CustomerOrderRepository;
 import com.retailshop.exception.BusinessException;
 import com.retailshop.exception.ResourceNotFoundException;
 import com.retailshop.repository.CustomerRepository;
+import com.retailshop.repository.InvoiceItemRepository;
 import com.retailshop.repository.InvoiceRepository;
 import com.retailshop.repository.OmnichannelConversationMessageRepository;
 import com.retailshop.repository.OmnichannelConversationRepository;
 import com.retailshop.repository.OmnichannelLeadRepository;
+import com.retailshop.repository.ProductRepository;
 import com.retailshop.service.CustomerService;
+import com.retailshop.util.MobileNumberUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
@@ -62,6 +68,8 @@ public class CustomerServiceImpl implements CustomerService {
     private final CustomerLoginHistoryRepository loginHistoryRepository;
     private final CustomerLocationHistoryRepository locationHistoryRepository;
     private final CustomerActivityHistoryRepository activityHistoryRepository;
+    private final InvoiceItemRepository invoiceItemRepository;
+    private final ProductRepository productRepository;
     private final OmnichannelLeadRepository omnichannelLeadRepository;
     private final OmnichannelConversationRepository conversationRepository;
     private final OmnichannelConversationMessageRepository messageRepository;
@@ -72,10 +80,15 @@ public class CustomerServiceImpl implements CustomerService {
         findCustomerByMobile(request.getMobile()).ifPresent(customer -> {
             throw new BusinessException("Customer with this mobile already exists");
         });
+        String normalizedMobile = normalizedLastTen(request.getMobile());
+        if (normalizedMobile.isBlank()) {
+            throw new BusinessException("Valid mobile number is required");
+        }
         Customer customer = new Customer();
         customer.setName(request.getName());
-        customer.setMobile(request.getMobile());
-        customer.setCustomerSource("BILLING");
+        customer.setMobile(normalizedMobile);
+        customer.setCustomerSource("ADMIN_CREATED");
+        markUnverified(customer);
         return mapToResponse(customerRepository.save(customer));
     }
 
@@ -89,8 +102,7 @@ public class CustomerServiceImpl implements CustomerService {
         String normalizedSegment = normalizeLabel(segment);
         List<CustomerResponse> items = page.getContent().stream()
                 .map(this::mapToResponse)
-                .filter(response -> response.getSegments() != null
-                        && response.getSegments().stream().map(this::normalizeLabel).anyMatch(normalizedSegment::equals))
+                .filter(response -> customerMatchesSegment(response, normalizedSegment))
                 .toList();
         return PaginatedResponse.<CustomerResponse>builder()
                 .items(items)
@@ -160,6 +172,10 @@ public class CustomerServiceImpl implements CustomerService {
                 .shoppingInterests(customer.getShoppingInterests())
                 .customerNotes(customer.getCustomerNotes())
                 .customerTags(customer.getCustomerTags())
+                .verificationStatus(verificationStatus(customer))
+                .customerSource(customer.getCustomerSource())
+                .loginEnabled(customer.isLoginEnabled())
+                .otpVerifiedAt(customer.getOtpVerifiedAt())
                 .birthdayReminderEnabled(customer.isBirthdayReminderEnabled())
                 .anniversaryReminderEnabled(customer.isAnniversaryReminderEnabled())
                 .lastLoginAt(customer.getLastLoginAt())
@@ -261,6 +277,9 @@ public class CustomerServiceImpl implements CustomerService {
                 .id(customer.getId())
                 .name(customer.getName())
                 .mobile(customer.getMobile())
+                .verificationStatus(verificationStatus(customer))
+                .customerSource(customer.getCustomerSource())
+                .loginEnabled(customer.isLoginEnabled())
                 .totalInvoices(invoices.size())
                 .totalSpent(invoices.stream()
                         .map(invoice -> Optional.ofNullable(invoice.getFinalAmount()).orElse(java.math.BigDecimal.ZERO))
@@ -275,19 +294,29 @@ public class CustomerServiceImpl implements CustomerService {
     @Override
     @Transactional
     public Customer findOrCreateCustomer(String name, String mobile) {
-        return findCustomerByMobile(mobile)
+        String normalizedMobile = normalizedLastTen(mobile);
+        if (normalizedMobile.isBlank()) {
+            throw new BusinessException("Valid mobile number is required");
+        }
+        return findCustomerByMobile(normalizedMobile)
                 .map(existing -> {
-                    if (existing.getName() == null || !existing.getName().equals(name)) {
+                    if (!isVerified(existing) && !hasText(existing.getName()) && hasText(name)) {
                         existing.setName(name);
                     }
                     existing.setCustomerSource(mergeCustomerSource(existing.getCustomerSource(), "BILLING"));
+                    if (!isVerified(existing)) {
+                        markUnverified(existing);
+                    }
+                    existing.setLastOrderAt(LocalDateTime.now());
                     return customerRepository.save(existing);
                 })
                 .orElseGet(() -> {
                     Customer customer = new Customer();
                     customer.setName(name);
-                    customer.setMobile(mobile);
+                    customer.setMobile(normalizedMobile);
                     customer.setCustomerSource("BILLING");
+                    markUnverified(customer);
+                    customer.setLastOrderAt(LocalDateTime.now());
                     return customerRepository.save(customer);
                 });
     }
@@ -425,6 +454,60 @@ public class CustomerServiceImpl implements CustomerService {
                 .build();
     }
 
+    @Override
+    @Transactional
+    public void deleteCustomer(UUID customerId) {
+        Customer customer = customerRepository.findById(customerId)
+                .orElseThrow(() -> new ResourceNotFoundException("Customer not found"));
+
+        invoiceRepository.findByCustomerIdOrderByCreatedAtDesc(customer.getId()).forEach(invoice -> {
+            restoreInvoiceStock(invoice);
+            invoiceItemRepository.deleteByInvoiceId(invoice.getId());
+            customerOrderRepository.findByInvoiceId(invoice.getId()).ifPresent(customerOrderRepository::delete);
+            invoiceRepository.delete(invoice);
+        });
+
+        customerOrderRepository.findByCustomerIdOrderByCreatedAtDesc(customer.getId()).forEach(order -> {
+            if (order.getSource() != OrderSource.BILLING || order.getInvoiceId() == null) {
+                order.getItems().forEach(item -> {
+                    Product product = item.getProduct();
+                    if (product != null && item.getQuantity() != null) {
+                        product.setQuantity(product.getQuantity() + item.getQuantity());
+                        productRepository.save(product);
+                    }
+                });
+            }
+            customerOrderRepository.delete(order);
+        });
+
+        customerRepository.delete(customer);
+    }
+
+    private void restoreInvoiceStock(Invoice invoice) {
+        invoice.getItems().forEach(item -> {
+            Product product = item.getProduct();
+            if (product != null && item.getQuantity() != null) {
+                product.setQuantity(product.getQuantity() + item.getQuantity());
+                productRepository.save(product);
+            }
+        });
+    }
+
+    private void markUnverified(Customer customer) {
+        customer.setMobileVerified(false);
+        customer.setVerificationStatus("UNVERIFIED");
+        customer.setLoginEnabled(false);
+    }
+
+    private boolean isVerified(Customer customer) {
+        return customer != null
+                && (customer.isMobileVerified() || "VERIFIED".equalsIgnoreCase(customer.getVerificationStatus()));
+    }
+
+    private String verificationStatus(Customer customer) {
+        return isVerified(customer) ? "VERIFIED" : "UNVERIFIED";
+    }
+
     private CustomerResponse mapToResponse(Customer customer) {
         return CustomerResponse.builder()
                 .id(customer.getId())
@@ -434,9 +517,34 @@ public class CustomerServiceImpl implements CustomerService {
                 .dateOfBirth(customer.getDateOfBirth())
                 .anniversaryDate(customer.getAnniversaryDate())
                 .customerTags(customer.getCustomerTags())
+                .verificationStatus(verificationStatus(customer))
+                .customerSource(customer.getCustomerSource())
+                .loginEnabled(customer.isLoginEnabled())
+                .otpVerifiedAt(customer.getOtpVerifiedAt())
+                .lastOrderAt(customer.getLastOrderAt())
                 .segments(buildSegments(customer, 0, BigDecimal.ZERO, List.of()))
                 .createdAt(customer.getCreatedAt())
                 .build();
+    }
+
+    private boolean customerMatchesSegment(CustomerResponse response, String normalizedSegment) {
+        if ("verified customers".equals(normalizedSegment) || "verified".equals(normalizedSegment)) {
+            return "verified".equalsIgnoreCase(response.getVerificationStatus());
+        }
+        if ("unverified customers".equals(normalizedSegment) || "unverified".equals(normalizedSegment)) {
+            return !"verified".equalsIgnoreCase(response.getVerificationStatus());
+        }
+        if ("billing-created customers".equals(normalizedSegment) || "billing created".equals(normalizedSegment)) {
+            return "billing".equalsIgnoreCase(response.getCustomerSource())
+                    || "both".equalsIgnoreCase(response.getCustomerSource());
+        }
+        if ("website signup customers".equals(normalizedSegment) || "website signup".equals(normalizedSegment)) {
+            return "website_signup".equalsIgnoreCase(response.getCustomerSource())
+                    || "website".equalsIgnoreCase(response.getCustomerSource())
+                    || "both".equalsIgnoreCase(response.getCustomerSource());
+        }
+        return response.getSegments() != null
+                && response.getSegments().stream().map(this::normalizeLabel).anyMatch(normalizedSegment::equals);
     }
 
     private CustomerDetailsResponse.LoginSummary mapLogin(CustomerLoginHistory history) {
@@ -834,11 +942,7 @@ public class CustomerServiceImpl implements CustomerService {
     }
 
     private String normalizedLastTen(String mobile) {
-        String digits = mobile == null ? "" : mobile.replaceAll("\\D", "");
-        if (digits.length() < 10) {
-            return "";
-        }
-        return digits.substring(digits.length() - 10);
+        return MobileNumberUtils.normalizeIndianMobile(mobile);
     }
 
     private String mergeCustomerSource(String current, String incoming) {
